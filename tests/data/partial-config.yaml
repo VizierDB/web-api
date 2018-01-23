@@ -1,0 +1,15 @@
+api:
+    server_url: 'http://vizier-db.info'
+    server_port: 80
+engines:
+    - id: 'MIMIR'
+      name: 'NAME-MIMIR'
+      datastore:
+          directory: 'DIR-MIMIR'
+    - identifier: 'DEFAULT'
+      name: 'NAME-DEFAULT'
+      datastore:
+          directory: 'DIR-DEFAULT'
+fileserver:
+    directory: 'fs-directory'
+debug: False

@@ -1,0 +1,20 @@
+* Catch exceptions in workflow engine and Mimir package
+* Enumerate available SQL data types for Mimir lenses
+* PICKER lens
+* Logging
+* Architecture diagram
+* Carefully go through code documentation
+* Run MISSING_KEY on ROW ID
+* Documentation
+* Clean-up tests
+* Make Flask and Mimir work together (maybe move init.py for now)
+* environment.yaml
+
+
+Next Version
+------------
+
+* Formulas
+* Use row and column identifier instead of index
+  - Requires to include dataset schema and list of row ids for every (historic) dataset via the API (or provide a API call to get the dataset schema)
+  - Not sure if this is desired at all

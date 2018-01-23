@@ -1,0 +1,21 @@
+properties:
+    - key: 'api.doc'
+      value: 'http://cds-dc.cims.nyu.edu/vizier-db/doc/api/v1'
+    - key: 'app.debug'
+      value: True
+    - key: 'app.name'
+      value: 'Vizier DB Web API'
+    - key: 'app.title'
+      value: 'Vizier DB - Data Curation Projects'
+    - key: 'pj.location'
+      vakue: './.prj'
+    - key: 'server.apppath'
+      value: /vizier-db/api/v1
+    - key: 'server.port'
+      value: 5000
+    - key : 'server.url'
+      value : 'http://cds-swg1.cims.nyu.edu'
+    - key: 'server.logdir'
+      value: './log'
+    - key: 'vt.location'
+      value: './.vt'
