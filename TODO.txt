@@ -1,14 +1,10 @@
-* Catch exceptions in workflow engine and Mimir package
 * Enumerate available SQL data types for Mimir lenses
-* PICKER lens
+* PICKER, MISSING KEY, DOMAIN REPAIR
 * Logging
 * Architecture diagram
 * Carefully go through code documentation
-* Run MISSING_KEY on ROW ID
 * Documentation
 * Clean-up tests
-* Make Flask and Mimir work together (maybe move init.py for now)
-* environment.yaml
 
 
 Next Version

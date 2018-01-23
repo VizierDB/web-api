@@ -6,7 +6,7 @@ This repository contains the code for the Vizier DB Web Server API. The Web API 
 
 Installation is still a bit labor intensive. The following steps seem to work for now (requires [Anaconda](https://conda.io/docs/user-guide/install/index.html)). If you want to use Mimir modules within your curation workflows a local installation of Mimir v0.2 is required. Refer to this [guide for Mimir installation details](https://github.com/VizierDB/Vistrails/tree/MimirPackage/vistrails/packages/mimir).
 
-#### Python Environment
+### Python Environment
 
 To setup the Python environment clone the repository and run the following commands:
 
@@ -19,7 +19,7 @@ pip install git+https://github.com/VizierDB/Vistrails.git
 pip install -e .
 ```
 
-#### Configuration
+### Configuration
 
 The web server is configured using a configuration file. There are two example configuration files in the (config directory)[https://github.com/VizierDB/web-api/tree/master/config] (depending on whether including Mimir ```config-mimir.yaml``` or not ```config-default.yaml```).
 
@@ -56,7 +56,7 @@ When the Web server starts it first looks for the configuration file that is ref
 
 Note that there is a ```config.yaml``` file in the working directory of the server that can be used for development mode.
 
-#### Run Server
+### Run Server
 
 After adjusting the server configuration the server is run using the following command:
 
@@ -69,6 +69,6 @@ Make sure that the conda environment has been activated using ```source activate
 
 If using Mimir the gateway server sould be started before running the web server.
 
-#### API Documentation
+### API Documentation
 
 For development it can be helpful to have a local copy of the API documentation. The [repository README](https://github.com/VizierDB/webapi-swagger-ui) contains information on how to install the UI locally.

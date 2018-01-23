@@ -60,7 +60,6 @@ class MimirLens(Module):
         # Module outputs
         outputs = dict({TXT_NORMAL: list(), TXT_ERROR: list()})
         store_as_dataset = None
-        #try:
         # Get dataset. Raise exception if dataset is unknown
         ds_name = get_argument(cmd.PARA_DATASET, args).lower()
         dataset_id = context.get_dataset_identifier(ds_name)
@@ -166,10 +165,6 @@ class MimirLens(Module):
             )
             context.datastore.update_dataset(ds_id, ds)
             context.set_dataset_identifier(ds_name, ds.identifier)
-        #except Exception as ex:
-        #    template = "{0}:{1!r}"
-        #    message = template.format(type(ex).__name__, ex.args)
-        #    outputs[TXT_ERROR].append(str(message))
         # Set the module outputs
         self.set_output('output', outputs)
 
@@ -238,7 +233,6 @@ class VizualCell(NotCacheable, Module):
         # Set VizUAL engine (shortcut)
         v_eng = context.vizual
         outputs = dict({TXT_NORMAL: list(), TXT_ERROR: list()})
-        #try:
         if name == cmd.VIZUAL_DEL_COL:
             # Get dataset name, and column specification. Raise exception if
             # the specified dataset does not exist.
@@ -367,10 +361,6 @@ class VizualCell(NotCacheable, Module):
             outputs[TXT_NORMAL].append(str(upd_count) + ' row updated')
         else:
             raise ValueError('unknown vizual command \'' + str(name) + '\'')
-        #except Exception as ex:
-        #    template = "{0}:{1!r}"
-        #    message = template.format(type(ex).__name__, ex.args)
-        #    outputs[TXT_ERROR].append(str(message))
         # Set the module outputs
         self.set_output('output', outputs)
 
