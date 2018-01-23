@@ -10,7 +10,7 @@ engines:
       datastore:
           directory: '../.env/ds/default'
       default: true
-worktrails:
+viztrails:
     directory: '../.env/wf'
 fileserver:
     directory: '../.env/fs'
