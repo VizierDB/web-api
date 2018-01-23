@@ -748,6 +748,22 @@ def update_branch_properties(project_id, branch_id):
 
 # ------------------------------------------------------------------------------
 #
+# Initialize
+#
+# ------------------------------------------------------------------------------
+
+@app.before_first_request
+def initialize():
+    """Initialize the connection to the Mimir gateway if Mimir engine is used.
+    """
+    if ENGINE_MIMIR in config.engines:
+        try:
+            mimir.initialize()
+        except Exception:
+            pass
+
+# ------------------------------------------------------------------------------
+#
 # Exceptions
 #
 # ------------------------------------------------------------------------------
@@ -844,16 +860,6 @@ def internal_error(exception):
     """Exception handler that logs exceptions."""
     app.logger.error(exception)
     return make_response(jsonify({'error': str(exception)}), 500)
-
-
-@app.before_first_request
-def initialize():
-    """Initialize the connection to the Mimir gateway."""
-    import vistrails.packages.mimir.init as mimir
-    try:
-        mimir.initialize()
-    except Exception:
-        pass
 
 
 # ------------------------------------------------------------------------------
