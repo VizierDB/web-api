@@ -13,6 +13,7 @@ setup(
     install_requires=[
 	'Flask~=0.12',
 	'flask-cors',
+	'pyyaml',
 	'py4j>=0.10.6',
 	'spylon>=0.3.0'
     ]

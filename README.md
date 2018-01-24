@@ -19,16 +19,16 @@ pip install git+https://github.com/VizierDB/Vistrails.git
 pip install -e .
 ```
 
-As an alternative the following sequence of steps might also work:
+As an alternative the following sequence of steps might also work (e.g., for MacOS):
 
 ```
 git clone https://github.com/VizierDB/web-api.git
 cd web-api
-conda update conda (**optional?**)
-conda create --name vizier
+conda create --name vizier pip
 source activate vizier
 pip install -r requirements.txt
 pip install -e .
+conda install pyqt=4.11.4=py27_4
 ```
 
 ### Configuration
