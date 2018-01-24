@@ -19,6 +19,18 @@ pip install git+https://github.com/VizierDB/Vistrails.git
 pip install -e .
 ```
 
+As an alternative the following sequence of steps might also work:
+
+```
+git clone https://github.com/VizierDB/web-api.git
+cd web-api
+conda update conda (**optional?**)
+conda create --name vizier
+source activate vizier
+pip install -r requirements.txt
+pip install -e .
+```
+
 ### Configuration
 
 The web server is configured using a configuration file. There are two example configuration files in the (config directory)[https://github.com/VizierDB/web-api/tree/master/config] (depending on whether including Mimir ```config-mimir.yaml``` or not ```config-default.yaml```).

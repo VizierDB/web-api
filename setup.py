@@ -11,5 +11,9 @@ setup(
     packages=['vizier'],
     package_data={'': ['LICENSE']},
     install_requires=[
+	'Flask~=0.12',
+	'flask-cors',
+	'py4j>=0.10.6',
+	'spylon>=0.3.0'
     ]
 )
