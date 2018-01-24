@@ -758,9 +758,11 @@ def initialize():
     """
     if ENGINE_MIMIR in config.engines:
         try:
+            import vistrails.packages.mimir.init as mimir
             mimir.initialize()
-        except Exception:
+        except Exception as ex:
             pass
+
 
 # ------------------------------------------------------------------------------
 #
