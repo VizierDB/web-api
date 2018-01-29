@@ -15,8 +15,8 @@ engines:
       default: true
       datastore:
           directory: '../.env/ds/mimir'
-worktrails:
-    directory: '../.env/wf'
+viztrails:
+    directory: '../.env/vt'
 fileserver:
     directory: '../.env/fs'
     max_file_size: 1024

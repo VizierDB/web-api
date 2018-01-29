@@ -12,6 +12,7 @@ from vizier.core.util import is_valid_name, get_unique_identifier
 from vizier.datastore.metadata import DatasetMetadata
 from vizier.datastore.mimir import COL_PREFIX, ROW_ID
 from vizier.datastore.mimir import MimirDatasetColumn, MimirDatasetDescriptor
+from vizier.datastore.mimir import create_missing_key_view
 from vizier.workflow.base import TXT_NORMAL, TXT_ERROR
 
 import vizier.workflow.repository.command as cmd
@@ -63,16 +64,18 @@ class MimirLens(Module):
         # Get dataset. Raise exception if dataset is unknown
         ds_name = get_argument(cmd.PARA_DATASET, args).lower()
         dataset_id = context.get_dataset_identifier(ds_name)
-        if not dataset_id in context.datastore.datasets:
-            raise ValueError('unknown dataset \'' + dataset_id + '\'')
-        dataset = context.datastore.datasets[dataset_id]
+        dataset = context.datastore.get_dataset_descriptor(dataset_id)
+        if dataset is None:
+            raise ValueError('unknown dataset \'' + ds_name + '\'')
         mimir_table_name = dataset.table_name
         if lens == cmd.MIMIR_KEY_REPAIR:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            params = [COL_PREFIX + str(dataset.column_index(c_col))]
+            column = dataset.columns[dataset.column_index(c_col)]
+            params = [column.name_in_rdb]
         elif lens == cmd.MIMIR_MISSING_KEY:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            params = [COL_PREFIX + str(dataset.column_index(c_col))]
+            column = dataset.columns[dataset.column_index(c_col)]
+            params = [column.name_in_rdb]
             # Set MISSING ONLY to FALSE to ensure that all rows are returned
             params += ['MISSING_ONLY(FALSE)']
             # Need to run this lens twice in order to generate row ids for
@@ -84,34 +87,35 @@ class MimirLens(Module):
                 get_argument(cmd.PARA_MAKE_CERTAIN, args),
                 False
             )
-            # Now prepare to run the same lens on ROW_ID
-            params = [ROW_ID] + ['MISSING_ONLY(FALSE)']
-        elif lens == cmd.MIMIR_MISSING_VALUE:
+        elif lens == cmd.MIMIR_MISSING_VALUE or lens == cmd.MIMIR_DOMAIN:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            params = [COL_PREFIX + str(dataset.column_index(c_col))]
+            column = dataset.columns[dataset.column_index(c_col)]
+            params = [column.name_in_rdb]
         elif lens == cmd.MIMIR_PICKER:
             pick_from = list()
-            pick_as = list()
+            column_names = list()
             for col in get_argument(cmd.PARA_SCHEMA, args):
                 c_idx = dataset.column_index(get_argument(cmd.PARA_PICKFROM, col))
                 column = dataset.columns[c_idx]
-                if cmd.PARA_PICKAS in col:
-                    c_as = col[cmd.PARA_PICKAS]
-                else:
-                    c_as = 'Pick_' + column.name
-                pick_from.append(COL_PREFIX + str(c_idx))
-                pick_as.append(COL_PREFIX + str(dataset.column_counter))
-                dataset.columns.append(
-                    MimirDatasetColumn(
-                        dataset.column_counter,
-                        c_as,
-                        COL_PREFIX + str(dataset.column_counter)
-                    )
+                pick_from.append(column.name_in_rdb)
+                column_names.append(column.name.upper())
+            # Add result column to dataset schema
+            pick_as = ''
+            if cmd.PARA_PICKAS in args:
+                pick_as = args[cmd.PARA_PICKAS].strip()
+            if pick_as == '':
+                pick_as = 'PICK_ONE_' + '_'.join(column_names)
+            target_column = COL_PREFIX + str(dataset.column_counter)
+            dataset.columns.append(
+                MimirDatasetColumn(
+                    dataset.column_counter,
+                    pick_as,
+                    target_column
                 )
-                dataset.column_counter += 1
+            )
+            dataset.column_counter += 1
             params = ['PICK_FROM(' + ','.join(pick_from) + ')']
-            params.append('PICK_AS(' + ','.join(pick_as) + ')')
-            print params
+            params.append('PICK_AS(' + target_column + ')')
         elif lens == cmd.MIMIR_SCHEMA_MATCHING:
             store_as_dataset = get_argument(cmd.PARA_RESULT_DATASET, args)
             if context.has_dataset_identifier(store_as_dataset):
@@ -144,27 +148,55 @@ class MimirLens(Module):
                 get_argument(cmd.PARA_MAKE_CERTAIN, args),
                 False
             )
+        # Create a view including missing row ids for the result of a
+        # MISSING KEY lens
+        if lens == cmd.MIMIR_MISSING_KEY:
+            lens_name, row_counter = create_missing_key_view(
+                dataset,
+                lens_name,
+                column.name_in_rdb
+            )
+            dataset.row_counter = row_counter
         if lens == cmd.MIMIR_SCHEMA_MATCHING:
             outputs[TXT_NORMAL].append('Created ' + lens_name + ' as ' + store_as_dataset)
         else:
             outputs[TXT_NORMAL].append('Created ' + lens_name)
         # Create datastore entry for lens.
+        ds_id = get_unique_identifier()
         if not store_as_dataset is None:
-            ds = context.datastore.create_dataset(column_names, lens_name)
-            context.set_dataset_identifier(store_as_dataset, ds.identifier)
-        else:
-            ds_id = get_unique_identifier()
-            ds = MimirDatasetDescriptor(
-                ds_id,
-                dataset.columns,
-                lens_name,
-                dataset.row_ids,
-                dataset.column_counter,
-                dataset.row_counter,
-                dataset.annotations
+            columns = list()
+            for c_name in column_names:
+                col_id = len(columns)
+                columns.append(MimirDatasetColumn(
+                    col_id,
+                    c_name,
+                    COL_PREFIX + str(col_id)
+                ))
+            context.datastore.create_dataset(
+                MimirDatasetDescriptor(
+                    ds_id,
+                    columns,
+                    lens_name,
+                    None,
+                    len(columns),
+                    0,
+                    DatasetMetadata()
+                )
             )
-            context.datastore.update_dataset(ds_id, ds)
-            context.set_dataset_identifier(ds_name, ds.identifier)
+            ds_name = store_as_dataset
+        else:
+            context.datastore.create_dataset(
+                MimirDatasetDescriptor(
+                    ds_id,
+                    dataset.columns,
+                    lens_name,
+                    dataset.row_ids,
+                    dataset.column_counter,
+                    dataset.row_counter,
+                    dataset.annotations
+                )
+            )
+        context.set_dataset_identifier(ds_name, ds_id)
         # Set the module outputs
         self.set_output('output', outputs)
 
@@ -255,6 +287,13 @@ class VizualCell(NotCacheable, Module):
             col_count, ds_id = v_eng.delete_row(ds, c_row)
             context.set_dataset_identifier(ds_name, ds_id)
             outputs[TXT_NORMAL].append(str(col_count) + ' row deleted')
+        elif name == cmd.VIZUAL_DROP_DS:
+            # Get dataset name and remove the associated entry from the
+            # dictionary of datasets in the context. Will raise exception if the
+            # specified dataset does not exist.
+            ds_name = get_argument(cmd.PARA_DATASET, args).lower()
+            context.remove_dataset_identifier(ds_name)
+            outputs[TXT_NORMAL].append('1 dataset dropped')
         elif name == cmd.VIZUAL_INS_COL:
             # Get dataset name, column index, and new column name. Raise
             # exception if the specified dataset does not exist or the
@@ -345,6 +384,21 @@ class VizualCell(NotCacheable, Module):
             col_count, ds_id = v_eng.rename_column(ds, c_col, c_name)
             context.set_dataset_identifier(ds_name, ds_id)
             outputs[TXT_NORMAL].append(str(col_count) + ' column renamed')
+        elif name == cmd.VIZUAL_REN_DS:
+            # Get name of existing dataset and the new dataset name. Raise
+            # exception if the specified dataset does not exist, a dataset with
+            # the new name already exists, or if the new dataset name is not a
+            # valid name.
+            ds_name = get_argument(cmd.PARA_DATASET, args).lower()
+            new_name = get_argument(cmd.PARA_NAME, args)
+            if context.has_dataset_identifier(new_name):
+                raise ValueError('dataset \'' + new_name + '\' exists')
+            if not is_valid_name(new_name):
+                raise ValueError('invalid dataset name \'' + new_name + '\'')
+            ds = context.get_dataset_identifier(ds_name)
+            context.remove_dataset_identifier(ds_name)
+            context.set_dataset_identifier(new_name, ds)
+            outputs[TXT_NORMAL].append('1 dataset renamed')
         elif name == cmd.VIZUAL_UPD_CELL:
             # Get dataset name, cell coordinates, and update value. Raise
             # exception if the specified dataset does not exist.

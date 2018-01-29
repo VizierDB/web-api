@@ -12,6 +12,7 @@
 
 * Workflow branches
 * Dataset annotations
+* Drop and rename datasets
 * Mimir lenses and data store
 * Deletion of workflow modules
 * Access full history of workflows

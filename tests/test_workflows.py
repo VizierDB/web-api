@@ -144,6 +144,8 @@ class TestWorkflows(unittest.TestCase):
         self.run_delete_modules()
         self.set_up_default()
         self.run_erroneous_workflow()
+        self.set_up_default()
+        self.run_update_datasets()
 
     def test_vt_mimir(self):
         """Run workflows for Mimir configurations."""
@@ -475,6 +477,66 @@ class TestWorkflows(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
         self.assertEquals(wf.modules[3].stdout[0], 'Alice\nBob')
+
+    def run_update_datasets(self):
+        """Test dropping and renaming of datasets."""
+        f_handle = self.fileserver.upload_file(CSV_FILE)
+        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.load_dataset(f_handle.identifier, DS_NAME)
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        self.assertTrue(DS_NAME in wf.modules[-1].datasets)
+        new_name = DS_NAME + '_renamed'
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.rename_dataset(DS_NAME, new_name)
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        self.assertTrue(DS_NAME in wf.modules[0].datasets)
+        self.assertFalse(new_name in wf.modules[0].datasets)
+        self.assertFalse(DS_NAME in wf.modules[-1].datasets)
+        self.assertTrue(new_name in wf.modules[-1].datasets)
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.drop_dataset(new_name)
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        self.assertFalse(new_name in wf.modules[-1].datasets)
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.drop_dataset(new_name)
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertTrue(wf.has_error)
+        # Delete the Drop Dataset that failed and replace the first drop with
+        # a Python module that prints names
+        self.db.delete_workflow_module(
+            viztrail_id=vt.identifier,
+            module_id=wf.modules[-1].identifier
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        self.db.replace_workflow_module(
+            viztrail_id=vt.identifier,
+            module_id=wf.modules[-1].identifier,
+            command=cmd.python_cell(
+"""
+for row in vizierdb.get_dataset('""" + new_name + """').rows:
+    print row.get_value('Name')
+"""
+            )
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        self.assertEquals(wf.modules[-1].stdout[0], 'Alice\nBob')
+        self.assertFalse(DS_NAME in wf.modules[-1].datasets)
+        self.assertTrue(new_name in wf.modules[-1].datasets)
+
 
 if __name__ == '__main__':
     unittest.main()

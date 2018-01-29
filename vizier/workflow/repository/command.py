@@ -137,6 +137,7 @@ MODULE_ARGUMENTS = 'arguments'
 PYTHON_SOURCE = 'source'
 
 """Identifier for Mimir lenses."""
+MIMIR_DOMAIN = 'DOMAIN'
 MIMIR_KEY_REPAIR ='KEY_REPAIR'
 MIMIR_MISSING_KEY ='MISSING_KEY'
 MIMIR_MISSING_VALUE = 'MISSING_VALUE'
@@ -150,16 +151,26 @@ PYTHON_CODE = 'CODE'
 """Identifier for VizUAL commands."""
 VIZUAL_DEL_COL = 'DELETE_COLUMN'
 VIZUAL_DEL_ROW = 'DELETE_ROW'
+VIZUAL_DROP_DS = 'DROP_DATASET'
 VIZUAL_INS_COL = 'INSERT_COLUMN'
 VIZUAL_INS_ROW = 'INSERT_ROW'
 VIZUAL_LOAD = 'LOAD'
 VIZUAL_MOV_COL = 'MOVE_COLUMN'
 VIZUAL_MOV_ROW = 'MOVE_ROW'
 VIZUAL_REN_COL = 'RENAME_COLUMN'
+VIZUAL_REN_DS = 'RENAME_DATASET'
 VIZUAL_UPD_CELL = 'UPDATE_CELL'
 
 """Mimir lens specification schema."""
 MIMIR_LENSES = {
+    MIMIR_DOMAIN: {
+        MODULE_NAME: 'Domain Lens',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            PARA_COLUMN: para_column(1),
+            PARA_MAKE_CERTAIN: para_make_input_certain(2)
+        }
+    },
     MIMIR_KEY_REPAIR: {
         MODULE_NAME: 'Key Repair Lens',
         MODULE_ARGUMENTS: {
@@ -206,8 +217,7 @@ MIMIR_LENSES = {
                 'Pick As',
                 'string',
                 3,
-                required=False,
-                parent=PARA_SCHEMA
+                required=False
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(4)
         }
@@ -292,6 +302,12 @@ VIZUAL_COMMANDS = {
             PARA_ROW: para_row(1)
         }
     },
+    VIZUAL_DROP_DS: {
+        MODULE_NAME: 'Drop Dataset',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0)
+        }
+    },
     VIZUAL_INS_COL: {
         MODULE_NAME: 'Insert Column',
         MODULE_ARGUMENTS: {
@@ -340,6 +356,18 @@ VIZUAL_COMMANDS = {
                 'New Column Name',
                 'string',
                 2
+            )
+        }
+    },
+    VIZUAL_REN_DS: {
+        MODULE_NAME: 'Rename Dataset',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            PARA_NAME: parameter_specification(
+                PARA_NAME,
+                'New Dataset Name',
+                'string',
+                1
             )
         }
     },
@@ -442,7 +470,7 @@ def mimir_missing_value(dataset_name, column, make_input_certain=False):
     )
 
 
-def mimir_picker(dataset_name,  schema, make_input_certain=False):
+def mimir_picker(dataset_name,  schema, pick_as=None, make_input_certain=False):
     """Create a Mimir Picker Lens.
 
     Parameters
@@ -458,14 +486,17 @@ def mimir_picker(dataset_name,  schema, make_input_certain=False):
     -------
     vizier.workflow.module.ModuleSpecification
     """
+    args = {
+        PARA_DATASET : dataset_name,
+        PARA_SCHEMA: schema,
+        PARA_MAKE_CERTAIN: make_input_certain
+    }
+    if not pick_as is None:
+        args[PARA_PICKAS] = pick_as
     return ModuleSpecification(
         MODTYPE_MIMIR,
         MIMIR_PICKER,
-        {
-            PARA_DATASET : dataset_name,
-            PARA_SCHEMA: schema,
-            PARA_MAKE_CERTAIN: make_input_certain
-        }
+        args
     )
 
 
@@ -595,6 +626,27 @@ def delete_row(dataset_name, row):
         {
             PARA_DATASET : dataset_name,
             PARA_ROW: row
+        }
+    )
+
+
+def drop_dataset(dataset_name):
+    """Drop a dataset.
+
+    Parameters
+    ----------
+    dataset_name: string
+        Name of the dataset
+
+    Returns
+    -------
+    vizier.workflow.module.ModuleSpecification
+    """
+    return ModuleSpecification(
+        MODTYPE_VIZUAL,
+        VIZUAL_DROP_DS,
+        {
+            PARA_DATASET : dataset_name
         }
     )
 
@@ -751,6 +803,30 @@ def rename_column(dataset_name, column, name):
             PARA_DATASET : dataset_name,
             PARA_COLUMN: column,
             PARA_NAME: name
+        }
+    )
+
+
+def rename_dataset(dataset_name, new_name):
+    """Rename a dataset.
+
+    Parameters
+    ----------
+    dataset_name: string
+        Name of the dataset
+    new_name: string
+        New dataset name
+
+    Returns
+    -------
+    vizier.workflow.module.ModuleSpecification
+    """
+    return ModuleSpecification(
+        MODTYPE_VIZUAL,
+        VIZUAL_REN_DS,
+        {
+            PARA_DATASET : dataset_name,
+            PARA_NAME: new_name
         }
     )
 

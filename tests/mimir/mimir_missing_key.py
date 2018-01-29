@@ -15,7 +15,7 @@ mimir.initialize()
 table_name = mimir._mimir.loadCSV(os.path.abspath(CSV_FILE))
 
 type_ = 'MISSING_KEY'
-params = ['AGE', 'MISSING_ONLY(FALSE)']
+params = ['SALARY', 'MISSING_ONLY(FALSE)']
 
 
 lens_name = mimir._mimir.createLens(
@@ -27,11 +27,22 @@ lens_name = mimir._mimir.createLens(
 )
 
 print lens_name
-sql = 'SELECT * FROM ' + lens_name
+sql = 'SELECT SALARY FROM ' + lens_name + ' WHERE rid IS NULL'
 #print sql
 csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, True, True)
 print csvStrDet.schema()
 print csvStrDet.csvStr()
+
+#view_name = mimir._mimir.createView(
+#    lens_name,
+#    'SELECT NAME, SALARY, AGE FROM ' + lens_name + ' WHERE RID IS NULL'
+#)
+
+#sql = 'SELECT * FROM ' + view_name
+#csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, True, True)
+#print csvStrDet.schema()
+#print csvStrDet.csvStr()
+
 #print csvStrDet.colsDet()
 #for c in csvStrDet.colsDet():
 #    print c
@@ -50,8 +61,8 @@ print csvStrDet.csvStr()
 #    print '-'
 #print csvStrDet.schema()
 #print csvStrDet.schema().get('NAME')
-
-params = ['RID']
+"""
+params = ['RID', 'MISSING_ONLY(FALSE)']
 lens_name = mimir._mimir.createLens(
     lens_name,
     mimir._jvmhelper.to_scala_seq(params),
@@ -59,13 +70,14 @@ lens_name = mimir._mimir.createLens(
     make_input_certain,
     materialize
 )
+"""
 
-print lens_name
-sql = 'SELECT * FROM ' + lens_name
+#print lens_name
+#sql = 'SELECT * FROM ' + lens_name
 #print sql
-csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, True, True)
-print csvStrDet.schema()
-print csvStrDet.csvStr()
+#csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, True, True)
+#print csvStrDet.schema()
+#print csvStrDet.csvStr()
 
 #reasons = csvStrDet.celReasons()
 #print 'NUMBER OF REASONS: ' + str(len(reasons))

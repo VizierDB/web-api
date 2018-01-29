@@ -159,25 +159,27 @@ class MimirDatasetDescriptor(Dataset):
             annotations=annotations
         )
         self.table_name = table_name
-        self.row_ids = list(row_ids)
+        self.row_ids = row_ids
         # The type of row id's is determined by update_dataset.
         self.rowid_type = None
 
     @staticmethod
-    def from_dict(doc, annotations):
-        """Create a dataset descriptor form a dictionary serialization.
+    def from_file(filename, annotations=None):
+        """Read dataset from file. Expects the file to be in Yaml format which
+        is the default serialization format used by to_file().
 
         Parameters
         ----------
-        doc: dict()
-            Dictionary serialization of a dataset descriptor
-        annotations: vizier.datastore.metadata.DatasetMetadata
+        filename: string
+            Name of the file to read.
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
             Annotations for dataset components
-
         Returns
         -------
-        vizier.datastore.mimir.MimirDatasetDescriptor
+        vizier.datastore.base.Dataset
         """
+        with open(filename, 'r') as f:
+            doc = yaml.load(f.read())
         return MimirDatasetDescriptor(
             doc['id'],
             [MimirDatasetColumn.from_dict(obj) for obj in doc['columns']],
@@ -216,14 +218,15 @@ class MimirDatasetDescriptor(Dataset):
         else:
             return str(row_id)
 
-    def to_dict(self):
-        """Create dictionary serialization for a dataset descriptor.
+    def to_file(self, filename):
+        """Write dataset to file. The default serialization format is Yaml.
 
-        Returns
-        -------
-        dict
+        Parameters
+        ----------
+        filename: string
+            Name of the file to write
         """
-        return {
+        doc = {
             'id': self.identifier,
             'columns': [col.to_dict() for col in self.columns],
             'rows': self.row_ids,
@@ -231,14 +234,18 @@ class MimirDatasetDescriptor(Dataset):
             'columnCounter': self.column_counter,
             'rowCounter': self.row_counter
         }
+        with open(filename, 'w') as f:
+            yaml.dump(doc, f, default_flow_style=False)
 
 
 class MimirDataStore(DataStore):
     """Vizier data store implementation using Mimir.
 
     Maintains information about the dataset schema separately. This is necessary
-    because in a dataset column names are not necessarily unique. Uses a file
-    in Yaml format to store dataset information.
+    because in a dataset column names are not necessarily unique. For each
+    dataset a new subfolder is created in the store base directory. In that
+    folder a dataset file and an annotation file are maintained. All files are
+    in Yaml format.
 
     Note that every write_dataset call creates a new table in the underlying
     Mimir database. Other datasets are views on these tables.
@@ -253,59 +260,42 @@ class MimirDataStore(DataStore):
             Name of the directory where metadata is stored
         """
         super(MimirDataStore, self).__init__(build_info('MimirDataStore'))
-        self.directory = os.path.abspath(base_dir)
-        if not os.path.isdir(self.directory):
-            os.makedirs(self.directory)
-        self.dataset_index_file = os.path.join(self.directory, DATASETS_FILE)
-        # Read dataset index files
-        self.datasets = dict()
-        if os.path.isfile(self.dataset_index_file):
-            with open(self.dataset_index_file, 'r') as f:
-                doc = yaml.load(f.read())
-            for obj in doc['datasets']:
-                ds = MimirDatasetDescriptor.from_dict(
-                    obj,
-                    DatasetMetadata.from_file(
-                        self.get_metadata_filename(obj['id'])
-                    )
-                )
-                self.datasets[ds.identifier] = ds
+        self.base_dir = os.path.abspath(base_dir)
+        if not os.path.isdir(self.base_dir):
+            os.makedirs(self.base_dir)
 
-    def create_dataset(self, column_names, lens_id):
-        """Create a new dataset that result from executing a lens on an existing
-        dataset (e.g., SCHEMA_MATCHING lens).
+    def create_dataset(self, dataset, adjust_metadata=True):
+        """Create a new record for a dataset that results from executing a lens,
+        a VizUAL command, or a Vizier Client create_dataset or update_dataset
+        call.
 
         Parameters
         ----------
-        column_names: list(string)
-            List of column names in the dataset schema
-        lens_id: string
-            Identifier of the lens which this dataset is created
+        identifier: string
+            Unique dataset identifier
+        dataset: vizier.datastore.mimir.MimirDatasetDescriptor
+            Dataset descriptor that is being updated
+        adjust_metadata: bool, optional
+            Flag indicating whether the metadata in the given dataset is correct
+            (False) or needs to be adjusted (True). The former is the case for
+            VizUAL MOVE and RENAME_COLUMN operations.
 
         Returns
         -------
         vizier.datastore.mimir.MimirDatasetDescriptor
         """
-        identifier = get_unique_identifier()
-        columns = list()
-        for c_name in column_names:
-            col_id = len(columns)
-            columns.append(MimirDatasetColumn(
-                col_id,
-                c_name,
-                COL_PREFIX + str(col_id)
-            ))
-        dataset = MimirDatasetDescriptor(
-            identifier,
-            columns,
-            lens_id,
-            [],
-            len(columns),
-            0,
-            DatasetMetadata()
+        if adjust_metadata:
+            # In the default case dataset metadata needs to be adjusted
+            dataset = set_dataset_metadata(dataset)
+        # Create a new directory for the dataset if it doesn't exist.
+        dataset_dir = self.get_dataset_dir(dataset.identifier)
+        if not os.path.isdir(dataset_dir):
+            os.makedirs(dataset_dir)
+        # Write dataset and annotation file to disk
+        dataset.to_file(self.get_dataset_file(dataset.identifier))
+        dataset.annotations.to_file(
+            self.get_metadata_filename(dataset.identifier)
         )
-        self.update_dataset(identifier, dataset, new_dataset=True)
-        return dataset
 
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
@@ -317,21 +307,45 @@ class MimirDataStore(DataStore):
             Unique dataset identifier.
 
         Returns
-        -------_count
+        -------
         bool
         """
-        if identifier in self.datasets:
-            # Remove dataset from index. Note that the dataset (view) will
-            # remain in the database
-            del self.datasets[identifier]
-            self.write_dataset_index()
-            # Delete the metadata file
-            metadata_file = self.get_metadata_filename(identifier)
-            if os.path.isfile(metadata_file):
-                os.remove(metadata_file)
+        dataset_dir = self.get_dataset_dir(identifier)
+        if os.path.isdir(dataset_dir):
+            shutil.rmtree(dataset_dir)
             return True
-        else:
-            return False
+        return False
+
+    def get_dataset_dir(self, identifier):
+        """Get the base directory for a dataset with given identifier. Having a
+        separate method makes it easier to change the folder structure used to
+        store datasets.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+
+        Returns
+        -------
+        string
+        """
+        return os.path.join(self.base_dir, identifier)
+
+    def get_dataset_file(self, identifier):
+        """Get the absolute path of the file that maintains the dataset metadata
+        such as the order of row id's and column information.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+
+        Returns
+        -------
+        string
+        """
+        return os.path.join(self.get_dataset_dir(identifier), 'dataset.yaml')
 
     def get_dataset(self, identifier):
         """Read a full dataset from the data store. Returns None if no dataset
@@ -346,8 +360,14 @@ class MimirDataStore(DataStore):
         -------
         vizier.datastore.base.Dataset
         """
-        if identifier in self.datasets:
-            ds = self.datasets[identifier]
+        dataset_file = self.get_dataset_file(identifier)
+        if os.path.isfile(dataset_file):
+            ds = MimirDatasetDescriptor.from_file(
+                dataset_file,
+                annotations=DatasetMetadata.from_file(
+                    self.get_metadata_filename(identifier)
+                )
+            )
             col_list = ','.join([col.name_in_rdb for col in ds.columns])
             sql = 'SELECT ' + ROW_ID + ',' + col_list + ' FROM ' + ds.table_name
             rs = mimir._mimir.vistrailsQueryMimir(sql, False, False)
@@ -383,11 +403,43 @@ class MimirDataStore(DataStore):
                 column_counter=ds.column_counter,
                 rows=rows,
                 row_counter=ds.row_counter,
-                annotations=DatasetMetadata.from_file(
-                    self.get_metadata_filename(identifier)
-                )
+                annotations=ds.annotations
             )
         return None
+
+    def get_dataset_descriptor(self, identifier, include_annotations=True):
+        """Get the Mimir dataset descriptor for the dataset with tthe given
+        identifier. The result is None if no dataset with the given identifier
+        exists.
+
+        Dataset annotations are only returned if the include_annotations flag is
+        set to True
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        include_annotations: bool, optional
+            Optional flag indicating whether dataset annotations should be
+            included in the result or not
+
+        Returns
+        -------
+        vizier.datastore.mimir.MimirDatasetDescriptor
+        """
+        # Return None if the dataset file does not exist
+        dataset_file = self.get_dataset_file(identifier)
+        if not os.path.isfile(dataset_file):
+            return None
+        annotations = None
+        if include_annotations:
+            annotations = DatasetMetadata.from_file(
+                self.get_metadata_filename(identifier)
+            )
+        return MimirDatasetDescriptor.from_file(
+            dataset_file,
+            annotations=annotations
+        )
 
     def get_metadata_filename(self, identifier):
         """Get filename of meatdata file for the dataset with the given
@@ -402,7 +454,7 @@ class MimirDataStore(DataStore):
         -------
         string
         """
-        return os.path.join(self.directory, identifier + '.yaml')
+        return os.path.join(self.get_dataset_dir(identifier), 'annotation.yaml')
 
     def store_dataset(self, dataset):
         """Create a new dataset in the data store for the given data.
@@ -453,7 +505,7 @@ class MimirDataStore(DataStore):
             dataset.annotations
         )
         # Make sure to determine the types of all columns in the created view
-        self.update_dataset(identifier, ds)
+        self.create_dataset(ds)
         # Delete temporary file
         shutil.rmtree(tmp_dir)
         # Return dataset handle
@@ -476,9 +528,9 @@ class MimirDataStore(DataStore):
         -------
         vizier.datastore.metadata.AnnotationUpdateStatement
         """
-        if not identifier in self.datasets:
-            return False
         metadata_file = self.get_metadata_filename(identifier)
+        if not os.path.isfile(metadata_file):
+            return False
         # Read annotations from file, evaluate update statement and write result
         # back to file.
         annotations = upd_stmt.eval(
@@ -489,93 +541,56 @@ class MimirDataStore(DataStore):
         annotations.to_file(os.path.join(metadata_file))
         return annotations
 
-    def update_dataset(self, identifier, dataset, new_dataset=False):
-        """Determine the type of each column in the given dataset and update
-        dataset annotations.
-
-        The optional parameters include_uncertainty and include_reasons are
-        used as input to the Mimir query.
-
-        Parameters
-        ----------
-        identifier: string
-            Unique dataset identifier
-        dataset: vizier.datastore.mimir.MimirDatasetDescriptor
-            Dataset descriptor that is being updated
-        new_dataset: bool, optional
-            Flag indicating whether the dataset is being created (by
-            create_dataset()). If Ture, the row ids of the given dataset have
-            not been set yet.
-        """
-        dataset.annotations = dataset.annotations.copy_metadata()
-        # Retrieve lens metadata
-        col_list = ','.join([col.name_in_rdb for col in dataset.columns])
-        col_list = ROW_ID + ', ' + col_list
-        sql = 'SELECT ' + col_list + ' FROM ' + dataset.table_name
-        rs = mimir._mimir.vistrailsQueryMimir(sql, True, True)
-        # Determine column data types.
-        rdb_schema = rs.schema()
-        dataset.rowid_type = mimir_type_2_rdb_type(rdb_schema.get(ROW_ID.upper()))
-        #for i in range(len(dataset.columns)):
-        #    mimir_type = rdb_schema.get(COL_PREFIX + str(i))
-        #    dataset.columns[i].data_type = mimir_type_2_rdb_type(mimir_type)
-        for column in dataset.columns:
-            mimir_type = rdb_schema.get(column.name_in_rdb.upper())
-            column.data_type = mimir_type_2_rdb_type(mimir_type)
-        # Create cell annotations
-        reasons = rs.celReasons()
-        csv_str = rs.csvStr()
-        reader = csv.reader(StringIO(csv_str), delimiter=',')
-        # Skip headline row
-        reader.next()
-        # Remaining rows are dataset rows
-        row_index = 0
-        row_ids = list()
-        for row in reader:
-            if row[0].startswith('\'') and row[0].endswith('\''):
-                row_id = int(row[0][1:-1])
-            else:
-                row_id = int(row[0])
-            row_ids.append(row_id)
-            if len(reasons) > row_index:
-                comments = reasons[row_index]
-                for i in range(len(row) - 1):
-                    anno = comments[i + 1]
-                    if anno != '':
-                        dataset.annotations.for_cell(
-                            dataset.columns[i].identifier,
-                            row_id
-                        ).set_annotation('mimir:reason', anno)
-            row_index += 1
-        if new_dataset:
-            # We were given a dataset that is being created from a lens
-            dataset.row_ids = row_ids
-        elif len(row_ids) < dataset.row_ids:
-            # Adjust row ids if the query returned fewer results that expected
-            row_index = 0
-            while row_index < len(dataset.row_ids):
-                if not dataset.row_ids[row_index] in row_ids:
-                    del dataset.row_ids[row_index]
-                else:
-                    row_index += 1
-        self.datasets[identifier] = dataset
-        self.write_dataset_index()
-
-    def write_dataset_index(self):
-        """Write internal dataset index to file."""
-        datasets = list()
-        for ds in self.datasets.values():
-            # Store dataset metadata
-            ds.annotations.to_file(self.get_metadata_filename(ds.identifier))
-            datasets.append(ds.to_dict())
-        doc = {'datasets': datasets}
-        with open(self.dataset_index_file, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
 
 
 # ------------------------------------------------------------------------------
 # Helper Methods
 # ------------------------------------------------------------------------------
+
+def create_missing_key_view(dataset, lens_name, key_column_name):
+    """ Create a view for missing ROW_ID's on a MISSING_KEY lens.
+
+    Parameters
+    ----------
+    dataset: vizier.datastore.mimir.MimirDatasetDescriptor
+        Descriptor for the dataset on which the lens was created
+    lens_name: string
+        Identifier of the created MISSING_KEY lens
+    key_column_name: string
+        Name of the column for which the missing values where generated
+
+    Returns
+    -------
+    string, int
+        Returns the name of the created view and the adjusted counter  for row
+        ids.
+    """
+    # Select the rows that have missing row ids
+    sql = 'SELECT ' + key_column_name + ' FROM ' + lens_name
+    sql += ' WHERE ' + ROW_ID + ' IS NULL'
+    csv_str = mimir._mimir.vistrailsQueryMimir(sql, False, False).csvStr()
+    reader = csv.reader(StringIO(csv_str), delimiter=',')
+    # Skip headline row
+    reader.next()
+    case_conditions = []
+    for row in reader:
+        row_id = dataset.row_counter + len(case_conditions)
+        case_conditions.append(
+            'WHEN ' + key_column_name + ' = ' + row[0] + ' THEN ' + str(row_id)
+        )
+    # If no new rows where inserted we are good to go with the existing lens
+    if len(case_conditions) == 0:
+        return lens_name, dataset.row_counter
+    # Create the view SQL statement
+    stmt = 'CASE ' + (' '.join(case_conditions)).strip()
+    stmt += ' ELSE ' + ROW_ID + ' END AS ' + ROW_ID
+    col_list = [stmt]
+    for column in dataset.columns:
+        col_list.append(column.name_in_rdb)
+    sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + lens_name
+    view_name = mimir._mimir.createView(dataset.table_name, sql)
+    return view_name, dataset.row_counter + len(case_conditions)
+
 
 def mimir_type_2_rdb_type(mimir_type):
     """Convert a column datatype as returned by Mimir's database schema method
@@ -595,3 +610,90 @@ def mimir_type_2_rdb_type(mimir_type):
         return DT_NUMERIC
     else:
         return DT_STRING
+
+
+def set_dataset_metadata(dataset):
+    """Set metadata information for a given dataset object.
+
+    Determines the type of each column in the given dataset and updates cell
+    annotations. The method furthermore adjusts the list or row identifier if
+    necessary. This method will modify the provided dataset descriptor. Thus,
+    the returned object is the same (but possibly modified) object as the
+    input dataset.
+
+    Parameters
+    ----------
+    dataset: vizier.datastore.mimir.MimirDatasetDescriptor
+        Dataset descriptor that is being updated
+
+    Returns
+    -------
+    vizier.datastore.mimir.MimirDatasetDescriptor
+    """
+    # Retrieve lens metadata
+    col_list = ','.join([col.name_in_rdb for col in dataset.columns])
+    col_list = ROW_ID + ', ' + col_list
+    sql = 'SELECT ' + col_list + ' FROM ' + dataset.table_name
+    rs = mimir._mimir.vistrailsQueryMimir(sql, True, True)
+    # Determine column data types.
+    rdb_schema = rs.schema()
+    dataset.rowid_type = mimir_type_2_rdb_type(
+        rdb_schema.get(ROW_ID.upper())
+    )
+    for column in dataset.columns:
+        mimir_type = rdb_schema.get(column.name_in_rdb.upper())
+        column.data_type = mimir_type_2_rdb_type(mimir_type)
+    # Create cell annotations
+    reasons = rs.celReasons()
+    uncertainty = rs.colsDet()
+    csv_str = rs.csvStr()
+    reader = csv.reader(StringIO(csv_str), delimiter=',')
+    # Skip headline row
+    reader.next()
+    # Remaining rows are dataset rows
+    row_index = 0
+    row_ids = list()
+    for row in reader:
+        if row[0].startswith('\'') and row[0].endswith('\''):
+            row_id = int(row[0][1:-1])
+        else:
+            row_id = int(row[0])
+        row_ids.append(row_id)
+        # Add cell annotations
+        if len(reasons) > row_index:
+            comments = reasons[row_index]
+            for i in range(len(row) - 1):
+                anno = comments[i + 1]
+                if anno != '':
+                    dataset.annotations.for_cell(
+                        dataset.columns[i].identifier,
+                        row_id
+                    ).set_annotation('mimir:reason', anno)
+        if len(uncertainty) > row_index:
+            for col_index in range(len(row) - 1):
+                if uncertainty[row_index][col_index + 1] == False:
+                    dataset.annotations.for_cell(
+                        dataset.columns[col_index].identifier,
+                        row_id
+                    ).set_annotation('mimir:uncertain', 'true')
+        row_index += 1
+    # Adjust row ids if necessary.
+    if dataset.row_ids is None:
+        # We were given a dataset that is being created from a lens
+        dataset.row_ids = row_ids
+        dataset.row_counter = max(dataset.row_ids) + 1
+    else:
+        # Keep row ids in their original order. All new rows will appear at the
+        # end of the dataset.
+        modified_ids = list()
+        # Determine the rows that are still present in the dataset
+        for row_id in dataset.row_ids:
+            if row_id in row_ids:
+                modified_ids.append(row_id)
+        # Add all rows that are new
+        for row_id in row_ids:
+            if not row_id in dataset.row_ids:
+                modified_ids.append(row_id)
+        dataset.row_ids = modified_ids
+    # Return the modified dataset object
+    return dataset

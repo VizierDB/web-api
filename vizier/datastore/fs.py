@@ -17,7 +17,7 @@ from vizier.datastore.metadata import DatasetMetadata
 
 """Constants for data file names."""
 DATA_FILE = 'dataset.yaml'
-METADATA_FILE = 'metadata.yaml'
+METADATA_FILE = 'annotation.yaml'
 
 
 class FileSystemDataStore(DataStore):

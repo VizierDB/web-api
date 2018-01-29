@@ -3,11 +3,11 @@ import os
 
 import vistrails.packages.mimir.init as mimir
 
-CSV_FILE = '../data/dataset1.csv'
+CSV_FILE = '../data/dataset_pick.csv'
 
 include_uncertainty = True
 include_reasons = True
-make_input_certain = False
+make_input_certain = True
 materialize = False
 
 mimir.initialize()
@@ -15,7 +15,7 @@ mimir.initialize()
 table_name = mimir._mimir.loadCSV(os.path.abspath(CSV_FILE))
 
 type_ = 'PICKER'
-params = ['PICK_FROM(COL1)']
+params = ['PICK_FROM(AGE,SALARY)', 'HIDE_PICK_FROM(SALARY)']
 
 lens_name = mimir._mimir.createLens(
     table_name,
@@ -28,18 +28,20 @@ lens_name = mimir._mimir.createLens(
 print lens_name
 sql = 'SELECT * FROM ' + lens_name
 #print sql
-csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, True, True)
+csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, include_uncertainty, include_reasons)
 print csvStrDet.schema()
 print csvStrDet.csvStr()
-#print csvStrDet.colsDet()
-#for c in csvStrDet.colsDet():
-#    print c
-#    print type(c)
-#    for t in c:
-#        print t
-#print csvStrDet.rowsDet()
-#for r in csvStrDet.rowsDet():
-#    print r
+print 'COLS DET'
+print csvStrDet.colsDet()
+for c in csvStrDet.colsDet():
+    print c
+    print type(c)
+    for t in c:
+        print t
+print 'ROWS DET'
+print csvStrDet.rowsDet()
+for r in csvStrDet.rowsDet():
+    print r
 reasons = csvStrDet.celReasons()
 print 'NUMBER OF REASONS: ' + str(len(reasons))
 for p in reasons:

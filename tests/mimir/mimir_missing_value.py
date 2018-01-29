@@ -3,7 +3,7 @@ import os
 
 import vistrails.packages.mimir.init as mimir
 
-CSV_FILE = './data/dataset_with_missing_values.csv'
+CSV_FILE = '../data/dataset_with_missing_values.csv'
 
 include_uncertainty = True
 include_reasons = True

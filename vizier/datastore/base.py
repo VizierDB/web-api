@@ -371,7 +371,7 @@ class DatasetRow(object):
         col_index = self.dataset.column_index(column)
         return self.values[col_index]
 
-    def set_value(self, column, value):
+    def set_value(self, column, value, clear_annotations=True):
         """Set the row value for the given column.
 
         Parameters
@@ -380,9 +380,17 @@ class DatasetRow(object):
             Column index, name, or label
         value : string
             New cell value
+        keep_annotations: bool, optional
+            Flag indicating whether to keep or clear the annotations that are
+            associated with this cell
         """
         col_index = self.dataset.column_index(column)
         self.values[col_index] = value
+        if clear_annotations:
+            self.dataset.annotations.clear_cell(
+                self.dataset.columns[col_index].identifier,
+                self.identifier
+            )
 
 
 # ------------------------------------------------------------------------------

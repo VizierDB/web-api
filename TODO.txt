@@ -1,11 +1,11 @@
 * Enumerate available SQL data types for Mimir lenses
-* PICKER, MISSING KEY, DOMAIN REPAIR
+* MISSING KEY
 * Logging
 * Architecture diagram
 * Carefully go through code documentation
-* Documentation
-* Clean-up tests
 
+* Integrate with Vistrails
+* How to best use include_uncertainty?
 
 Next Version
 ------------
@@ -14,3 +14,4 @@ Next Version
 * Use row and column identifier instead of index
   - Requires to include dataset schema and list of row ids for every (historic) dataset via the API (or provide a API call to get the dataset schema)
   - Not sure if this is desired at all
+* Manage annotations on update

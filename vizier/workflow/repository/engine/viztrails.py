@@ -209,8 +209,9 @@ class DefaultViztrailsEngine(WorkflowEngine):
                         # Copy the module
                         module = module.copy()
                     # Set current state of datasets
-                    for key in module.datasets:
-                        context.datasets[key] = module.datasets[key]
+                    #for key in module.datasets:
+                    #    context.datasets[key] = module.datasets[key]
+                    context.datasets = dict(module.datasets)
                 else:
                     module = self.execute_module(
                         module,

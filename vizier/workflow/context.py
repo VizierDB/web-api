@@ -7,6 +7,9 @@ The Vizier datastore client enables access to and manipulation of datasets in a
 Vizier datastore from within a python script.
 """
 
+from vizier.core.util import is_valid_name
+from vizier.datastore.metadata import DatasetMetadata
+
 
 """Context variable name for Vizier DB Client."""
 VZR_ENV_VIZIER = 'vizierdb'
@@ -93,6 +96,23 @@ class WorkflowContext(object):
         # Dataset names are case insensitive
         return name.lower() in self.datasets
 
+    def remove_dataset_identifier(self, name):
+        """Remove the entry in the dataset distionary that is associated with
+        the given name. Raises ValueError if not dataset with name exists.
+
+        Parameters
+        ----------
+        name: string
+            Dataset name
+        identifier: string
+            Unique identifier for persistent dataset
+        """
+        # Convert name to lower case to ensure that names are case insensitive
+        key = name.lower()
+        if not key in self.datasets:
+            raise ValueError('unknown dataset \'' + name + '\'')
+        del self.datasets[key]
+
     def set_dataset_identifier(self, name, identifier):
         """Sets the identifier to which the given dataset name points.
 
@@ -136,12 +156,30 @@ class VizierDBClient(object):
         dataset : vizier.datastore.base.Dataset
             Dataset object
         """
-        # Raise an exception if a dataset with the given name already exists
+        # Raise an exception if a dataset with the given name already exists or
+        # if the name is not valid
         if self.context.has_dataset_identifier(name):
             raise ValueError('dataset \'' + name + '\' already exists')
+        if not is_valid_name(name):
+            raise ValueError('invalid dataset name \'' + name + '\'')
         # Write dataset to datastore and add new dataset to context
+        dataset.annotations = DatasetMetadata()
         ds = self.datastore.store_dataset(dataset)
         self.context.set_dataset_identifier(name, ds.identifier)
+
+    def drop_dataset(self, name):
+        """Remove the dataset with the given name.
+
+        Raises ValueError if no dataset with given name exist.
+
+        Parameters
+        ----------
+        name : string
+            Unique dataset name
+        """
+        # Remove the context dataset identifier for the given name. Will raise
+        # a ValueError if dataset does not exist
+        self.context.remove_dataset_identifier(name)
 
     def get_dataset(self, name):
         """Get dataset with given name.
@@ -165,6 +203,31 @@ class VizierDBClient(object):
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         return dataset
+
+    def rename_dataset(self, name, new_name):
+        """Rename an existing dataset.
+
+        Raises ValueError if a dataset with given name already exist.
+
+        Raises ValueError if dataset with name does not exist or if dataset with
+        new_name already exists.
+
+        Parameters
+        ----------
+        name : string
+            Unique dataset name
+        new_name : string
+            New dataset name
+        """
+        # Raise exception if new_name exists or is not valid.
+        if self.context.has_dataset_identifier(new_name):
+            raise ValueError('dataset \'' + new_name + '\' exists')
+        if not is_valid_name(new_name):
+            raise ValueError('invalid dataset name \'' + new_name + '\'')
+        # Raise an exception if no dataset with the given name exists
+        identifier = self.context.get_dataset_identifier(name)
+        self.context.remove_dataset_identifier(name)
+        self.context.set_dataset_identifier(new_name, identifier)
 
     def update_dataset(self, name, dataset):
         """Update a given dataset.

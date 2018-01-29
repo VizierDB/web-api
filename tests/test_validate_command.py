@@ -60,7 +60,7 @@ class TestValidateCommand(unittest.TestCase):
         obj = cmd.mimir_missing_key('ds', 'colA', make_input_certain=True)
         self.engine.validate_command(obj)
         # PICKER
-        obj = cmd.mimir_picker('ds', [{'pickFrom': 'A', 'pickAs': 'a'}, {'pickFrom': 'B'}], make_input_certain=True)
+        obj = cmd.mimir_picker('ds', [{'pickFrom': 'A'}, {'pickFrom': 'B'}], pick_as='A', make_input_certain=True)
         self.engine.validate_command(obj)
         # SCHEMA Matching
         obj = cmd.mimir_schema_matching('ds', [{'column': 'colA', 'type':'int'}, {'column':'colB', 'type':'int'}], 'myds')

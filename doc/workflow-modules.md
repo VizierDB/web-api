@@ -153,6 +153,15 @@ arguments:
     row: 'Row index'
 ```
 
+#### Drop Dataset
+
+```
+type: 'vizual'
+id: 'DROP_DATASET'
+arguments:
+    dataset: 'Dataset name'
+```
+
 #### Insert Column
 
 ```
@@ -215,6 +224,16 @@ arguments:
     dataset: 'Dataset name'
     column: 'Column index, name, or label'
     name: 'New column name'
+```
+
+#### Rename Dataset
+
+```
+type: 'vizual'
+id: 'RENAME_DATASET'
+arguments:
+    dataset: 'Name of existing dataset'
+    name: 'New dataset name'
 ```
 
 #### Update Cell

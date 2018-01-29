@@ -159,6 +159,12 @@ class DatasetMetadata(object):
             'row': int(key[pos+1:])
         }
 
+    def clear_cell(self, column_id, row_id):
+        """Remove all annotations for a given cell."""
+        cell_id = DatasetMetadata.get_cell_key(column_id, row_id)
+        if cell_id in self.cell_annotations:
+            del self.cell_annotations[cell_id]
+
     def copy_metadata(self):
         """Make a copy of the metadata set.
 

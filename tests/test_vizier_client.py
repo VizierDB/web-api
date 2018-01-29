@@ -62,30 +62,27 @@ class TestVizierClient(unittest.TestCase):
         ds.add_row(['Alice', '23'])
         ds.add_row(['Bob', '25'])
         ds.annotations.for_cell(1, 1).set_annotation('value', '26')
-        client.create_dataset('My Dataset', ds)
+        client.create_dataset('MyDataset', ds)
         # Ensure the returned dataset contains the input data
-        ds = client.get_dataset('My Dataset')
+        ds = client.get_dataset('MyDataset')
         self.assertEquals([c.name for c in ds.columns], ['Name', 'Age'])
         self.assertEquals(ds.rows[0].values, ['Alice', '23'])
         self.assertEquals(ds.rows[1].values, ['Bob', '25'])
         # Update dataset
         ds.rows[1].set_value('Age', '26')
-        client.update_dataset('My Dataset', ds)
-        ds = client.get_dataset('My Dataset')
+        client.update_dataset('MyDataset', ds)
+        ds = client.get_dataset('MyDataset')
         self.assertEquals(ds.rows[1].values, ['Bob', '26'])
-        anno = ds.annotations.for_cell(1, 1)
-        self.assertEquals(anno.get_annotation('value'), ds.rows[1].get_value(1))
-        # Ensure the returned dataset contains the modified data
-        ds = client.get_dataset('My Dataset')
         # Value error when creating dataset with existing name
         with self.assertRaises(ValueError):
-            client.create_dataset('My Dataset', ds)
+            client.create_dataset('MyDataset', ds)
         # Value error when retrieving unknown dataset
         with self.assertRaises(ValueError):
-            client.get_dataset('Some Dataset')
-        # Value error when retrieving unknown dataset
-        with self.assertRaises(ValueError):
-            client.update_dataset('Some Dataset', ds)
+            client.get_dataset('SomeDataset')
+        # Ensure the returned dataset contains the modified data
+        client.rename_dataset('MyDataset', 'SomeDataset')
+        ds = client.get_dataset('SomeDataset')
+        client.update_dataset('SomeDataset', ds)
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,6 +26,7 @@ WORKTRAILS_DIR = './env/wt'
 CSV_FILE = './data/dataset.csv'
 KEY_REPAIR_FILE = './data/key_repair.csv'
 INCOMPLETE_CSV_FILE = './data/dataset_with_missing_values.csv'
+PICKER_FILE = './data/dataset_pick.csv'
 
 ENGINE_ID = 'ENGINE'
 
@@ -145,10 +146,29 @@ class TestMimirLenses(unittest.TestCase):
             command=cmd.mimir_missing_key(DS_NAME, 'Age', missing_only=True)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        print wf.modules[-1].stderr
         self.assertFalse(wf.has_error)
         # Get dataset
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        self.assertEquals(len(ds.columns), 3)
+        self.assertEquals(len(ds.rows), 12)
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.load_dataset(f_handle.identifier, DS_NAME + '2')
+        )
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.mimir_missing_key(
+                DS_NAME + '2',
+                'Salary',
+                missing_only=True
+            )
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        # Get dataset
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME + '2'])
+        self.assertEquals(len(ds.columns), 3)
+        self.assertEquals(len(ds.rows), 20)
         print [c.name for c in ds.columns]
         for row in ds.rows:
             print str(row.identifier) + ' -> ' + str(row.values)
@@ -159,7 +179,7 @@ class TestMimirLenses(unittest.TestCase):
         # Create new work trail and retrieve the HEAD workflow of the default
         # branch
         mimir.initialize()
-        f_handle = self.fileserver.upload_file(CSV_FILE)
+        f_handle = self.fileserver.upload_file(PICKER_FILE)
         vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -170,19 +190,49 @@ class TestMimirLenses(unittest.TestCase):
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_picker(DS_NAME, [{'pickFrom': 'Age'}])
+            command=cmd.mimir_picker(DS_NAME, [
+                {'pickFrom': 'Age'},
+                {'pickFrom': 'Salary'}
+            ])
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        print wf.modules[-1].stderr
         self.assertFalse(wf.has_error)
         # Get dataset
-        self.assertEquals(len(wf.modules[-1].datasets), 2)
+        self.assertEquals(len(wf.modules[-1].datasets), 1)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        print [c.name for c in ds.columns]
-        for row in ds.rows:
-            print row.values
+        columns = [c.name for c in ds.columns]
         self.assertEquals(len(ds.columns), 5)
-        self.assertEquals(len(ds.rows), 2)
+        self.assertTrue('PICK_ONE_AGE_SALARY' in columns)
+        # Pick another column, this time with custom name
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.mimir_picker(DS_NAME, [
+                {'pickFrom': 'Age'},
+                {'pickFrom': 'Salary'}
+            ],
+            pick_as='MyColumn')
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        # Get dataset
+        self.assertEquals(len(wf.modules[-1].datasets), 1)
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        columns = [c.name for c in ds.columns]
+        self.assertEquals(len(ds.columns), 6)
+        self.assertTrue('PICK_ONE_AGE_SALARY' in columns)
+        self.assertTrue('MyColumn' in columns)
+        # Pick from a picked column
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.mimir_picker(DS_NAME, [
+                {'pickFrom': 'Age'},
+                {'pickFrom': 'PICK_ONE_AGE_SALARY'}
+            ],
+            pick_as='MyColumn')
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        self.assertFalse(wf.has_error)
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         mimir.finalize()
 
     def test_schema_matching_lens(self):
