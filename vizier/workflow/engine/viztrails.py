@@ -2,20 +2,21 @@
 
 from vizier.datastore.mem import VolatileDataStore
 from vizier.workflow.module import ModuleHandle
-from vizier.workflow.packages.vizierpkg import MimirLens, PythonCell, VizualCell
-from vizier.workflow.context import VZR_ENV_VIZIER, WorkflowContext
-from vizier.workflow.repository.engine.base import WorkflowExecutionResult, WorkflowEngine
-from vizier.workflow.repository.engine.base import TXT_NORMAL, TXT_ERROR
+from vizier.workflow.packages.userpackages.vizierpkg import MimirLens, PythonCell, VizualCell
+from vizier.workflow.context import WorkflowContext
+from vizier.workflow.engine.base import WorkflowExecutionResult, WorkflowEngine
+from vizier.workflow.engine.base import TXT_NORMAL, TXT_ERROR
 
 import vizier.config as config
-import vizier.workflow.repository.command as cmdtype
+import vizier.workflow.command as cmdtype
+import vizier.workflow.context as ctx
 
 
 class DefaultViztrailsEngine(WorkflowEngine):
     """Implementation of the workflow engine using Vistrails modules but not
     the Vistrails controller for workflow execution.
     """
-    def __init__(self, engine_id, vizual, datastore):
+    def __init__(self, exec_env):
         """Initialize the build information. Expects a dictionary containing two
         elements: name and version.
 
@@ -23,33 +24,20 @@ class DefaultViztrailsEngine(WorkflowEngine):
 
         Parameters
         ---------
-        engine_id: string
-            Engine configuration name. Determines the set of available
-            commands.
-        vizual: vizier.workflow.engine.vizual.base.VizualEngine
-            Vizual commands execution engine
-        datastore : vizier.datastore.base.DataStore
-            Datastore to access and manipulate datasets
+        exec_env: vizier.config.ExecEnv
+            Environment for execution of viztrail workflows
         """
-        commands = {
-            cmdtype.MODTYPE_PYTHON: cmdtype.PYTHON_COMMANDS,
-            cmdtype.MODTYPE_VIZUAL: cmdtype.VIZUAL_COMMANDS
-        }
-        if engine_id == config.ENGINE_MIMIR:
-            commands[cmdtype.MODTYPE_MIMIR] = cmdtype.MIMIR_LENSES
-        super(DefaultViztrailsEngine, self).__init__(engine_id, commands)
-        self.vizual = vizual
-        self.datastore = datastore
+        self.exec_env = exec_env
 
-    def copy_workflow(self, version_counter, modules):
+    def copy_workflow(self, version, modules):
         """Make a copy of the given workflow up until the given module
         (including). If module identifier is negative the complete workflow is
         copied.
 
         Parameters
         ----------
-        version_counter: vizier.core.util.Sequence
-            Unique version identifier generator
+        version: int
+            Unique version identifier for new workflow
         modules: list(vizier.workflow.module.ModuleHandle)
             List of modules for the new workflow
 
@@ -64,12 +52,12 @@ class DefaultViztrailsEngine(WorkflowEngine):
         # In this implementation the modules are only copied and not executed
         # since the workflow inputs and outputs should not change.
         return WorkflowExecutionResult(
-            version_counter.inc(),
+            version,
             modules[0].identifier,
             [m.copy() for m in modules]
         )
 
-    def execute_module(self, module, context, module_counter):
+    def execute_module(self, module, context):
         """Execute a given workflow module. Depending on the module command type
         a corresponding Viztrails cell is created and the compute method called.
         Returns a handle to the executed module.
@@ -78,23 +66,21 @@ class DefaultViztrailsEngine(WorkflowEngine):
         ----------
         module: vizier.workflow.module.ModuleHandle
             Handle for the input module. A new handle will be returned
-        context: vizier.workflow.context.WorkflowContext
+        context: dict
             Workflow execution context containing datasets and Python variables
             state.
-        module_counter: vizier.core.util.Sequence
-            Unique module identifier generator
 
         Returns
         -------
-        izier.workflow.module.ModuleHandle
+        vizier.workflow.module.ModuleHandle
         """
         cmd = module.command
         if cmd.is_type(cmdtype.MODTYPE_PYTHON):
-            cell = create_python_cell(cmd, context)
+            cell = create_python_cell(module.identifier, cmd, context)
         elif cmd.is_type(cmdtype.MODTYPE_MIMIR):
-            cell = create_mimir_cell(cmd, context)
+            cell = create_mimir_cell(module.identifier, cmd, context)
         elif cmd.is_type(cmdtype.MODTYPE_VIZUAL):
-            cell = create_vizual_cell(cmd, context)
+            cell = create_vizual_cell(module.identifier, cmd, context)
         else:
             raise ValueError('unknown module type \'' + cmd.module_type + '\'')
         # Execute cell and get output
@@ -104,21 +90,21 @@ class DefaultViztrailsEngine(WorkflowEngine):
         except Exception as ex:
             outputs = dict({TXT_NORMAL: list()})
             outputs[TXT_ERROR] = [str(ex)]
-        # Return new module. Make sure that the module has a non-negative
-        # identifier. Copies current state of the datastore mapping.
-        if module.identifier >= 0:
-            module_id = module.identifier
-        else:
-            module_id = module_counter.inc()
+        # Return new module. Copies current state of the datastore mapping.
         return ModuleHandle(
-            module_id,
+            module.identifier,
             module.command,
-            datasets=dict(context.datasets),
+            datasets=dict(
+                ctx.get_datasets(
+                    context[ctx.VZRENV_DATASETS],
+                    module.identifier
+                )
+            ),
             stdout=outputs[TXT_NORMAL],
             stderr=outputs[TXT_ERROR]
         )
 
-    def execute_workflow(self, version_counter, module_counter, modules, modified_index):
+    def execute_workflow(self, version, modules, modified_index):
         """Execute a sequence of modules that define the next version of a given
         workflow in a viztrail. The list of modules is a modified list compared
         to the module in the given workflow. The modified_index points to the
@@ -131,10 +117,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
 
         Parameters
         ----------
-        version_counter: vizier.core.util.Sequence
-            Unique version identifier generator
-        module_counter: vizier.core.util.Sequence
-            Unique module identifier generator
+        version: int
+            Unique version identifier for new workflow
         parent_version: int
             Version number of the parent workflow
         modules: list(vizier.workflow.module.ModuleHandle)
@@ -146,8 +130,15 @@ class DefaultViztrailsEngine(WorkflowEngine):
         -------
         vizier.workflow.engine.base.WorkflowExecutionResult
         """
-        # Get version number for new workflow. Update only at end of execution
-        version = version_counter.inc()
+        # Create global mapping of datasets for all exisitng modules.
+        dataset_maps = list()
+        for module in modules:
+            dataset_maps.append({
+                ctx.VZRENV_DATASETS_MODULEID: module.identifier,
+                ctx.VZRENV_DATASETS_MAPPING: dict(module.datasets)
+            })
+        # New context for workflow execution
+        context = WorkflowContext(self.exec_env, datasets=dataset_maps)
         # Set the index of the first module that may have changed outputs. Start
         # at the beginning of the workflow if modified_index is negative.
         if modified_index == -1:
@@ -156,8 +147,6 @@ class DefaultViztrailsEngine(WorkflowEngine):
             start_index = modified_index
         # List of executed modules for new workflow
         wf_modules = []
-        # New context for workflow execution
-        context = WorkflowContext(self.vizual, self.datastore)
         # Flag indicating whether there has been an error during workflow
         # execution. All modules that are following a modules whose execution
         # failed are not executed.
@@ -169,14 +158,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
         for i in range(len(modules)):
             module = modules[i]
             if has_error:
-                # Make sure that all modules have an non-negative identifier
-                # even if they are not executed
-                if module.identifier < 0:
-                    m_id = module_counter.inc()
-                else:
-                    m_id = module.identifier
                 module = ModuleHandle(
-                    m_id,
+                    module.identifier,
                     module.command,
                     stdout=list(),
                     stderr=list()
@@ -184,9 +167,6 @@ class DefaultViztrailsEngine(WorkflowEngine):
             else:
                 if i < start_index:
                     if module.command.is_type(cmdtype.MODTYPE_PYTHON):
-                        # Save vizier client in current context and replace with
-                        # a volatile data store
-                        v_client = context.variables[VZR_ENV_VIZIER]
                         # Save original module dataset mapping. This mapping
                         # should not change.
                         m_datasets = module.datasets
@@ -194,30 +174,19 @@ class DefaultViztrailsEngine(WorkflowEngine):
                         module = self.execute_module(
                             module,
                             WorkflowContext(
-                                context.vizual,
-                                VolatileDataStore(context.datastore),
-                                datasets=dict(context.datasets),
-                                variables=context.variables
-                            ),
-                            module_counter
+                                self.exec_env,
+                                context_type=ctx.CONTEXT_VOLATILE,
+                                datasets=dataset_maps,
+                                variables=context[ctx.VZRENV_VARS],
+                            )
                         )
                         # Set module dataset mapping to original values
                         module.datasets = m_datasets
-                        # Set client in context variables back to original
-                        context.variables[VZR_ENV_VIZIER] = v_client
                     else:
                         # Copy the module
                         module = module.copy()
-                    # Set current state of datasets
-                    #for key in module.datasets:
-                    #    context.datasets[key] = module.datasets[key]
-                    context.datasets = dict(module.datasets)
                 else:
-                    module = self.execute_module(
-                        module,
-                        context,
-                        module_counter
-                    )
+                    module = self.execute_module(module, context)
                 has_error = module.has_error
             wf_modules.append(module)
         # Return handle for new workflow
@@ -257,7 +226,7 @@ class InputPort(object):
 # Helper Methods
 # ------------------------------------------------------------------------------
 
-def create_mimir_cell(command, context):
+def create_mimir_cell(module_id, command, context):
     """Create a new Mimir cell module from the given command specification.
 
     Assumes that the validity of the command has been verified.
@@ -269,9 +238,11 @@ def create_mimir_cell(command, context):
 
     Parameters
     ----------
+    module_id: int
+        Module identifier
     command: vizier.worktrail.module.ModuleSpecification
         Command specification
-    context: vizier.workflow.engine.context.WorkflowContext
+    context: dict
         Workflow execution context
 
     Returns
@@ -280,13 +251,14 @@ def create_mimir_cell(command, context):
     """
     # Create a new python cell and set the input ports
     cell = MimirLens()
+    cell.moduleInfo['moduleId'] = module_id
     cell.set_input_port('name', InputPort(command.command_identifier))
     cell.set_input_port('arguments', InputPort(command.arguments))
     cell.set_input_port('context', InputPort(context))
     return cell
 
 
-def create_python_cell(command, context):
+def create_python_cell(module_id, command, context):
     """Create a new python cell module from the given command specification.
 
     Assumes that the validity of the command has been verified.
@@ -296,9 +268,11 @@ def create_python_cell(command, context):
 
     Parameters
     ----------
+    module_id: int
+        Module identifier
     command: vizier.worktrail.module.ModuleSpecification
         Command specification
-    context: vizier.workflow.engine.context.WorkflowContext
+    context: dict
         Workflow execution context
 
     Returns
@@ -307,12 +281,13 @@ def create_python_cell(command, context):
     """
     # Create a new python cell and set the input ports
     cell = PythonCell()
+    cell.moduleInfo['moduleId'] = module_id
     cell.set_input_port('source', InputPort(command.arguments['source']))
     cell.set_input_port('context', InputPort(context))
     return cell
 
 
-def create_vizual_cell(command, context):
+def create_vizual_cell(module_id, command, context):
     """Create a new python cell module from the given command specification.
 
     Assumes that the validity of the command has been verified.
@@ -322,9 +297,11 @@ def create_vizual_cell(command, context):
 
     Parameters
     ----------
+    module_id: int
+        Module identifier
     command: vizier.worktrail.module.ModuleSpecification
         Command specification
-    context: vizier.workflow.engine.context.WorkflowContext
+    context: dict
         Workflow execution context
 
     Returns
@@ -333,6 +310,7 @@ def create_vizual_cell(command, context):
     """
     # Create a new python cell and set the input ports
     cell = VizualCell()
+    cell.moduleInfo['moduleId'] = module_id
     cell.set_input_port('name', InputPort(command.command_identifier))
     cell.set_input_port('arguments', InputPort(command.arguments))
     cell.set_input_port('context', InputPort(context))

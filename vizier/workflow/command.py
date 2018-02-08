@@ -1,5 +1,6 @@
 """Specifications for supported workflow module types."""
 
+import vizier.config as config
 from vizier.workflow.module import ModuleSpecification
 
 
@@ -866,6 +867,30 @@ def update_cell(dataset_name, column, row, value):
 # ------------------------------------------------------------------------------
 
 
+def env_commands(env_id):
+    """Return dictionary of avaialable module specifications for a given
+    execution environment.
+
+    Parameters
+    -----------
+    env_id: string
+        Unique identifier of the execution environment.
+
+    Returns
+    -------
+    dict
+    """
+    # By default all environments support Python module and VizUAL
+    commands = {
+        MODTYPE_PYTHON: PYTHON_COMMANDS,
+        MODTYPE_VIZUAL: VIZUAL_COMMANDS
+    }
+    # Add Mimir modules if environemt is MIMIR
+    if env_id == config.ENGINEENV_MIMIR:
+        commands[MODTYPE_MIMIR] = MIMIR_LENSES
+    return commands
+
+
 def validate_arguments(spec, args):
     """Validate a dictionary of command arguments against a command
     specification. Raises ValueError if invalid argument list is given.
@@ -903,6 +928,31 @@ def validate_arguments(spec, args):
     for key in roots:
         if roots[key]['required'] and not key in args:
             raise ValueError('missing argument \'' + key + '\'')
+
+
+def validate_command(command_repository, command):
+    """Validate the given command specification. Raises ValueError if an
+    invalid specification is given.
+
+    Parameters
+    ----------
+    command_repository: dict
+        Dictionary containing specifications for all commands that are
+        supported by an execution environment.
+    command : vizier.workflow.module.ModuleSpecification
+        Specification of the command that is to be evaluated
+    """
+    cmd_type = command.module_type
+    if not cmd_type in command_repository:
+        raise ValueError('unknown command type \'' + cmd_type + '\'')
+    type_commands = command_repository[cmd_type]
+    command_id = command.command_identifier
+    if not command_id in type_commands:
+        raise ValueError('unknown command \'' + command_id + '\'')
+    validate_arguments(
+        type_commands[command_id][MODULE_ARGUMENTS],
+        command.arguments
+    )
 
 
 def validate_nested_arguments(spec, args):

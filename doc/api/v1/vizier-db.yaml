@@ -74,7 +74,7 @@ paths:
                 - name: properties
                   in: body
                   required: true
-                  description: Project engine and list of user-defined properties
+                  description: Project execution environment and list of user-defined properties
                   schema:
                       $ref: '#/definitions/ProjectStatement'
             produces:
@@ -128,7 +128,7 @@ paths:
     /projects/{projectIdentifier}/modulespecs:
         get:
             summary: Executable modules
-            description: List of module specifications for all supported modules of the underlying project engine
+            description: List of module specifications for all supported modules of the execution environment
             operationId: projectModuleSpecifications
             tags:
                 - project
@@ -1226,7 +1226,7 @@ definitions:
         description: Fundamental project metadata and references
         required:
             - id
-            - engine
+            - environment
             - createdAt
             - lastModifiedAt
             - properties
@@ -1234,7 +1234,7 @@ definitions:
         properties:
             id:
                 type: string
-            engine:
+            environment:
                 type: string
             createdAt:
                 type: string
@@ -1253,7 +1253,7 @@ definitions:
         description: Extended project metadata and references
         required:
             - id
-            - engine
+            - environment
             - createdAt
             - lastModifiedAt
             - properties
@@ -1262,7 +1262,7 @@ definitions:
         properties:
             id:
                 type: string
-            engine:
+            environment:
                 type: string
             createdAt:
                 type: string
@@ -1297,10 +1297,10 @@ definitions:
     ProjectStatement:
         type: object
         required:
-            - engine
+            - environment
             - properties
         properties:
-            engine:
+            environment:
                 type: string
             properties:
                 type: array
@@ -1374,12 +1374,12 @@ definitions:
         description: Basic service properties
         required:
             - name
-            - engines
+            - envs
             - links
         properties:
             name:
                 type: string
-            engines:
+            envs:
                 type: array
                 items:
                     required:

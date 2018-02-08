@@ -3,7 +3,7 @@ api:
     server.port: 80
     app.path: '/vizier-db/api/v2'
     doc.url: 'http://vizier-db.info/doc/api/v1'
-engines:
+envs:
     - id: 'MIMIR'
       name: 'Mimir Config'
       description: 'Mimir Engine'

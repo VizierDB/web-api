@@ -6,15 +6,16 @@ import os
 import shutil
 import unittest
 
+from vizier.config import TestEnv
 from vizier.workflow.base import DEFAULT_BRANCH
-from vizier.workflow.repository.engine.test import TestWorkflowEngine
 from vizier.workflow.module import ModuleSpecification
-from vizier.workflow.repository.command import MODTYPE_PYTHON, PYTHON_CODE, PYTHON_SOURCE, python_cell
-from vizier.workflow.repository.command import MODTYPE_VIZUAL, VIZUAL_LOAD, load_dataset, PARA_FILE, PARA_NAME
+from vizier.workflow.command import MODTYPE_PYTHON, PYTHON_CODE, PYTHON_SOURCE, python_cell
+from vizier.workflow.command import MODTYPE_VIZUAL, VIZUAL_LOAD, load_dataset, PARA_FILE, PARA_NAME
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 
-ENGINE_ID = 'TEST'
 VIZTRAILS_DIRECTORY = './env/vt'
+
+ENV = TestEnv()
 
 
 class TestFileSystemViztrailRepository(unittest.TestCase):
@@ -27,7 +28,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         # Setup project repository
         self.db = FileSystemViztrailRepository(
             VIZTRAILS_DIRECTORY,
-            {ENGINE_ID: TestWorkflowEngine(identifier=ENGINE_ID)}
+            {ENV.identifier: ENV}
         )
 
     def tearDown(self):
@@ -38,7 +39,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
     def test_append_module(self):
         """Test appending modules."""
         # Create new viztrail.
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(ENV.identifier, {'name' : 'My Project'})
         self.db.append_workflow_module(viztrail_id=vt.identifier, command=python_cell('abc'))
         self.db.append_workflow_module(viztrail_id=vt.identifier, command=load_dataset('file', 'name'))
         # The default branch should have two versions. The first versions contains
@@ -59,7 +60,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         # Re-load the viztrails to ensure that all information has been persisted properly
         self.db = FileSystemViztrailRepository(
             VIZTRAILS_DIRECTORY,
-            {ENGINE_ID: TestWorkflowEngine(identifier=ENGINE_ID)}
+            {ENV.identifier: ENV}
         )
         vt = self.db.get_viztrail(vt.identifier)
         self.assertEquals(len(vt.branches[DEFAULT_BRANCH].versions), 2)
@@ -91,7 +92,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         self.db.append_workflow_module(viztrail_id=vt.identifier, workflow_version=0, command=python_cell('def'))
         self.db = FileSystemViztrailRepository(
             VIZTRAILS_DIRECTORY,
-            {ENGINE_ID: TestWorkflowEngine(identifier=ENGINE_ID)}
+            {ENV.identifier: ENV}
         )
         vt = self.db.get_viztrail(vt.identifier)
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
@@ -106,7 +107,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
     def test_branching(self):
         """Test functionality to execute a workflow module."""
         # Create new viztrail and ensure that it contains exactly one branch
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(ENV.identifier, {'name' : 'My Project'})
         self.assertEquals(len(vt.branches), 1)
         self.assertTrue(DEFAULT_BRANCH in vt.branches)
         self.assertEquals(vt.branches[DEFAULT_BRANCH].identifier, DEFAULT_BRANCH)
@@ -125,7 +126,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         # Ensure that everything has been persisted properly
         self.db = FileSystemViztrailRepository(
             VIZTRAILS_DIRECTORY,
-            {ENGINE_ID: TestWorkflowEngine(identifier=ENGINE_ID)}
+            {ENV.identifier: ENV}
         )
         vt = self.db.get_viztrail(vt.identifier)
         newbranch = vt.branches[newbranch.identifier]
@@ -205,7 +206,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         """Test functionality to execute a workflow module."""
         # Create new work trail, append a module and retrieve the resulting
         # workflow from default branch HEAD.
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(ENV.identifier, {'name' : 'My Project'})
         self.db.append_workflow_module(viztrail_id=vt.identifier, command=python_cell('abc'))
         wf = vt.get_workflow()
         self.assertEquals(wf.version, 0)
@@ -239,7 +240,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
     def test_workflow_life_cycle(self):
         """Test functionality to execute a workflow module."""
         # Create new work trail.
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(ENV.identifier, {'name' : 'My Project'})
         # Append two modules
         self.db.append_workflow_module(viztrail_id=vt.identifier, command=python_cell('abc'))
         self.db.append_workflow_module(viztrail_id=vt.identifier, command=load_dataset('file', 'name'))
@@ -275,7 +276,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
     def test_viztrail_life_cycle(self):
         """Test API methods to create and delete work trails."""
         # Create work trail and ensure that deleting it returns True
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(ENV.identifier, {'name' : 'My Project'})
         # Ensure that the viztrail has property name = 'My Project'
         self.assertEquals(vt.properties.get_properties()['name'], 'My Project')
         self.assertEquals(len(self.db.list_viztrails()), 1)

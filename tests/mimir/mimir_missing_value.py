@@ -15,7 +15,7 @@ mimir.initialize()
 table_name = mimir._mimir.loadCSV(os.path.abspath(CSV_FILE))
 
 type_ = 'MISSING_VALUE'
-params = ['AGE']
+params = ['\'AGE > 40\'']
 
 
 lens_name = mimir._mimir.createLens(

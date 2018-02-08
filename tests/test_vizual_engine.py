@@ -12,8 +12,8 @@ DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
 CSV_FILE = './data/dataset.csv'
 
-ENGINE_DEFAULT = 'default'
-ENGINE_MIMIR = 'mimir'
+ENGINEENV_DEFAULT = 'default'
+ENGINEENV_MIMIR = 'mimir'
 
 
 def is_null(val):
@@ -30,13 +30,13 @@ class TestVizualEngine(unittest.TestCase):
             shutil.rmtree(FILESERVER_DIR)
         # Setup project repository
         fs = DefaultFileServer(FILESERVER_DIR)
-        if engine == ENGINE_DEFAULT:
+        if engine == ENGINEENV_DEFAULT:
             self.datastore = InMemDataStore()
             self.vizual = DefaultVizualEngine(
                 self.datastore,
                 fs
             )
-        elif engine == ENGINE_MIMIR:
+        elif engine == ENGINEENV_MIMIR:
             self.datastore = MimirDataStore(DATASTORE_DIR)
             self.vizual = MimirVizualEngine(
                 self.datastore,
@@ -56,13 +56,13 @@ class TestVizualEngine(unittest.TestCase):
 
     def test_default_engine(self):
         """Test functionality if the default VizUAL engine."""
-        self.run_engine_tests(ENGINE_DEFAULT)
+        self.run_engine_tests(ENGINEENV_DEFAULT)
 
     def test_mimir_engine(self):
         """Test functionality if the Mimir VizUAL engine."""
         import vistrails.packages.mimir.init as mimir
         mimir.initialize()
-        self.run_engine_tests(ENGINE_MIMIR)
+        self.run_engine_tests(ENGINEENV_MIMIR)
         mimir.finalize()
 
     def run_engine_tests(self, engine):

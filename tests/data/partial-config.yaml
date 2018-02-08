@@ -1,7 +1,7 @@
 api:
     server_url: 'http://vizier-db.info'
     server_port: 80
-engines:
+envs:
     - id: 'MIMIR'
       name: 'NAME-MIMIR'
       datastore:

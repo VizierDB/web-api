@@ -392,6 +392,7 @@ class DefaultFileServer(FileServer):
             reader = csv.reader(csvfile, delimiter='\t')
         else:
             raise ValueError('unknown file suffix for file \'' + name + '\'')
+        print 'GOT READER'
         # Create a new unique identifier for the file
         identifier = get_unique_identifier()
         columns = None
@@ -404,6 +405,7 @@ class DefaultFileServer(FileServer):
             writer = csv.writer(f_out, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
             try:
                 for row in reader:
+                    print row
                     if columns == None:
                         columns = row
                         writer.writerow(row)

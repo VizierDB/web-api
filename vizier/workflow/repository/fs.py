@@ -8,6 +8,7 @@ import os
 import shutil
 import yaml
 
+from vizier.config import ENGINEENV_TEST
 from vizier.core.properties import FilePropertiesHandler
 from vizier.core.system import build_info, component_descriptor
 from vizier.core.timestamp import get_current_time, to_datetime
@@ -15,6 +16,8 @@ from vizier.core.util import Sequence, get_unique_identifier
 from vizier.workflow.base import ViztrailBranch, ViztrailBranchProvenance
 from vizier.workflow.base import ViztrailHandle, WorkflowHandle
 from vizier.workflow.base import DEFAULT_BRANCH, DEFAULT_BRANCH_NAME
+from vizier.workflow.command import env_commands
+from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.module import ModuleHandle
 from vizier.workflow.repository.base import ViztrailRepository
 
@@ -74,9 +77,9 @@ class FileSystemViztrailHandle(ViztrailHandle):
     """Extend the default viztrail handle with functionality to persist the
     viztrail state on the file system.
 
-    All information about a single viztrail is stored in files within a singel
-    dedicated directory. All information is stored in Yaml format. The follwoing
-    files will be created:
+    All information about a viztrail is stored in several files within a
+    dedicated directory. All information is stored in Yaml format. The following
+    files are created:
 
     - viztrail.yaml: Viztrail state
     - properties.yaml: Viztrail properties
@@ -84,12 +87,12 @@ class FileSystemViztrailHandle(ViztrailHandle):
       prefixed by the branch identifier is created. The branch information
       itself (i.e., list of workflow versions in the branch) is maintained as
       part of the viztrail state
-    - <branch-id>_provanence.yaml: For each branch provenance infoamtion is
+    - <branch-id>_provanence.yaml: For each branch provenance information is
       kept in a file prefixed by the branch identifier.
     - <version-identifier>.yaml: For each workflow a separate file containing
       the workflow module specification and generated outputs is created.
     """
-    def __init__(self, identifier, branches, engine, properties, created_at=None, last_modified_at=None, version_counter=0, module_counter=0, fs_dir=None):
+    def __init__(self, identifier, branches, exec_env, properties, created_at=None, last_modified_at=None, version_counter=0, module_counter=0, fs_dir=None):
         """Initialize the viztrail handle. Raise a ValueError exception if no
         base directory is given.
 
@@ -99,8 +102,8 @@ class FileSystemViztrailHandle(ViztrailHandle):
             Unique viztrail identifier
         branches : dict(ViztrailBranch)
             Dictionary of branches.
-        engine: vizier.workflow.engine.base.WorkflowEngine
-            Workflow engine for execution of viztrail workflows
+        exec_env: vizier.config.ExecEnv
+            Environment for execution of viztrail workflows
         properties: vizier.core.properties.ObjectPropertiesHandler
             Handler for user-defined properties that are associated with this
             viztrail
@@ -118,13 +121,13 @@ class FileSystemViztrailHandle(ViztrailHandle):
         super(FileSystemViztrailHandle, self).__init__(
             identifier,
             branches,
-            engine.identifier,
-            engine.commands,
+            exec_env.identifier,
+            env_commands(exec_env.identifier),
             properties,
             created_at=created_at,
             last_modified_at=last_modified_at
         )
-        self.engine = engine
+        self.exec_env = exec_env
         self.version_counter = Sequence(version_counter)
         self.module_counter = Sequence(module_counter)
         # Ensure that the base directory is not None
@@ -133,7 +136,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
         self.fs_dir = fs_dir
 
     @staticmethod
-    def create_viztrail(fs_dir, identifier, engine, properties=None):
+    def create_viztrail(fs_dir, identifier, exec_env, properties=None):
         """Create a new viztrail handle.
 
         Parameters
@@ -142,8 +145,8 @@ class FileSystemViztrailHandle(ViztrailHandle):
             Base directory where all viztrail information is stored
         identifier: string
             Unique viztrail identifier
-        engine: vizier.workflow.engine.base.WorkflowEngine
-            Workflow engine for execution of viztrail workflows
+        exec_env: vizier.config.ExecEnv
+            Environment for execution of viztrail workflows
         properties: dict, optional
             Optional dictionary of viztrail properties
 
@@ -164,7 +167,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
         viztrail = FileSystemViztrailHandle(
             identifier,
             {DEFAULT_BRANCH: master_branch},
-            engine,
+            exec_env,
             FilePropertiesHandler(
                 os.path.join(fs_dir, PROPERTIES_FILE),
                 properties=properties
@@ -179,8 +182,24 @@ class FileSystemViztrailHandle(ViztrailHandle):
         """Delete the viztrail by removing the base directory."""
         shutil.rmtree(self.fs_dir)
 
+    @property
+    def engine(self):
+        """Get the workflow engine for the viztrail execution environment.
+
+        Returns
+        -------
+        vizier.workflow.engine.DefaultViztrailsEngine
+        """
+        # The default engine is currently DefaultViztrailsEngine. Return test
+        # engine in case we are running in a test environment.
+        if self.exec_env.identifier == ENGINEENV_TEST:
+            from vizier.workflow.engine.test import TestWorkflowEngine
+            return TestWorkflowEngine()
+        else:
+            return DefaultViztrailsEngine(self.exec_env)
+
     @staticmethod
-    def from_file(fs_dir, engines):
+    def from_file(fs_dir, envs):
         """Read the viztrail state from file.
 
         Raises IOError if the viztrail file does not exist.
@@ -189,8 +208,8 @@ class FileSystemViztrailHandle(ViztrailHandle):
         ----------
         fs_dir: string
             Base directory where all viztrail information is stored
-        engines: dict(string: vizier.workflow.engine.base.WorkflowEngine)
-            Dictionary of workflow engines
+        envs: dict(string: vizier.config.ExecEnv)
+            Dictionary of workflow execution environments
 
         Returns
         -------
@@ -208,7 +227,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
                 FileSystemBranchProvenance(branch_prov_file(fs_dir, b['id'])),
                 versions=b['versions']
             ) for b in doc['branches']},
-            engines[doc['engine']],
+            envs[doc['env']],
             FilePropertiesHandler(os.path.join(fs_dir, PROPERTIES_FILE)),
             to_datetime(doc['timestamps']['createdAt']),
             to_datetime(doc['timestamps']['lastModifiedAt']),
@@ -264,7 +283,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
         # Serialize viztrail
         doc = {
             'id': self.identifier,
-            'engine': self.engine.identifier,
+            'env': self.exec_env.identifier,
             'branches' : [{
                     'id': b,
                     'versions': self.branches[b].versions
@@ -306,8 +325,9 @@ class FileSystemViztrailRepository(ViztrailRepository):
     All available viztrails information is maitained in an internal cache to
     avoid frequent IO operations when accessing viztrail inforamtion.
     """
-    def __init__(self, base_directory, engines):
-        """Initialize the base directory and the dictionary of workflow engines.
+    def __init__(self, base_directory, envs):
+        """Initialize the base directory and the dictionary of workflow
+        execution environments.
 
         The base directory is created if it does not exist. Viztrail information
         is maintained in subfolders of the base directory. For each viztrail one
@@ -318,8 +338,8 @@ class FileSystemViztrailRepository(ViztrailRepository):
         ---------
         base_directory : string
             Path to base directory
-        engines: dict(string: vizier.workflow.repository.engine.base.WorkflowEngine)
-            Dictionary of available workflow engines
+        envs : dict(string: vizier.config.ExecEnv)
+            Dictionary of supported execution environments
         """
         super(FileSystemViztrailRepository, self).__init__(
             build_info('FileSystemViztrailRepository')
@@ -328,8 +348,8 @@ class FileSystemViztrailRepository(ViztrailRepository):
         # Create base directory if it doesn't exist
         if not os.path.isdir(self.base_dir):
             os.makedirs(self.base_dir)
-        # Set list of workflow engines
-        self.engines = engines
+        # Set list of workflow execution environments
+        self.envs = envs
         # Read information about all available viztrails into an internal cache.
         # The cache is a dictionary of viztrail handles (keyes by their
         # identifier). Assumes that every directory in the base dir represents
@@ -340,7 +360,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
             if os.path.isdir(fs_dir):
                 viztrail = FileSystemViztrailHandle.from_file(
                     fs_dir,
-                    self.engines
+                    self.envs
                 )
                 self.cache[viztrail.identifier] = viztrail
 
@@ -393,7 +413,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
         if workflow is None:
             return None
         # Validate given command specification. Will raise exception if invalid.
-        viztrail.engine.validate_command(command)
+        viztrail.validate_command(command)
         # Extend worktrails module list by appending the module (or inserting it
         # if before_id is <> -1). Raise ValueError if a module that is
         # referenced as before_id does not exist.
@@ -401,13 +421,15 @@ class FileSystemViztrailRepository(ViztrailRepository):
         module_index = -1
         if before_id < 0:
             modules = workflow.modules
-            modules.append(ModuleHandle(-1, command))
+            modules.append(ModuleHandle(viztrail.module_counter.inc(), command))
             module_index = len(modules) - 1
         else:
             for i in range(len(workflow.modules)):
                 m = workflow.modules[i]
                 if m.identifier == before_id:
-                    modules.append(ModuleHandle(-1, command))
+                    modules.append(
+                        ModuleHandle(viztrail.module_counter.inc(), command)
+                    )
                     module_index = i
                 modules.append(m)
             if module_index == -1:
@@ -415,8 +437,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
         # Execute the workflow and return the handle for the resulting workflow
         # state. Execution should persist the generated workflow state.
         result = viztrail.engine.execute_workflow(
-            viztrail.version_counter,
-            viztrail.module_counter,
+            viztrail.version_counter.inc(),
             modules,
             module_index
         )
@@ -424,14 +445,13 @@ class FileSystemViztrailRepository(ViztrailRepository):
         return persist_workflow_result(viztrail, branch_id, result)
 
     def components(self):
-        """List containing component descriptor and descriptors for workflow
-        engine component.
+        """List containing component descriptor.
 
         Returns
         -------
         list
         """
-        return [component_descriptor('worktrails', self.system_build())]
+        return [component_descriptor('viztrails', self.system_build())]
 
     def create_branch(self, viztrail_id=None, source_branch=DEFAULT_BRANCH, workflow_version=-1, properties=None, module_id=-1):
         """Create a new workflow branch in a given viztrail. The new branch is
@@ -493,7 +513,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
                 raise ValueError('unknown module \'' + str(module_id) + '\'')
         # Make a copy of the source workflow for the branch
         result = viztrail.engine.copy_workflow(
-            viztrail.version_counter,
+            viztrail.version_counter.inc(),
             modules
         )
         # Create file for new workflow
@@ -522,16 +542,16 @@ class FileSystemViztrailRepository(ViztrailRepository):
         viztrail.to_file()
         return branch
 
-    def create_viztrail(self, engine_id, properties):
+    def create_viztrail(self, env_id, properties):
         """Create a new viztrail.
 
-        Raises ValueError if the given workflow engine is unknown.
+        Raises ValueError if the given execution environment is unknown.
 
         Parameters
         ----------
-        engine_id: string
-            Identifier for workflow engine that is used to execute workflows of
-            the new viztrail
+        env_id: string
+            Identifier for workflow execution environment that is used fot the
+            new viztrail
         properties: dict
             Set of properties for the new viztrail
 
@@ -539,8 +559,8 @@ class FileSystemViztrailRepository(ViztrailRepository):
         -------
         vizier.workflow.base.ViztrailHandle
         """
-        if not engine_id in self.engines:
-            raise ValueError('unknown workflow engine \'' + engine_id + '\'')
+        if not env_id in self.envs:
+            raise ValueError('unknown execution environment \'' + env_id + '\'')
         # Get unique viztrail identifier
         identifier = get_unique_identifier()
         # Create viztrail directory
@@ -550,7 +570,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
         viztrail = FileSystemViztrailHandle.create_viztrail(
             fs_dir,
             identifier,
-            self.engines[engine_id],
+            self.envs[env_id],
             properties=properties
         )
         self.cache[viztrail.identifier] = viztrail
@@ -642,8 +662,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
         # Execute the workflow and return the handle for the resulting workflow
         # state. Execution should persist the generated workflow state.
         result = viztrail.engine.execute_workflow(
-            viztrail.version_counter,
-            viztrail.module_counter,
+            viztrail.version_counter.inc(),
             modules,
             module_index
         )
@@ -764,7 +783,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
         if workflow is None:
             return None
         # Validate given command specification. Will raise exception if invalid.
-        viztrail.engine.validate_command(command)
+        viztrail.validate_command(command)
         # Create modified module list replacing the specified module with the
         # given command. Return None if no module with the specified id exists.
         modules = []
@@ -781,8 +800,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
         # Execute the workflow and return the handle for the resulting workflow
         # state. Execution should persist the generated workflow state.
         result = viztrail.engine.execute_workflow(
-            viztrail.version_counter,
-            viztrail.module_counter,
+            viztrail.version_counter.inc(),
             modules,
             module_index
         )

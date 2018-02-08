@@ -1,45 +1,21 @@
 """Simple implementation of the WorkflowEngine for testing purposes."""
 
-
-import vizier.workflow.repository.command as cmd
-from vizier.workflow.repository.engine.base import WorkflowExecutionResult, WorkflowEngine
-
-
-"""Default test engine identifier."""
-TEST_ENGINE_IDENTIFIER = 'TEST'
+from vizier.workflow.engine.base import WorkflowExecutionResult, WorkflowEngine
 
 
 class TestWorkflowEngine(WorkflowEngine):
     """Simple test engine. Implements the abstract WorkflowEngine class. Does
     not execute any modules but simply sets the STDOUT to 'SUCCESS ,module-id>'.
     """
-    def __init__(self, identifier=TEST_ENGINE_IDENTIFIER):
-        """Set the engine identifier. The default identifier is TEST but in case
-        multiple instances are being used each should have a unique identifier.
-
-        Parameters
-        ----------
-        identifier: string
-            Unique workflow engine identifier
-        """
-        super(TestWorkflowEngine, self).__init__(
-            identifier,
-            {
-                cmd.MODTYPE_PYTHON: cmd.PYTHON_COMMANDS,
-                cmd.MODTYPE_VIZUAL: cmd.VIZUAL_COMMANDS,
-                cmd.MODTYPE_MIMIR: cmd.MIMIR_LENSES
-            }
-        )
-
-    def copy_workflow(self, version_counter, modules):
+    def copy_workflow(self, version, modules):
         """Make a copy of the given workflow up until the given module
         (including). If module identifier is negative the complete workflow is
         copied.
 
         Parameters
         ----------
-        version_counter: vizier.core.util.Sequence
-            Unique version identifier generator
+        version: int
+            Unique version identifier for new workflow
         modules: list(vizier.workflow.module.ModuleHandle)
             List of modules for the new workflow
 
@@ -48,12 +24,12 @@ class TestWorkflowEngine(WorkflowEngine):
         vizier.workflow.engine.base.WorkflowExecutionResult
         """
         return WorkflowExecutionResult(
-            version_counter.inc(),
+            version,
             modules[0].identifier,
             [m.copy() for m in modules]
         )
 
-    def execute_workflow(self, version_counter, module_counter, modules, modified_index):
+    def execute_workflow(self, version, modules, modified_index):
         """Execute a sequence of modules that define the next version of a given
         workflow in a viztrail. The list of modules is a modified list compared
         to the module in the given workflow. The modified_index points to the
@@ -70,10 +46,8 @@ class TestWorkflowEngine(WorkflowEngine):
 
         Parameters
         ----------
-        version_counter: vizier.core.util.Sequence
-            Unique version identifier generator
-        module_counter: vizier.core.util.Sequence
-            Unique module identifier generator
+        version: int
+            Unique version identifier for new workflow
         parent_version: int
             Version number of the parent workflow
         modules: list(vizier.workflow.module.ModuleHandle)
@@ -85,7 +59,6 @@ class TestWorkflowEngine(WorkflowEngine):
         -------
         vizier.workflow.engine.base.WorkflowExecutionResult
         """
-        version = version_counter.inc()
         if modified_index == -1:
             start_index = 0
         else:
@@ -94,8 +67,6 @@ class TestWorkflowEngine(WorkflowEngine):
         for i in range(len(modules)):
             m = modules[i].copy()
             if i >= start_index:
-                if m.identifier < 0:
-                    m.identifier = module_counter.inc()
                 m.stdout.append('SUCCESS ' + str(m.identifier))
             elif  m.identifier < 0:
                 raise ValueError('invalid module identifier \'' + str(m.identifier) + '\'')

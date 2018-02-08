@@ -12,19 +12,16 @@ from werkzeug.utils import secure_filename
 import yaml
 
 from vizier.api import VizierWebService
-from vizier.config import AppConfig, ENGINE_DEFAULT, ENGINE_MIMIR
-from vizier.filestore.base import DefaultFileServer
+from vizier.config import AppConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
 from vizier.datastore.federated import FederatedDataStore
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.metadata import UpdateCellAnnotation as UpdCell
 from vizier.datastore.metadata import UpdateColumnAnnotation as UpdCol
 from vizier.datastore.metadata import UpdateRowAnnotation as UpdRow
 from vizier.datastore.mimir import MimirDataStore
+from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.module import ModuleSpecification
-from vizier.workflow.repository.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
-from vizier.workflow.vizual.base import DefaultVizualEngine
-from vizier.workflow.vizual.mimir import MimirVizualEngine
 
 
 # -----------------------------------------------------------------------------
@@ -54,23 +51,20 @@ CORS(app)
 # Currently uses the default file server
 fileserver = DefaultFileServer(config.fileserver.directory)
 
-# Create datastores and workflow engines depend on the configuration
+# Create datastore for the API. Different execution environments may use
+# different data stores. The API needs to be able to serve datasets from all
+# of them. Thus, if more than one execution environment is specified we need
+# to use a federated datastore. Individual viztrails will create their own
+# instances of their respective data store.
 datastores = list()
-engines = dict()
-
-for engine_id in config.engines:
-    eng_conf = config.engines[engine_id]
-    if engine_id == ENGINE_DEFAULT:
-        datastore = FileSystemDataStore(eng_conf.datastore.directory)
-        vizual = DefaultVizualEngine(datastore, fileserver)
-    elif engine_id == ENGINE_MIMIR:
-        datastore = MimirDataStore(eng_conf.datastore.directory)
-        vizual = MimirVizualEngine(datastore, fileserver)
+for env_id in config.envs:
+    env_conf = config.envs[env_id]
+    if env_id == ENGINEENV_DEFAULT:
+        datastores.append(FileSystemDataStore(env_conf.datastore.directory))
+    elif env_id == ENGINEENV_MIMIR:
+        datastores.append(MimirDataStore(env_conf.datastore.directory))
     else:
-        raise RuntimeError('unknown workflow engine \'' + engine_id + '\'')
-    datastores.append(datastore)
-    engines[engine_id] =  DefaultViztrailsEngine(engine_id, vizual, datastore)
-
+        raise RuntimeError('unknown execution environment \'' + env_id + '\'')
 # Federate data stores if more than one was given
 if len(datastores) > 1:
     datastore = FederatedDataStore(datastores)
@@ -79,7 +73,7 @@ else:
 
 # Initialize the Web Service API.
 api = VizierWebService(
-    FileSystemViztrailRepository(config.viztrails.directory, engines),
+    FileSystemViztrailRepository(config.viztrails.directory, config.envs),
     datastore,
     fileserver,
     config
@@ -320,7 +314,7 @@ def create_project():
     Request
     -------
     {
-      "engine": "string",
+      "environment": "string",
       "properties": [
         {
           "key": "string",
@@ -331,7 +325,7 @@ def create_project():
     """
     # Abort with BAD REQUEST if request body is not in Json format or if any
     # of the provided project properties is not a dict with key and value.
-    obj = validate_json_request(request, required=['engine', 'properties'])
+    obj = validate_json_request(request, required=['environment', 'properties'])
     if not isinstance(obj['properties'], list):
         raise InvalidRequest('expected a list of properties')
     properties = dict()
@@ -344,7 +338,7 @@ def create_project():
         properties[prop['key']] = prop['value']
     # Create project and return the project descriptor
     try:
-        return jsonify(api.create_project(obj['engine'], properties)), 201
+        return jsonify(api.create_project(obj['environment'], properties)), 201
     except ValueError as ex:
         raise InvalidRequest(str(ex))
 
@@ -754,9 +748,10 @@ def update_branch_properties(project_id, branch_id):
 
 @app.before_first_request
 def initialize():
-    """Initialize the connection to the Mimir gateway if Mimir engine is used.
+    """Initialize the connection to the Mimir gateway if Mimir execution
+    environment is used.
     """
-    if ENGINE_MIMIR in config.engines:
+    if ENGINEENV_MIMIR in config.envs:
         try:
             import vistrails.packages.mimir.init as mimir
             mimir.initialize()
@@ -940,15 +935,6 @@ if __name__ == '__main__':
         logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     )
     app.logger.addHandler(file_handler)
-    # Initialize Mimir if MIMIR configuration is selected
-    #if ENGINE_MIMIR in config.engines:
-    #import vistrails.packages.mimir.init as mimir
-    #mimir.initialize()
-    #    if mimir._mimir is None:
-    #        print 'CONNECT'
-    #        print mimir._mimir is None
-    #    else:
-    #        print 'ALREADY CONNECTED'
     # Load a dummy app at the root URL to give 404 errors.
     # Serve app at APPLICATION_ROOT for localhost development.
     application = DispatcherMiddleware(Flask('dummy_app'), {

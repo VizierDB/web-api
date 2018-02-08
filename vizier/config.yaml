@@ -3,23 +3,23 @@ api:
     server_port: 5000
     app_path: '/vizier-db/api/v1'
     doc_url: 'http://cds-swg1.cims.nyu.edu/doc/vizier-db/'
-engines:
+envs:
     - id: 'DEFAULT'
       name: 'Vizier (Light)'
-      description: 'Workflow engine with basic functionality'
+      description: 'Curation workflow with basic functionality'
       datastore:
-          directory: '../.env/ds/default'
+          directory: '../.vizierdb/datastore/default'
     - id: 'MIMIR'
       name: 'Vizier (Mimir)'
-      description: 'Workflow engine supporting advanced Mimir functionality'
+      description: 'Curation workflow with advanced Mimir functionality'
       default: true
       datastore:
-          directory: '../.env/ds/mimir'
+          directory: '../.vizierdb/datastore/mimir'
 viztrails:
-    directory: '../.env/vt'
+    directory: '../.vizierdb/viztrails'
 fileserver:
-    directory: '../.env/fs'
-    max_file_size: 1024
+    directory: '../.vizierdb/filestore'
+    max_file_size: 16777216
 name: 'Vizier Web API'
 debug: True
-logs: '../.env/logs'
+logs: '../.vizierdb/logs'

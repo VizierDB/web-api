@@ -1,8 +1,8 @@
 """Helper class for managing applicatin configuration.
 
 The app configuration has three main parts: API and Web service configuration,
-file server, and the workflow engine. The structure of the configuration object
-is as follows:
+file server, and the workflow execution environment. The structure of the
+configuration object is as follows:
 
 api:
     server_url: Url of the server (e.g., http://localhost)
@@ -13,12 +13,14 @@ api:
 fileserver:
     directory: Path to base directory for file server
     max_file_size: Maximum size for file uploads
-engines:
-    - identifier: Engine type (i.e., DEFAULT or MIMIR)
-      name: Engine printable name
-      description: Descriptive text for engine
+envs:
+    - identifier: Execcution environment type (i.e., DEFAULT or MIMIR)
+      name: Environment printable name
+      description: Descriptive text for execution environment
       datastore:
           directory: Base directory for datastore
+      fileserver:
+          directory: Base directory for fileserver (duplicated)
 viztrails:
   directory: Base directory for storing worktrail information and metadata
 name: Web Service name
@@ -41,9 +43,14 @@ ENV_CONFIG = 'VIZIERSERVER_CONFIG'
 """Default directory for API data."""
 ENV_DIRECTORY = '../.env'
 
-"""API Engine types."""
-ENGINE_DEFAULT = 'DEFAULT'
-ENGINE_MIMIR = 'MIMIR'
+"""API execution environment types."""
+ENGINEENV_DEFAULT = 'DEFAULT'
+ENGINEENV_MIMIR = 'MIMIR'
+ENGINEENV_TEST = 'TEST'
+
+"""Default execution environment."""
+DEFAULT_ENV_NAME = 'Vizier (Lite)'
+DEFAULT_ENV_DESC = 'Curation workflow with basic functionality'
 
 
 class AppConfig(object):
@@ -59,12 +66,14 @@ class AppConfig(object):
         fileserver:
             directory
             max_file_size
-        engines:
+        envs:
             - identifier
               name
               description
               default
               datastore:
+                  directory
+              fileserver:
                   directory
         viztrails:
             directory
@@ -96,9 +105,9 @@ class AppConfig(object):
         # configuration parameters from file
         self.api = ServerConfig()
         self.fileserver = FileServerConfig()
-        # Leave engines dictionary empty initially. Add default engine later if
-        # necessary
-        self.engines = dict()
+        # Leave environmentss dictionary empty initially. Add default execution
+        # environment later if necessary
+        self.envs = dict()
         self.viztrails = FSObjectConfig(os.path.join(ENV_DIRECTORY, 'wt'))
         self.name = 'Vizier Web API'
         self.debug = True
@@ -120,10 +129,10 @@ class AppConfig(object):
                 self.api.from_dict(doc['api'])
             if 'fileserver' in doc:
                 self.fileserver.from_dict(doc['fileserver'])
-            if 'engines' in doc:
-                for obj in doc['engines']:
-                    engine = EngineConfig().from_dict(obj)
-                    self.engines[engine.identifier] = engine
+            if 'envs' in doc:
+                for obj in doc['envs']:
+                    env = ExecEnv(self.fileserver).from_dict(obj)
+                    self.envs[env.identifier] = env
             if 'viztrails' in doc:
                 self.viztrails.from_dict(doc['viztrails'])
             if 'name' in doc:
@@ -132,11 +141,11 @@ class AppConfig(object):
                 self.debug = doc['debug']
             if 'logs' in doc:
                 self.logs = doc['logs']
-        # Make sure to add the default workflow engine if no engine was
-        # specified in the configuration file
-        if len(self.engines) == 0:
-            engine = EngineConfig()
-            self.engines[engine.identifier] = engine
+        # Make sure to add the default workflow execution environment if no
+        # environment was specified in the configuration file
+        if len(self.envs) == 0:
+            env = ExecEnv(self.fileserver)
+            self.envs[env.identifier] = env
 
 
 class ServerConfig(object):
@@ -192,22 +201,31 @@ class ServerConfig(object):
             self.doc_url = doc['doc_url']
         elif 'doc.url' in doc:
             self.doc_url = doc['doc.url']
+        return self
 
-
-class EngineConfig(object):
-    """Configuration for an API workflow engine. Contains user-readable
-    description for the underlying workflow engine and configuration for the
-    engine-specific data store.
+class ExecEnv(object):
+    """Configuration for an API workflow execution environment. Contains
+    user-readable description for the envirnment and configuration for the
+    environment-specific data store.
     """
-    def __init__(self):
-        """Initialize the configuration parameters for the API engine with
-        default values.
+    def __init__(self, fileserver, identifier=ENGINEENV_DEFAULT):
+        """Initialize the configuration parameters for the API execution
+        environment with default values.
+
+        Parameters
+        ----------
+        fileserver: vizier.config.FileServerConfig
+            File server configuration from the app config (to be associated with
+            each execution environment).
+        identifier: string, optional
+            Optional environment identifier
         """
-        self.identifier = ENGINE_DEFAULT
-        self.name = 'Vizier (Lite)'
-        self.description = 'Workflow engine with basic functionality'
+        self.identifier = identifier
+        self.name = DEFAULT_ENV_NAME
+        self.description = DEFAULT_ENV_DESC
         self.default = False
         self.datastore = FSObjectConfig(os.path.join(ENV_DIRECTORY, 'ds'))
+        self.fileserver = fileserver
 
     def from_dict(self, doc):
         """Read configuration parameters from the given dictionary.
@@ -219,14 +237,14 @@ class EngineConfig(object):
 
         Returns
         -------
-        vizier.config.EngineConfig
+        vizier.config.ExecEnv
         """
         if 'id' in doc:
             self.identifier = doc['id']
         elif 'identifier' in doc:
             self.identifier = doc['identifier']
-        if not self.identifier in [ENGINE_DEFAULT, ENGINE_MIMIR]:
-            raise ValueError('unknown workflow engine \'' + self.name + '\'')
+        if not self.identifier in [ENGINEENV_DEFAULT, ENGINEENV_MIMIR]:
+            raise ValueError('unknown workflow environment \'' + self.name + '\'')
         if 'name' in doc:
             self.name = doc['name']
         if 'description' in doc:
@@ -238,26 +256,26 @@ class EngineConfig(object):
         return self
 
     @property
-    def is_default_engine(self):
+    def is_default_env(self):
         """Flag indicating whether the configuration is for a default API
-        engine.
+        execution environment.
 
         Returns
         -------
         bool
         """
-        return self.identifier == ENGINE_DEFAULT
+        return self.identifier == ENGINEENV_DEFAULT
 
     @property
-    def is_mimir_engine(self):
-        """Flag indicating whether the configuration is for a API engine that
-        uses Mimir as storage backend.
+    def is_mimir_env(self):
+        """Flag indicating whether the configuration is for an API execution
+        environment that uses Mimir as storage backend.
 
         Returns
         -------
         bool
         """
-        return self.identifier == ENGINE_MIMIR
+        return self.identifier == ENGINEENV_MIMIR
 
 
 class FSObjectConfig(object):
@@ -284,7 +302,7 @@ class FSObjectConfig(object):
         """
         if 'directory' in doc:
             self.directory = doc['directory']
-
+        return self
 
 class FileServerConfig(FSObjectConfig):
     """Configuration for the file server."""
@@ -318,3 +336,19 @@ class FileServerConfig(FSObjectConfig):
             self.max_file_size = int(doc['max_file_size'])
         if 'maxFileSize' in doc:
             self.max_file_size = int(doc['maxFileSize'])
+        return self
+
+# ------------------------------------------------------------------------------
+# Helper Methods
+# ------------------------------------------------------------------------------
+
+def TestEnv():
+    """Return execution environment for test workflow engine.
+
+    Returns
+    -------
+    vizier.config.ExecEnv
+    """
+    env = ExecEnv(FileServerConfig())
+    env.identifier = ENGINEENV_TEST
+    return env

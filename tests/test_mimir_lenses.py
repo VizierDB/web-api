@@ -8,27 +8,33 @@ import unittest
 
 import vistrails.packages.mimir.init as mimir
 
+from vizier.config import ExecEnv, FileServerConfig
+from vizier.config import ENGINEENV_MIMIR
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
-from vizier.workflow.repository.engine.viztrails import DefaultViztrailsEngine
+from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.module import ModuleSpecification
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 from vizier.workflow.vizual.mimir import MimirVizualEngine
 
 import vizier.config as config
-import vizier.workflow.repository.command as cmd
+import vizier.workflow.command as cmd
 
 DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
-WORKTRAILS_DIR = './env/wt'
+VIZTRAILS_DIR = './env/wt'
 
 CSV_FILE = './data/dataset.csv'
 KEY_REPAIR_FILE = './data/key_repair.csv'
 INCOMPLETE_CSV_FILE = './data/dataset_with_missing_values.csv'
 PICKER_FILE = './data/dataset_pick.csv'
 
-ENGINE_ID = 'ENGINE'
+ENV = ExecEnv(
+        FileServerConfig().from_dict({'directory': FILESERVER_DIR}),
+        identifier=ENGINEENV_MIMIR
+    ).from_dict({'datastore': {'directory': DATASTORE_DIR}})
+ENGINE_ID = ENV.identifier
 
 DS_NAME = 'people'
 
@@ -38,7 +44,7 @@ class TestMimirLenses(unittest.TestCase):
     def setUp(self):
         """Create an empty work trails repository."""
         # Create fresh set of directories
-        for d in [DATASTORE_DIR, FILESERVER_DIR, WORKTRAILS_DIR]:
+        for d in [DATASTORE_DIR, FILESERVER_DIR, VIZTRAILS_DIR]:
             if os.path.isdir(d):
                 shutil.rmtree(d)
             os.mkdir(d)
@@ -46,21 +52,15 @@ class TestMimirLenses(unittest.TestCase):
         self.fileserver = DefaultFileServer(FILESERVER_DIR)
         vizual = MimirVizualEngine(self.datastore, self.fileserver)
         self.db = FileSystemViztrailRepository(
-            WORKTRAILS_DIR,
-            {
-                ENGINE_ID: DefaultViztrailsEngine(
-                    config.ENGINE_MIMIR,
-                    vizual,
-                    self.datastore
-                )
-            }
+            VIZTRAILS_DIR,
+            {ENV.identifier: ENV}
         )
 
     def tearDown(self):
         """Clean-up by dropping the MongoDB colelction used by the engine.
         """
         # Delete directories
-        for d in [DATASTORE_DIR, FILESERVER_DIR, WORKTRAILS_DIR]:
+        for d in [DATASTORE_DIR, FILESERVER_DIR, VIZTRAILS_DIR]:
             if os.path.isdir(d):
                 shutil.rmtree(d)
 
@@ -114,16 +114,25 @@ class TestMimirLenses(unittest.TestCase):
             command=cmd.load_dataset(f_handle.identifier, DS_NAME)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        print [c.name for c in ds.columns]
+        for row in ds.rows:
+            print row.values
         self.assertFalse(wf.has_error)
         # Missing Value Lens
         self.db.append_workflow_module(
-            viztrail_id=DEFAULT_BRANCH,
-            command=cmd.mimir_missing_value(DS_NAME, 'AGE')
+            viztrail_id=vt.identifier,
+            command=cmd.mimir_missing_value(DS_NAME, '\'AGE > 40\'')
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        print wf.modules[-1].stderr[0]
+        self.assertEquals(len(wf.modules), 2)
         self.assertFalse(wf.has_error)
         # Get dataset
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        print [c.name for c in ds.columns]
+        for row in ds.rows:
+            print row.values
         self.assertNotEquals(ds.rows[2].get_value('Age'), '')
         mimir.finalize()
 
@@ -146,19 +155,20 @@ class TestMimirLenses(unittest.TestCase):
             command=cmd.mimir_missing_key(DS_NAME, 'Age', missing_only=True)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        print wf.modules[-1].stderr[0]
         self.assertFalse(wf.has_error)
         # Get dataset
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertEquals(len(ds.columns), 3)
         self.assertEquals(len(ds.rows), 12)
-        self.db.append_workflow_module(
-            viztrail_id=vt.identifier,
-            command=cmd.load_dataset(f_handle.identifier, DS_NAME + '2')
-        )
+        #self.db.append_workflow_module(
+        #    viztrail_id=vt.identifier,
+        #    command=cmd.load_dataset(f_handle.identifier, DS_NAME + '2')
+        #)
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_missing_key(
-                DS_NAME + '2',
+                DS_NAME,
                 'Salary',
                 missing_only=True
             )

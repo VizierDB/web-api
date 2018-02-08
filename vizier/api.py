@@ -13,7 +13,7 @@ import os
 from vizier.hateoas import UrlFactory, reference, self_reference
 from vizier.workflow.base import DEFAULT_BRANCH
 
-import vizier.workflow.repository.command as cmd
+import vizier.workflow.command as cmd
 
 
 """Frequently used serialization element labels."""
@@ -36,7 +36,7 @@ REL_FILES = 'files'
 REL_HEAD = 'head'
 REL_INSERT = 'insert'
 REL_MODULES = 'modules'
-REL_MODULE_SPECS = 'engine'
+REL_MODULE_SPECS = 'environment'
 REL_NOTEBOOK = 'notebook'
 REL_PROJECT = 'project'
 REL_PROJECTS = 'projects'
@@ -85,12 +85,12 @@ class VizierWebService(object):
         # Initialize the service description dictionary
         self.service_descriptor = {
             'name' : config.name,
-            'engines': [{
-                    'id': config.engines[key].identifier,
-                    'name': config.engines[key].name,
-                    'description': config.engines[key].description,
-                    'default': config.engines[key].default
-                } for key in config.engines
+            'envs': [{
+                    'id': config.envs[key].identifier,
+                    'name': config.envs[key].name,
+                    'description': config.envs[key].description,
+                    'default': config.envs[key].default
+                } for key in config.envs
             ],
             JSON_REFERENCES : [
                 self_reference(self.urls.service_url()),
@@ -421,15 +421,14 @@ class VizierWebService(object):
     # --------------------------------------------------------------------------
     # Projects
     # --------------------------------------------------------------------------
-    def create_project(self, engine_id, properties):
+    def create_project(self, env_id, properties):
         """Create a new project. All the information about a project is
         currently stored as part of the viztrail.
 
         Parameters
         ----------
-        engine_id: string
-            Unique identifier of the engine that is used to execute workflows
-            in the new viztrail.
+        env_id: string
+            Unique identifier of the execution environment for the new viztrail
         properties : dict
             Dictionary of user-defined project properties
 
@@ -439,7 +438,7 @@ class VizierWebService(object):
             Handle for new project
         """
         # Create a new viztrail.
-        viztrail = self.viztrails.create_viztrail(engine_id, properties)
+        viztrail = self.viztrails.create_viztrail(env_id, properties)
         # Return a serialization of the new project.
         return self.serialize_project_handle(viztrail)
 
@@ -561,7 +560,7 @@ class VizierWebService(object):
         properties = viztrail.properties.get_properties()
         return {
             'id': viztrail.identifier,
-            'engine': viztrail.engine_id,
+            'environment': viztrail.env_id,
             'createdAt': viztrail.created_at.isoformat(),
             'lastModifiedAt': viztrail.last_modified_at.isoformat(),
             'properties': [
@@ -1063,7 +1062,7 @@ class VizierWebService(object):
             Viztrail handle
         branch : vizier.workflow.base.ViztrailBranch
             Workflow handle
-        module : workflow.engine.ModuleHandle
+        module : vizier.workflow.module.ModuleHandle
             Handle for workflow module
 
         Returns

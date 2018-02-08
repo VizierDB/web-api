@@ -1,6 +1,7 @@
 import unittest
 
-from vizier.config import AppConfig, ENGINE_DEFAULT, ENGINE_MIMIR
+from vizier.config import AppConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
+from vizier.config import DEFAULT_ENV_NAME, DEFAULT_ENV_DESC
 
 
 class TestConfig(unittest.TestCase):
@@ -18,13 +19,14 @@ class TestConfig(unittest.TestCase):
         # File server
         self.assertEquals(config.fileserver.directory, '../.env/fs')
         self.assertEquals(config.fileserver.max_file_size, 16 * 1024 * 1024)
-        # Engine
-        self.assertEquals(len(config.engines), 1)
-        engine = config.engines[ENGINE_DEFAULT]
-        self.assertEquals(engine.identifier, ENGINE_DEFAULT)
-        self.assertEquals(engine.name, 'Vizier (Lite)')
-        self.assertEquals(engine.description, 'Workflow engine with basic functionality')
-        self.assertEquals(engine.datastore.directory, '../.env/ds')
+        # Env
+        self.assertEquals(len(config.envs), 1)
+        env = config.envs[ENGINEENV_DEFAULT]
+        self.assertEquals(env.identifier, ENGINEENV_DEFAULT)
+        self.assertEquals(env.name, DEFAULT_ENV_NAME)
+        self.assertEquals(env.description, DEFAULT_ENV_DESC)
+        self.assertEquals(env.datastore.directory, '../.env/ds')
+        self.assertEquals(env.fileserver.directory, '../.env/fs')
         # Misc
         self.assertEquals(config.viztrails.directory, '../.env/wt')
         self.assertEquals(config.name, 'Vizier Web API')
@@ -45,11 +47,12 @@ class TestConfig(unittest.TestCase):
             # File server
             self.assertEquals(config.fileserver.directory, 'fs-directory')
             self.assertEquals(config.fileserver.max_file_size, 1024)
-            # Engine
-            self.assertEquals(len(config.engines), 1)
-            engine = config.engines[ENGINE_MIMIR]
-            self.assertEquals(engine.identifier, ENGINE_MIMIR)
-            self.assertEquals(engine.datastore.directory, 'ds-directory')
+            # Env
+            self.assertEquals(len(config.envs), 1)
+            env = config.envs[ENGINEENV_MIMIR]
+            self.assertEquals(env.identifier, ENGINEENV_MIMIR)
+            self.assertEquals(env.datastore.directory, 'ds-directory')
+            self.assertEquals(env.fileserver.directory, 'fs-directory')
             # Misc
             self.assertEquals(config.viztrails.directory, 'wf-directory')
             self.assertEquals(config.name, 'Alternate Vizier Web API')
@@ -66,13 +69,14 @@ class TestConfig(unittest.TestCase):
         # File server
         self.assertEquals(config.fileserver.directory, 'fs-directory')
         self.assertEquals(config.fileserver.max_file_size, 16 * 1024 * 1024)
-        # Engines
-        self.assertEquals(len(config.engines), 2)
-        for key in [ENGINE_DEFAULT, ENGINE_MIMIR]:
-            engine = config.engines[key]
-            self.assertEquals(engine.identifier, key)
-            self.assertEquals(engine.name, 'NAME-' + key)
-            self.assertEquals(engine.datastore.directory, 'DIR-' + key)
+        # Env
+        self.assertEquals(len(config.envs), 2)
+        for key in [ENGINEENV_DEFAULT, ENGINEENV_MIMIR]:
+            env = config.envs[key]
+            self.assertEquals(env.identifier, key)
+            self.assertEquals(env.name, 'NAME-' + key)
+            self.assertEquals(env.datastore.directory, 'DIR-' + key)
+            self.assertEquals(env.fileserver.directory, 'fs-directory')
         # Misc
         self.assertEquals(config.viztrails.directory, '../.env/wt')
         self.assertEquals(config.name, 'Vizier Web API')
@@ -92,13 +96,14 @@ class TestConfig(unittest.TestCase):
         # File server
         self.assertEquals(config.fileserver.directory, '../.env/fs')
         self.assertEquals(config.fileserver.max_file_size, 16 * 1024 * 1024)
-        # Engine
-        self.assertEquals(len(config.engines), 1)
-        engine = config.engines[ENGINE_DEFAULT]
-        self.assertEquals(engine.identifier, ENGINE_DEFAULT)
-        self.assertEquals(engine.name, 'Vizier (Lite)')
-        self.assertEquals(engine.description, 'Workflow engine with basic functionality')
-        self.assertEquals(engine.datastore.directory, '../.env/ds')
+        # Env
+        self.assertEquals(len(config.envs), 1)
+        env = config.envs[ENGINEENV_DEFAULT]
+        self.assertEquals(env.identifier, ENGINEENV_DEFAULT)
+        self.assertEquals(env.name, DEFAULT_ENV_NAME)
+        self.assertEquals(env.description, DEFAULT_ENV_DESC)
+        self.assertEquals(env.datastore.directory, '../.env/ds')
+        self.assertEquals(env.fileserver.directory, '../.env/fs')
         # Misc
         self.assertEquals(config.viztrails.directory, '../.env/wt')
         self.assertEquals(config.name, 'Vizier Web API')

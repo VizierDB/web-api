@@ -7,6 +7,8 @@ only the different workflows but also the history for each of them.
 
 from vizier.core.timestamp import get_current_time
 
+import vizier.workflow.command as cmd
+
 
 """Identifier of the default master branch for all viztrails."""
 DEFAULT_BRANCH = 'master'
@@ -158,11 +160,11 @@ class ViztrailHandle(object):
         Dictionary of branches. Each branch is represented by the sequence
         of workflow versions that represent the history of the workflow for
         the branch.
-    engine_id: string
-        Unique engine identifier
+    env_id: string
+        Unique execution environment identifier
     command_repository: dict
         Dictionary containing specifications for all commands that are
-        supported by the engine. The dictionary structure is:
+        supported by the execution environment. The dictionary structure is:
         module-type:
             command-identifier:
                 name: string
@@ -175,7 +177,7 @@ class ViztrailHandle(object):
         Handler for user-defined properties that are associated with this
         viztrail
     """
-    def __init__(self, identifier, branches, engine_id, command_repository, properties, created_at=None, last_modified_at=None):
+    def __init__(self, identifier, branches, env_id, command_repository, properties, created_at=None, last_modified_at=None):
         """Initialize the viztrail identifier and branch dictionary.
 
         Parameters
@@ -184,11 +186,11 @@ class ViztrailHandle(object):
             Unique viztrail identifier
         branches : dict(ViztrailBranch)
             Dictionary of branches.
-        engine_id: string
-            Unique engine identifier
+        env_id: string
+            Unique execution environment identifier
         command_repository: dict
             Dictionary containing specifications for all commands that are
-            supported by the engine.
+            supported by the execution environment.
         properties: vizier.core.properties.ObjectPropertiesHandler
             Handler for user-defined properties that are associated with this
             viztrail
@@ -199,7 +201,7 @@ class ViztrailHandle(object):
         """
         self.identifier = identifier
         self.branches = branches
-        self.engine_id = engine_id
+        self.env_id = env_id
         self.command_repository = command_repository
         self.properties = properties
         # If created_at timestamp is None the viztrail is expected to be a newly
@@ -216,3 +218,14 @@ class ViztrailHandle(object):
                 raise ValueError('missing value for \'last_modified\'')
             self.created_at = get_current_time()
             self.last_modified_at = self.created_at
+
+    def validate_command(self, command):
+        """Validate the given command specification. Raises ValueError if an
+        invalid specification is given.
+
+        Parameters
+        ----------
+        command : vizier.workflow.module.ModuleSpecification
+            Specification of the command that is to be evaluated
+        """
+        cmd.validate_command(self.command_repository, command)

@@ -3,7 +3,7 @@ api:
     server_port: 80
     app_path: '/vizier-db/api/v2'
     doc_url: 'http://vizier-db.info/doc/api/v1'
-engines:
+envs:
     - identifier: 'MIMIR'
       datastore:
           directory: 'ds-directory'

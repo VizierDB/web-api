@@ -8,20 +8,21 @@ import unittest
 
 import vistrails.packages.mimir.init as mimir
 
-from vizier.config import ENGINE_DEFAULT, ENGINE_MIMIR
-from vizier.datastore.mem import InMemDataStore
+from vizier.config import ExecEnv, FileServerConfig
+from vizier.config import ENGINEENV_DEFAULT, ENGINEENV_MIMIR
+from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
-from vizier.workflow.repository.engine.viztrails import DefaultViztrailsEngine
+from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 from vizier.workflow.vizual.base import DefaultVizualEngine
 from vizier.workflow.vizual.mimir import MimirVizualEngine
 
-import vizier.workflow.repository.command as cmd
+import vizier.workflow.command as cmd
 
 DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
-WORKTRAILS_DIR = './env/wt'
+VIZTRAILS_DIR = './env/vt'
 
 CSV_FILE = './data/dataset.csv'
 INCOMPLETE_CSV_FILE = './data/dataset_with_missing_values.csv'
@@ -77,59 +78,51 @@ for row in ds.rows:
 vizierdb.update_dataset('people', ds)
 """
 
-ENGINE_ID = 'ENGINE'
-
-
 class TestWorkflows(unittest.TestCase):
 
     def tearDown(self):
         """Clean-up by dropping the MongoDB colelction used by the engine.
         """
         # Delete directories
-        for d in [DATASTORE_DIR, FILESERVER_DIR, WORKTRAILS_DIR]:
+        for d in [DATASTORE_DIR, FILESERVER_DIR, VIZTRAILS_DIR]:
             if os.path.isdir(d):
                 shutil.rmtree(d)
 
     def set_up(self):
         """Create an empty work trails repository."""
         # Create fresh set of directories
-        for d in [DATASTORE_DIR, FILESERVER_DIR, WORKTRAILS_DIR]:
+        for d in [DATASTORE_DIR, FILESERVER_DIR, VIZTRAILS_DIR]:
             if os.path.isdir(d):
                 shutil.rmtree(d)
             os.mkdir(d)
 
     def set_up_default(self):
         """Setup configuration using default Vizual engine."""
+        env = ExecEnv(
+                FileServerConfig().from_dict({'directory': FILESERVER_DIR})
+            ).from_dict({'datastore': {'directory': DATASTORE_DIR}})
+        self.ENGINE_ID = env.identifier
         self.set_up()
-        self.datastore = InMemDataStore()
+        self.datastore = FileSystemDataStore(DATASTORE_DIR)
         self.fileserver = DefaultFileServer(FILESERVER_DIR)
-        vizual = DefaultVizualEngine(self.datastore, self.fileserver)
         self.db = FileSystemViztrailRepository(
-            WORKTRAILS_DIR,
-            {
-                ENGINE_ID: DefaultViztrailsEngine(
-                    ENGINE_DEFAULT,
-                    vizual,
-                    self.datastore
-                )
-            }
+            VIZTRAILS_DIR,
+            {env.identifier: env}
         )
 
     def set_up_mimir(self):
         """Setup configuration using Mimir engine."""
+        env = ExecEnv(
+                FileServerConfig().from_dict({'directory': FILESERVER_DIR}),
+                identifier=ENGINEENV_MIMIR
+            ).from_dict({'datastore': {'directory': DATASTORE_DIR}})
+        self.ENGINE_ID = env.identifier
         self.set_up()
         self.datastore = MimirDataStore(DATASTORE_DIR)
         self.fileserver = DefaultFileServer(FILESERVER_DIR)
-        vizual = MimirVizualEngine(self.datastore, self.fileserver)
         self.db = FileSystemViztrailRepository(
-            WORKTRAILS_DIR,
-            {
-                ENGINE_ID: DefaultViztrailsEngine(
-                    ENGINE_MIMIR,
-                    vizual,
-                    self.datastore
-                )
-            }
+            VIZTRAILS_DIR,
+            {env.identifier: env}
         )
 
     def test_vt_default(self):
@@ -165,7 +158,7 @@ class TestWorkflows(unittest.TestCase):
     def run_delete_modules(self):
         """Test deletion of modules."""
         f_handle = self.fileserver.upload_file(CSV_FILE)
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(self.ENGINE_ID, {'name' : 'My Project'})
         #print '(1) CREATE DATASET'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -211,7 +204,7 @@ class TestWorkflows(unittest.TestCase):
     def run_erroneous_workflow(self):
         """Test workflow that has errors."""
         f_handle = self.fileserver.upload_file(CSV_FILE)
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(self.ENGINE_ID, {'name' : 'My Project'})
         #print '(1) CREATE DATASET'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -244,7 +237,7 @@ class TestWorkflows(unittest.TestCase):
     def run_mixed_workflow(self):
         """Test functionality to execute a workflow module."""
         f_handle = self.fileserver.upload_file(CSV_FILE)
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(self.ENGINE_ID, {'name' : 'My Project'})
         #print '(1) CREATE DATASET'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -297,7 +290,7 @@ class TestWorkflows(unittest.TestCase):
 
     def run_python_workflow(self):
         """Test functionality to execute a workflow module."""
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(self.ENGINE_ID, {'name' : 'My Project'})
         #print '(1) CREATE DATASET'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -481,7 +474,7 @@ class TestWorkflows(unittest.TestCase):
     def run_update_datasets(self):
         """Test dropping and renaming of datasets."""
         f_handle = self.fileserver.upload_file(CSV_FILE)
-        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        vt = self.db.create_viztrail(self.ENGINE_ID, {'name' : 'My Project'})
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.load_dataset(f_handle.identifier, DS_NAME)

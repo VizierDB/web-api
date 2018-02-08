@@ -8,7 +8,7 @@
 
 * Second prototype
 
-### 0.3.0 - ???
+### 0.3.0 - 2018-01-22
 
 * Workflow branches
 * Dataset annotations
@@ -18,3 +18,8 @@
 * Access full history of workflows
 * Access repository of available workflow modules via API
 * Allow different workflow engines for different projects
+
+### 0.3.1 - 2018-02-08
+
+* Replace workflow engine dictionary with dictionary of execution environments
+* Change workflow context to be a dictionary

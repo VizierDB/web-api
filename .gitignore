@@ -40,4 +40,5 @@ node_modules
 tests/env/
 
 .env/
+.vizierdb/
 vizier/env

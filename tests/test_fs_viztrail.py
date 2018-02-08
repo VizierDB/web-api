@@ -2,15 +2,19 @@ import os
 import shutil
 import unittest
 
+from vizier.config import ExecEnv, FileServerConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
 from vizier.core.properties import FilePropertiesHandler
 from vizier.workflow.base import DEFAULT_BRANCH, ViztrailBranch
-from vizier.workflow.repository.engine.base import WorkflowEngine
+from vizier.workflow.command import MODTYPE_MIMIR, MODTYPE_PYTHON
 from vizier.workflow.repository.fs import PROPERTIES_FILE, FileSystemViztrailHandle, FileSystemViztrailRepository
 
 
 VIZTRAIL_DIR = './data/fs/viztrail'
 
-repos = {'A': WorkflowEngine('A', {'cmd': 'A'}), 'B': WorkflowEngine('B', {'cmd': 'B'})}
+repos = {
+    ENGINEENV_DEFAULT: ExecEnv(FileServerConfig()),
+    ENGINEENV_MIMIR: ExecEnv(FileServerConfig(), identifier=ENGINEENV_MIMIR)
+}
 
 
 class TestFileSystemViztrails(unittest.TestCase):
@@ -37,13 +41,14 @@ class TestFileSystemViztrails(unittest.TestCase):
         viztrail = FileSystemViztrailHandle.create_viztrail(
             VIZTRAIL_DIR,
             'ID',
-            repos['A'],
+            repos[ENGINEENV_DEFAULT],
             properties={'name': 'My Viztrail'}
         )
         # Assert viztrail properties
         self.assertEquals(viztrail.identifier, 'ID')
         self.assertEquals(viztrail.properties['name'], 'My Viztrail')
-        self.assertEquals(viztrail.command_repository['cmd'], 'A')
+        self.assertTrue(MODTYPE_PYTHON in viztrail.command_repository)
+        self.assertFalse(MODTYPE_MIMIR in viztrail.command_repository)
         self.assertEquals(viztrail.version_counter.value, 0)
         self.assertEquals(viztrail.module_counter.value, 0)
         # Read viztrail handle from file and assert that all properties are
@@ -51,15 +56,14 @@ class TestFileSystemViztrails(unittest.TestCase):
         viztrail = FileSystemViztrailHandle.from_file(VIZTRAIL_DIR, repos)
         self.assertEquals(viztrail.identifier, 'ID')
         self.assertEquals(viztrail.properties['name'], 'My Viztrail')
-        self.assertEquals(viztrail.command_repository['cmd'], 'A')
+        self.assertTrue(MODTYPE_PYTHON in viztrail.command_repository)
+        self.assertFalse(MODTYPE_MIMIR in viztrail.command_repository)
         self.assertEquals(viztrail.version_counter.value, 0)
         self.assertEquals(viztrail.module_counter.value, 0)
         # Updatecommand repository, version counter and module counter
         viztrail.version_counter.inc()
         viztrail.module_counter.inc()
         viztrail.module_counter.inc()
-        viztrail.command_repository = repos['B'].commands
-        viztrail.engine = repos['B']
         # Save current last updated at timestamp
         ts = viztrail.last_modified_at
         from time import sleep
@@ -69,7 +73,6 @@ class TestFileSystemViztrails(unittest.TestCase):
         viztrail = FileSystemViztrailHandle.from_file(VIZTRAIL_DIR, repos)
         self.assertEquals(viztrail.identifier, 'ID')
         self.assertEquals(viztrail.properties['name'], 'My Viztrail')
-        self.assertEquals(viztrail.command_repository['cmd'], 'B')
         self.assertEquals(viztrail.version_counter.value, 1)
         self.assertEquals(viztrail.module_counter.value, 2)
         self.assertNotEquals(ts, viztrail.last_modified_at)
@@ -83,7 +86,7 @@ class TestFileSystemViztrails(unittest.TestCase):
         """Test basic functionality of creating a branch.
         """
         repo = FileSystemViztrailRepository(VIZTRAIL_DIR, repos)
-        viztrail = repo.create_viztrail('A', {'name': 'Name A'})
+        viztrail = repo.create_viztrail(ENGINEENV_DEFAULT, {'name': 'Name A'})
         # Branching of an unknown viztrail will return None
         self.assertIsNone(repo.create_branch('unknown', DEFAULT_BRANCH, {'name': 'My Branch'}))
         # Branching of an empty branch raises a ValueError
@@ -106,22 +109,26 @@ class TestFileSystemViztrails(unittest.TestCase):
         repo = FileSystemViztrailRepository(VIZTRAIL_DIR, repos)
         self.assertEquals(len(repo.list_viztrails()), 0)
         # Create two viztrails
-        vt1 = repo.create_viztrail('A', {'name': 'Name A'})
+        vt1 = repo.create_viztrail(ENGINEENV_DEFAULT, {'name': 'Name A'})
         self.assertEquals(vt1.properties['name'], 'Name A')
-        self.assertEquals(vt1.command_repository['cmd'], 'A')
-        vt2 = repo.create_viztrail('B', {'name': 'Name B'})
+        self.assertTrue(MODTYPE_PYTHON in vt1.command_repository)
+        self.assertFalse(MODTYPE_MIMIR in vt1.command_repository)
+        vt2 = repo.create_viztrail(ENGINEENV_MIMIR, {'name': 'Name B'})
         self.assertEquals(vt2.properties['name'], 'Name B')
-        self.assertEquals(vt2.command_repository['cmd'], 'B')
+        self.assertTrue(MODTYPE_PYTHON in vt2.command_repository)
+        self.assertTrue(MODTYPE_MIMIR in vt2.command_repository)
         self.assertEquals(len(repo.list_viztrails()), 2)
         # Re-load the repository
         repo = FileSystemViztrailRepository(VIZTRAIL_DIR, repos)
         self.assertEquals(len(repo.list_viztrails()), 2)
         vt1 = repo.get_viztrail(vt1.identifier)
         self.assertEquals(vt1.properties['name'], 'Name A')
-        self.assertEquals(vt1.command_repository['cmd'], 'A')
+        self.assertTrue(MODTYPE_PYTHON in vt1.command_repository)
+        self.assertFalse(MODTYPE_MIMIR in vt1.command_repository)
         vt2 = repo.get_viztrail(vt2.identifier)
         self.assertEquals(vt2.properties['name'], 'Name B')
-        self.assertEquals(vt2.command_repository['cmd'], 'B')
+        self.assertTrue(MODTYPE_PYTHON in vt2.command_repository)
+        self.assertTrue(MODTYPE_MIMIR in vt2.command_repository)
         # Delete the first viztrail
         self.assertTrue(repo.delete_viztrail(vt1.identifier))
         # Re-load the repository
@@ -131,14 +138,15 @@ class TestFileSystemViztrails(unittest.TestCase):
         self.assertIsNotNone(repo.get_viztrail(vt2.identifier))
         vt2 = repo.list_viztrails()[0]
         self.assertEquals(vt2.properties['name'], 'Name B')
-        self.assertEquals(vt2.command_repository['cmd'], 'B')
+        self.assertTrue(MODTYPE_PYTHON in vt2.command_repository)
+        self.assertTrue(MODTYPE_MIMIR in vt2.command_repository)
         self.assertFalse(repo.delete_viztrail(vt1.identifier))
 
     def test_viztrail_workflow(self):
         """Test basic functionality of retrieving a workflow.
         """
         repo = FileSystemViztrailRepository(VIZTRAIL_DIR, repos)
-        viztrail = repo.create_viztrail('A', {'name': 'Name A'})
+        viztrail = repo.create_viztrail(ENGINEENV_DEFAULT, {'name': 'Name A'})
         self.assertEquals(len(repo.get_workflow(viztrail.identifier, DEFAULT_BRANCH).modules), 0)
         self.assertIsNone(repo.get_workflow(viztrail.identifier, 'unknown'))
         self.assertIsNone(repo.get_workflow('unknown', DEFAULT_BRANCH))

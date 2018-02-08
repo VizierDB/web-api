@@ -5,13 +5,13 @@ import sys
 import time
 import unittest
 
+from vizier.config import TestEnv
 from vizier.datastore.base import create_dataset_from_csv
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.metadata import UpdateColumnAnnotation
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
-from vizier.workflow.repository.engine.test import TestWorkflowEngine
-from vizier.workflow.repository.command import MODTYPE_PYTHON, PYTHON_SOURCE, python_cell
+from vizier.workflow.command import MODTYPE_PYTHON, PYTHON_SOURCE, python_cell
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 
 from vizier.api import VizierWebService
@@ -24,7 +24,7 @@ FILESERVER_DIR = './env/fs'
 DATASTORE_DIRECTORY = './env/ds'
 WORKTRAILS_DIRECTORY = './env/wt'
 
-ENGINE_ID = 'ENGINE'
+ENV = TestEnv()
 
 
 def list_modules_arguments_values(modules):
@@ -47,10 +47,11 @@ class TestWebServiceAPI(unittest.TestCase):
         # Setup datastore and API
         self.config = AppConfig(configuration_file=CONFIG_FILE)
         self.datastore = FileSystemDataStore(DATASTORE_DIRECTORY)
+
         self.api = VizierWebService(
             FileSystemViztrailRepository(
                 WORKTRAILS_DIRECTORY,
-                {ENGINE_ID: TestWorkflowEngine(identifier=ENGINE_ID)}
+                {ENV.identifier: ENV}
             ),
             self.datastore,
             DefaultFileServer(FILESERVER_DIR),
@@ -69,11 +70,11 @@ class TestWebServiceAPI(unittest.TestCase):
         desc = self.api.service_overview()
         # The descriptor is expected to contain three elements: name, title, and
         # links. Name and title should be the same as in the default config
-        self.validate_keys(desc, ['name', 'engines', 'links'])
+        self.validate_keys(desc, ['name', 'envs', 'links'])
         self.assertEquals(desc['name'], self.config.name)
-        self.assertFalse(len(desc['engines']) == 0)
-        for engine in desc['engines']:
-            self.validate_keys(engine, ['id', 'name', 'description', 'default'])
+        self.assertFalse(len(desc['envs']) == 0)
+        for env in desc['envs']:
+            self.validate_keys(env, ['id', 'name', 'description', 'default'])
         # Expect five references in the link listing: self, build, upload, doc,
         # and projects
         self.validate_links(desc['links'], ['self', 'build', 'doc', 'upload', 'projects', 'files'])
@@ -86,7 +87,7 @@ class TestWebServiceAPI(unittest.TestCase):
         # and workflows, each with name and version information.
         components = {c['name'] : c['build'] for c in build['components']}
         self.assertEquals(len(components), 3)
-        for key in ['datastore', 'fileserver', 'worktrails']:
+        for key in ['datastore', 'fileserver', 'viztrails']:
             self.assertTrue(key in components)
             for info in ['name', 'version']:
                 self.assertTrue(info in components[key])
@@ -139,12 +140,12 @@ class TestWebServiceAPI(unittest.TestCase):
     def test_projects(self):
         """Test API calls to create and manipulate projects."""
         # Create a new project
-        ph = self.api.create_project(ENGINE_ID, {'name' : 'My Project'})
+        ph = self.api.create_project(ENV.identifier, {'name' : 'My Project'})
         self.validate_project_handle(ph)
         self.validate_project_handle(self.api.get_project(ph['id']))
         # Project listing
         self.validate_project_listing(self.api.list_projects(), 1)
-        ph = self.api.create_project(ENGINE_ID, {'name' : 'A Project'})
+        ph = self.api.create_project(ENV.identifier, {'name' : 'A Project'})
         self.validate_project_handle(self.api.get_project(ph['id']))
         self.validate_project_listing(self.api.list_projects(), 2)
         # Update project properties
@@ -179,7 +180,7 @@ class TestWebServiceAPI(unittest.TestCase):
     def test_workflows(self):
         """Test API calls to retrieve and manipulate workflows."""
         # Create a new project
-        ph = self.api.create_project(ENGINE_ID, {'name' : 'My Project'})
+        ph = self.api.create_project(ENV.identifier, {'name' : 'My Project'})
         self.validate_branch_listing(self.api.list_branches(ph['id']), 1)
         self.validate_branch_handle(self.api.get_branch(ph['id'], DEFAULT_BRANCH))
         wf = self.api.get_workflow(ph['id'], DEFAULT_BRANCH)
@@ -239,7 +240,7 @@ class TestWebServiceAPI(unittest.TestCase):
     def test_workflow_commands(self):
         """Test API calls to execute workflow modules."""
         # Create a new project
-        pj = self.api.create_project(ENGINE_ID, {'name' : 'My Project'})
+        pj = self.api.create_project(ENV.identifier, {'name' : 'My Project'})
         # Use Python load command to test module execution
         self.api.append_module(pj['id'], DEFAULT_BRANCH, -1, python_cell('2+2'))
         self.api.append_module(pj['id'], DEFAULT_BRANCH, -1, python_cell('3+3'))
@@ -353,13 +354,13 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_links(module['links'], ['delete', 'insert', 'replace'])
 
     def validate_project_descriptor(self, pd):
-        self.validate_keys(pd, ['id', 'engine', 'createdAt', 'lastModifiedAt', 'properties', 'links'])
+        self.validate_keys(pd, ['id', 'environment', 'createdAt', 'lastModifiedAt', 'properties', 'links'])
         links = {l['rel'] : l['href'] for l in pd['links']}
-        self.validate_keys(links, ['self', 'delete', 'home', 'update', 'branches', 'engine'])
+        self.validate_keys(links, ['self', 'delete', 'home', 'update', 'branches', 'environment'])
 
     def validate_project_handle(self, ph, br_count=1):
-        self.validate_keys(ph, ['id', 'engine', 'createdAt', 'lastModifiedAt', 'properties', 'branches', 'links'])
-        self.validate_links(ph['links'], ['self', 'delete', 'home', 'update', 'branches', 'engine'])
+        self.validate_keys(ph, ['id', 'environment', 'createdAt', 'lastModifiedAt', 'properties', 'branches', 'links'])
+        self.validate_links(ph['links'], ['self', 'delete', 'home', 'update', 'branches', 'environment'])
         self.assertEquals(len(ph['branches']), br_count)
         for br in ph['branches']:
             self.validate_branch_descriptor(br)

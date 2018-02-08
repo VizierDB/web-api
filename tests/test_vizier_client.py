@@ -10,7 +10,7 @@ from vizier.datastore.mem import InMemDataStore
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.vizual.base import DefaultVizualEngine
-from vizier.workflow.context import VizierDBClient, WorkflowContext
+from vizier.workflow.context import VizierDBClient
 
 DATASTORE_DIR = './env/ds'
 SERVER_DIR = './data/fs'
@@ -35,23 +35,26 @@ class TestVizierClient(unittest.TestCase):
         """Run tests for default engine and file server data store."""
         fs = DefaultFileServer(SERVER_DIR)
         ds = FileSystemDataStore(DATASTORE_DIR)
-        context = WorkflowContext(DefaultVizualEngine(ds, fs), ds)
-        self.run_client_tests(VizierDBClient(context, ds))
+        self.run_client_tests(
+            VizierDBClient(ds, dict(), DefaultVizualEngine(ds, fs))
+        )
 
     def test_mem_client(self):
         """Run tests for default engine and in-memory data store."""
         fs = DefaultFileServer(SERVER_DIR)
         ds = InMemDataStore()
-        context = WorkflowContext(DefaultVizualEngine(ds, fs), ds)
-        self.run_client_tests(VizierDBClient(context, ds))
+        self.run_client_tests(
+            VizierDBClient(ds, dict(), DefaultVizualEngine(ds, fs))
+        )
 
     def test_mimir_client(self):
         """Run tests for default engine and Mimir data store."""
         mimir.initialize()
         fs = DefaultFileServer(SERVER_DIR)
         ds = MimirDataStore(DATASTORE_DIR)
-        context = WorkflowContext(DefaultVizualEngine(ds, fs), ds)
-        self.run_client_tests(VizierDBClient(context, ds))
+        self.run_client_tests(
+            VizierDBClient(ds, dict(), DefaultVizualEngine(ds, fs))
+        )
         mimir.finalize()
 
     def run_client_tests(self, client):
