@@ -378,7 +378,13 @@ VIZUAL_COMMANDS = {
             PARA_DATASET: para_dataset(0),
             PARA_COLUMN: para_column(1),
             PARA_ROW: para_row(2),
-            PARA_VALUE: parameter_specification(PARA_VALUE, 'Value', 'string', 3)
+            PARA_VALUE: parameter_specification(
+                PARA_VALUE,
+                'Value',
+                'string',
+                3,
+                required=False
+            )
         }
     }
 }
