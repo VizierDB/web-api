@@ -942,7 +942,7 @@ if __name__ == '__main__':
     })
     run_simple(
         '0.0.0.0',
-        config.api.server_port,
+        config.api.server_local_port,
         application,
         use_reloader=config.debug
     )

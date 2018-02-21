@@ -60,6 +60,7 @@ class AppConfig(object):
         api:
             server_url
             server_port
+            server_local_port
             app_path
             app_base_url
             doc_url
@@ -158,6 +159,7 @@ class ServerConfig(object):
         # Ensure that the port number is an integer. Will raise ValueError if
         # a non-integer value is provided
         self.server_port = 5000
+        self.server_local_port = 5000
         self.app_path = '/vizier-db/api/v1'
         self.doc_url = 'http://cds-swg1.cims.nyu.edu/vizier-db/doc/api/v1'
 
@@ -193,6 +195,10 @@ class ServerConfig(object):
             self.server_port = int(doc['server_port'])
         elif 'server.port' in doc:
             self.server_port = int(doc['server.port'])
+        if 'server_local_port' in doc:
+            self.server_local_port = int(doc['server_local_port'])
+        elif 'server.local_port' in doc:
+            self.server_local_port = int(doc['server.local_port'])
         if 'app_path' in doc:
             self.app_path = doc['app_path']
         elif 'app.path' in doc:

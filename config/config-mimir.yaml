@@ -1,6 +1,7 @@
 api:
     server_url: 'http://localhost'
     server_port: 5000
+    server_local_port: 5000
     app_path: '/vizier-db/api/v1'
     doc_url: 'http://cds-swg1.cims.nyu.edu/vizier-db/doc/api/v1'
 envs:
