@@ -13,6 +13,7 @@ import vistrails.packages.mimir.init as mimir
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import Dataset, DatasetColumn, DatasetRow, DataStore
+from vizier.datastore.base import dataset_from_file
 from vizier.datastore.metadata import DatasetMetadata
 
 
@@ -455,7 +456,7 @@ class MimirDataStore(DataStore):
         string
         """
         return os.path.join(self.get_dataset_dir(identifier), 'annotation.yaml')
-        
+
     def load_dataset(self, f_handle):
         """Create a new dataset from a given file.
 
@@ -470,7 +471,7 @@ class MimirDataStore(DataStore):
         -------
         vizier.datastore.base.Dataset
         """
-        raise NotImplementedError
+        return self.store_dataset(dataset_from_file(f_handle))
 
     def store_dataset(self, dataset):
         """Create a new dataset in the data store for the given data.
