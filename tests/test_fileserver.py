@@ -49,12 +49,11 @@ class TestFileServer(unittest.TestCase):
         self.assertEquals(f.rows, 2)
         self.assertEquals(f.name, 'dataset.csv')
         # Ensure that the file parses as a zipped TSV file
-        csvfile = self.db.open_file(f.identifier)
-        rows = 0
-        for row in csvfile.reader:
-            self.assertEquals(len(row), f.columns)
-            rows += 1
-        csvfile.close()
+        with f.open() as csvfile:
+            rows = 0
+            for row in csv.reader(csvfile, delimiter=f.delimiter):
+                self.assertEquals(len(row), f.columns)
+                rows += 1
         self.assertEquals(rows  -1, f.rows)
 
     def test_list_file(self):
@@ -67,12 +66,11 @@ class TestFileServer(unittest.TestCase):
         self.assertEquals(len(files), 4)
         # Ensure that each of the files parses as a zipped TSV file
         for f in files:
-            csvfile = self.db.open_file(f.identifier)
-            rows = 0
-            for row in csvfile.reader:
-                self.assertEquals(len(row), f.columns)
-                rows += 1
-            csvfile.close()
+            with f.open() as csvfile:
+                rows = 0
+                for row in csv.reader(csvfile, delimiter=f.delimiter):
+                    self.assertEquals(len(row), f.columns)
+                    rows += 1
             self.assertEquals(rows  -1, f.rows)
 
     def test_rename_file(self):

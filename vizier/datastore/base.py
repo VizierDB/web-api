@@ -4,6 +4,7 @@ workflows.
 """
 
 from abc import abstractmethod
+import csv
 import yaml
 
 from vizier.core.system import component_descriptor, VizierSystemComponent
@@ -454,6 +455,23 @@ class DataStore(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
+    def load_dataset(self, f_handle):
+        """Create a new dataset from a given file.
+
+        Raises ValueError if the given file could not be loaded as a dataset.
+
+        Parameters
+        ----------
+        f_handle : vizier.filestore.base.FileHandle
+            handle for an uploaded file on the associated file server.
+
+        Returns
+        -------
+        vizier.datastore.base.Dataset
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def store_dataset(self, dataset):
         """Create a new dataset in the data store for the given data.
 
@@ -528,23 +546,32 @@ def collabel_2_index(label):
     return num
 
 
-def create_dataset_from_csv(reader, identifier=None):
-    """Read a dataset from a CSV file.
+def dataset_from_file(f_handle):
+    """Create dataset instance from a handle to a CSV/TSV file on the file
+    server.
+
+    Raises ValueError if the file cannot be parsed correctly.
 
     Parameters
     ----------
-    reader: csv.reader
-        CSV file reader
+    f_handle: vizier.filestore.base.FileHandle
+        Handle for file on file server
 
     Returns
     -------
     vizier.datastore.base.Dataset
     """
-    ds = Dataset()
-    for row in reader:
-        if len(ds.columns) == 0:
-            for name in row:
-                ds.add_column(name)
-        else:
-            ds.add_row(row)
-    return ds
+    # Make sure that the given file has been parsed successfully on upload
+    if not f_handle.is_verified_csv:
+        raise ValueError('failed to create dataset from file \'' + f_handle.name + '\'')
+    with f_handle.open() as csvfile:
+        columns = []
+        column_counter = 0
+        reader = csv.reader(csvfile, delimiter=f_handle.delimiter)
+        for col_name in reader.next():
+            columns.append(DatasetColumn(column_counter, col_name))
+            column_counter += 1
+        dataset = Dataset(columns=columns, column_counter=column_counter)
+        for row in reader:
+            dataset.add_row(row)
+    return dataset

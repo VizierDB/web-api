@@ -10,6 +10,7 @@ noretbook metadata and the VizTrails module.
 import gzip
 import os
 
+from vizier.core.properties import ObjectProperty
 from vizier.hateoas import UrlFactory, reference, self_reference
 from vizier.workflow.base import DEFAULT_BRANCH
 
@@ -18,6 +19,11 @@ import vizier.workflow.command as cmd
 
 """Frequently used serialization element labels."""
 JSON_REFERENCES = 'links'
+
+
+"""Service properties"""
+# Fileserver - Max. upload file size
+PROP_FS_MAXFILESIZE = 'fileserver:maxFileSize'
 
 
 """HATEOAS relation identifier."""
@@ -85,6 +91,12 @@ class VizierWebService(object):
         # Initialize the service description dictionary
         self.service_descriptor = {
             'name' : config.name,
+            'properties': [
+                ObjectProperty(
+                    PROP_FS_MAXFILESIZE,
+                    config.fileserver.max_file_size
+                ).to_dict()
+                ],
             'envs': [{
                     'id': config.envs[key].identifier,
                     'name': config.envs[key].name,
@@ -171,9 +183,9 @@ class VizierWebService(object):
             return self.serialize_file_handle(f_handle)
         return None
 
-    def get_file_reader(self, file_id):
-        """Get the content of a CSV file as a list of rows. Returns a tuple of
-        rows and the file base name.
+    def get_file_handle(self, file_id):
+        """Get handle for the file with the given identifier. The result is None
+        if no such file exists.
 
         Parameters
         ----------
@@ -182,17 +194,9 @@ class VizierWebService(object):
 
         Returns
         -------
-        list(csv.row), string
+        vizier.filestore.base.FileHandle
         """
-        f_handle = self.fileserver.get_file(file_id)
-        if not f_handle is None:
-            rows = list()
-            csvfile = self.fileserver.open_file(file_id)
-            for row in csvfile.reader:
-                rows.append(row)
-            csvfile.close()
-            return rows, f_handle.base_name
-        return None, None
+        return self.fileserver.get_file(file_id)
 
     def list_files(self):
         """Get list of file resources currently available from the file server.
@@ -253,6 +257,7 @@ class VizierWebService(object):
             'name' : f_handle.name,
             'columns' : f_handle.columns,
             'rows': f_handle.rows,
+            'size': f_handle.size,
             'createdAt': f_handle.created_at.isoformat(),
             JSON_REFERENCES : [
                 self_reference(self_ref),

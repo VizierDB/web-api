@@ -23,3 +23,9 @@
 
 * Replace workflow engine dictionary with dictionary of execution environments
 * Change workflow context to be a dictionary
+
+
+### 0.3.2 - 2018-03-05
+
+* Add file upload size limit to service description
+* Enable upload of files that do not parse correctly as CSV/TSV files

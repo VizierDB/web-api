@@ -4,6 +4,7 @@ from abc import abstractmethod
 import csv
 import gzip
 import os
+import shutil
 import yaml
 
 from vizier.core.util import get_unique_identifier
@@ -14,7 +15,7 @@ from vizier.core.timestamp import get_current_time, to_datetime
 
 class FileHandle(object):
     """File handle containing statistics for an uploaded CSV file."""
-    def __init__(self, identifier, name, columns, rows, created_at):
+    def __init__(self, identifier, name, columns, rows, size, created_at, filepath, upload_name=None, active=True):
         """Initialize the file identifier, the (full) file path, and information
         about number of columns and rows in the CSV file.
 
@@ -28,14 +29,26 @@ class FileHandle(object):
             Number of columns in the CSV file
         rows: int
             Number of rows in the CSV file (excluding the header).
+        size: int
+            File size in bytes
         created_at : datetime.datetime
             Timestamp of worktrail creation (UTC)
+        filepath: string
+            Absolute path to file on disk
+        upload_name: string
+            Name of the original uploaded file
+        active: bool
+            Flag indicating whether the file is active
         """
         self.identifier = identifier
         self.name = name
         self.columns = columns
         self.rows = rows
+        self.size = size
         self.created_at = created_at
+        self.filepath = filepath
+        self.upload_name = upload_name if not upload_name is None else name
+        self.active = active
 
     @property
     def base_name(self):
@@ -49,35 +62,88 @@ class FileHandle(object):
             return self.name[:-4]
         elif self.name.endswith('.csv.gz') or  self.name.endswith('.tsv.gz'):
             return self.name[:7]
+        elif '.' in self.name:
+            return self.name[:self.name.rfind('.')]
         else:
             return self.name
 
+    @property
+    def delimiter(self):
+        """Determine the column delimiter for a CSV/TSV file based on the suffix
+        of the name of the uploaded file.
 
-class FileReader(object):
-    """Reader for CSV file stored by the file server. This is a wrapper around a
-    csv reader and the opened file. The goal is to hide internal storage format
-    of csv files from code that reads these files.
-
-    The problem is that the csv.reader class does not have a close method. Thus,
-    code that requests a csv file from the fileserver cannot simply receive a
-    csv.reader or otherwise the opened file would not be closed properly.
-    """
-    def __init__(self, f, reader):
-        """Initialize the file and the csv reader objects.
-
-        Parameters
-        ----------
-        f: FileObject
-            Handle for file that is being read
-        reader: csv.reader
-            CSV reader
+        Returns
+        -------
+        string
         """
-        self.f = f
-        self.reader = reader
+        if self.upload_name.endswith('.csv'):
+            return ','
+        elif self.upload_name.endswith('.csv.gz'):
+            return ','
+        elif self.upload_name.endswith('.tsv'):
+            return '\t'
+        elif self.upload_name.endswith('.tsv.gz'):
+            return '\t'
+        else:
+            return None
 
-    def close(self):
-        """Close the file handle after finished reading."""
-        self.f.close()
+    @staticmethod
+    def from_dict(doc, func_filepath):
+        """
+        """
+        return FileHandle(
+            doc['identifier'],
+            doc['name'],
+            get_optional_property(doc, 'columns', -1),
+            get_optional_property(doc, 'rows', -1),
+            get_optional_property(doc, 'size', -1),
+            to_datetime(doc['createdAt']),
+            func_filepath(doc['identifier']),
+            upload_name=get_optional_property(doc, 'uploadName'),
+            active=doc['active']
+        )
+
+    @property
+    def is_verified_csv(self):
+        """Flag indicating whether the original file was parsed correctly by
+        the CSV parser (i.e., column and row information is not a negative
+        number).
+
+        Returns
+        -------
+        bool
+        """
+        return self.columns >= 0 and self.rows >= 0
+
+    def open(self):
+        """Get open file object for associated file.
+
+        Returns
+        -------
+        FileObject
+        """
+        if self.upload_name.endswith('.gz'):
+            return gzip.open(self.filepath, 'rb')
+        else:
+            return open(self.filepath, 'r')
+
+    def to_dict(self):
+        """Get dictionary serialization for the file object.
+
+        Returns
+        -------
+        dict
+        """
+        return {
+            'identifier': self.identifier,
+            'name': self.name,
+            'columns': self.columns,
+            'rows': self.rows,
+            'size': self.size,
+            'createdAt' : self.created_at.isoformat(),
+            'uploadName': self.upload_name,
+            'active': self.active
+        }
 
 
 class FileServer(VizierSystemComponent):
@@ -143,21 +209,6 @@ class FileServer(VizierSystemComponent):
         Returns
         -------
         list(FileHandle)
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def open_file(self, identifier):
-        """Open file with given identifier for input.
-
-        Parameters
-        ----------
-        identifier: string
-            Unique file identifier
-
-        Returns
-        -------
-        FileReader
         """
         raise NotImplementedError
 
@@ -262,14 +313,23 @@ class DefaultFileServer(FileServer):
         """
         for f_desc in self.read_index()['files']:
             if f_desc['identifier'] == identifier and f_desc['active']:
-                return FileHandle(
-                    f_desc['identifier'],
-                    f_desc['name'],
-                    f_desc['columns'],
-                    f_desc['rows'],
-                    to_datetime(f_desc['createdAt'])
-                )
+                return FileHandle.from_dict(f_desc, self.get_filepath)
         return None
+
+    def get_filepath(self, identifier):
+        """Get absolute path for file with given identifier. Does not check if
+        the file exists.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique file identifier
+
+        Returns
+        -------
+        string
+        """
+        return os.path.join(self.file_directory, identifier)
 
     def list_files(self):
         """Get list of file handles for all uploaded files.
@@ -281,32 +341,8 @@ class DefaultFileServer(FileServer):
         files = list()
         for f_desc in self.read_index()['files']:
             if f_desc['active']:
-                files.append(
-                    FileHandle(
-                        f_desc['identifier'],
-                        f_desc['name'],
-                        f_desc['columns'],
-                        f_desc['rows'],
-                        to_datetime(f_desc['createdAt'])
-                    )
-                )
+                files.append(FileHandle.from_dict(f_desc, self.get_filepath))
         return files
-
-    def open_file(self, identifier):
-        """Open file with given identifier for input.
-
-        Parameters
-        ----------
-        identifier: string
-            Unique file identifier
-
-        Returns
-        -------
-        FileReader
-        """
-        filename = os.path.join(self.file_directory, identifier + '.tsv.gz')
-        f = gzip.open(filename, 'rb')
-        return FileReader(f, csv.reader(f, delimiter='\t'))
 
     def read_index(self):
         """Return content of the file index.
@@ -344,13 +380,8 @@ class DefaultFileServer(FileServer):
         for f_desc in self.read_index()['files']:
             if f_desc['identifier'] == identifier and f_desc['active']:
                 f_desc['name'] = name
-                f_handle = FileHandle(
-                        f_desc['identifier'],
-                        f_desc['name'],
-                        f_desc['columns'],
-                        f_desc['rows'],
-                        to_datetime(f_desc['createdAt'])
-                )
+                f_handle = FileHandle.from_dict(f_desc, self.get_filepath)
+                f_handle.name = name
             elif f_desc['identifier'] != identifier and f_desc['name'] == name and f_desc['active']:
                 raise ValueError('file \'' + name + '\' already exists')
             files.append(f_desc)
@@ -377,7 +408,9 @@ class DefaultFileServer(FileServer):
         for f_desc in files:
             if f_desc['name'] == name and f_desc['active']:
                 raise ValueError('file \'' + name + '\' already exists')
-        # Determine the file type based on the file name suffix
+        # Determine the file type based on the file name suffix. If the file
+        # type is unknoen reader will be None
+        reader = None
         if name.endswith('.csv'):
             csvfile = open(filename, 'r')
             reader = csv.reader(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -390,42 +423,45 @@ class DefaultFileServer(FileServer):
         elif name.endswith('.tsv.gz'):
             csvfile = gzip.open(filename, 'rb')
             reader = csv.reader(csvfile, delimiter='\t')
-        else:
-            raise ValueError('unknown file suffix for file \'' + name + '\'')
-        print 'GOT READER'
-        # Create a new unique identifier for the file
+        # Create a new unique identifier for the file.
         identifier = get_unique_identifier()
-        columns = None
+        # File properties
+        columns = -1
         rows = 0
+        size =  os.stat(filename).st_size
+        created_at = get_current_time()
         # Parse csv file to get column and row statistics (and to ensure that
-        # the file parses). Write file content to target directory. Independent
-        # of the file suffix the target file will be a gzipped TSV file.
-        output_file = os.path.join(self.file_directory, identifier + '.tsv.gz')
-        with gzip.open(output_file, 'wb') as f_out:
-            writer = csv.writer(f_out, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
+        # the file parses).
+        output_file = self.get_filepath(identifier)
+        if not reader is None:
             try:
                 for row in reader:
-                    print row
-                    if columns == None:
-                        columns = row
-                        writer.writerow(row)
+                    if columns == -1:
+                        columns = len(row)
                     else:
                         rows += 1
-                        writer.writerow(row)
             except Exception as ex:
-                raise ValueError(ex)
-        csvfile.close()
-        created_at = get_current_time()
-        files.append({
-            'identifier': identifier,
-            'name': name,
-            'columns': len(columns),
-            'rows': rows,
-            'createdAt' : created_at.isoformat(),
-            'active': True
-        })
+                columns = -1
+                rows = -1
+            csvfile.close()
+        else:
+            # Make sure to set number of rows to undefined (-1)
+            rows = -1
+        # Copy the uploaded file
+        shutil.copyfile(filename, output_file)
+        # Add file to file index
+        f_handle = FileHandle(
+            identifier,
+            name,
+            columns,
+            rows,
+            size,
+            created_at,
+            output_file
+        )
+        files.append(f_handle.to_dict())
         self.write_index({'files': files})
-        return FileHandle(identifier, name, len(columns), rows, created_at)
+        return f_handle
 
     def write_index(self, content):
         """Write content of the file index.
@@ -437,3 +473,27 @@ class DefaultFileServer(FileServer):
         """
         with open(self.index_file, 'w') as f:
             yaml.dump(content, f, default_flow_style=False)
+
+
+# ------------------------------------------------------------------------------
+# Helper Methods
+# ------------------------------------------------------------------------------
+
+def get_optional_property(properties, key, default_value=None):
+    """Return the property value for the given key or the default value if the
+    key does not exist.
+
+    Parameters
+    ----------
+    properties: dict
+        Dictionary of file properties
+    key: string
+        Property key
+    default_value: any
+        Default value for property key
+
+    Returns
+    -------
+    any
+    """
+    return properties[key] if key in properties else default_value

@@ -455,6 +455,22 @@ class MimirDataStore(DataStore):
         string
         """
         return os.path.join(self.get_dataset_dir(identifier), 'annotation.yaml')
+        
+    def load_dataset(self, f_handle):
+        """Create a new dataset from a given file.
+
+        Raises ValueError if the given file could not be loaded as a dataset.
+
+        Parameters
+        ----------
+        f_handle : vizier.filestore.base.FileHandle
+            handle for an uploaded file on the associated file server.
+
+        Returns
+        -------
+        vizier.datastore.base.Dataset
+        """
+        raise NotImplementedError
 
     def store_dataset(self, dataset):
         """Create a new dataset in the data store for the given data.

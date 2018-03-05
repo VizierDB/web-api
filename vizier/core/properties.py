@@ -11,6 +11,39 @@ import os
 import yaml
 
 
+class ObjectProperty(object):
+    """Object properties are (key, value)-pairs.
+
+    Attributes
+    ----------
+    key: string
+        Property key
+    value: any
+        Property value
+    """
+    def __init__(self, key, value):
+        """Initialize the (key, value)-pair.
+
+        Parameters
+        ----------
+        key: string
+            Property key
+        value: any
+            Property value
+        """
+        self.key = key
+        self.value = value
+
+    def to_dict(self):
+        """Dictionary serialization of the (key, value)-pair.
+
+        Returns
+        -------
+        dict
+        """
+        return {'key': self.key, 'value': self.value}
+
+        
 class ObjectPropertiesHandler(object):
     """Interface for accessing and updating user-defined properties that are
     associated with a Vizier object.

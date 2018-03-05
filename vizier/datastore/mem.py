@@ -5,6 +5,7 @@ implementation is primarily for test purposes.
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DataStore, Dataset, DatasetRow
+from vizier.datastore.base import dataset_from_file
 
 
 class InMemDataStore(DataStore):
@@ -61,6 +62,22 @@ class InMemDataStore(DataStore):
                 row_counter=dataset.row_counter,
                 annotations=dataset.annotations.copy_metadata()
             )
+
+    def load_dataset(self, f_handle):
+        """Create a new dataset from a given file.
+
+        Raises ValueError if the given file could not be loaded as a dataset.
+
+        Parameters
+        ----------
+        f_handle : vizier.filestore.base.FileHandle
+            handle for an uploaded file on the associated file server.
+
+        Returns
+        -------
+        vizier.datastore.base.Dataset
+        """
+        return self.store_dataset(dataset_from_file(f_handle))
 
     def store_dataset(self, dataset):
         """Create a new dataset in the data store for the given data.

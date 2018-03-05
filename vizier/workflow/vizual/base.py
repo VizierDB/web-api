@@ -430,20 +430,8 @@ class DefaultVizualEngine(VizualEngine):
         f_handle = self.fileserver.get_file(file_id)
         if f_handle is None:
             raise ValueError('unknown file \'' + file_id + '\'')
-        # Open CSV file reader. By default, all files on the file server are
-        # stored as gzipped TSV files
-        csvfile = self.fileserver.open_file(file_id)
-        columns = []
-        column_counter = 0
-        for col_name in csvfile.reader.next():
-            columns.append(DatasetColumn(column_counter, col_name))
-            column_counter += 1
-        dataset = Dataset(columns=columns, column_counter=column_counter)
-        for row in csvfile.reader:
-            dataset.add_row(row)
-        csvfile.close()
         # Create dataset and return handle
-        return self.datastore.store_dataset(dataset)
+        return self.datastore.load_dataset(f_handle)
 
     def move_column(self, identifier, column, position):
         """Move a column within a given dataset.

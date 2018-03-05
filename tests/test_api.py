@@ -70,7 +70,7 @@ class TestWebServiceAPI(unittest.TestCase):
         desc = self.api.service_overview()
         # The descriptor is expected to contain three elements: name, title, and
         # links. Name and title should be the same as in the default config
-        self.validate_keys(desc, ['name', 'envs', 'links'])
+        self.validate_keys(desc, ['name', 'envs', 'properties', 'links'])
         self.assertEquals(desc['name'], self.config.name)
         self.assertFalse(len(desc['envs']) == 0)
         for env in desc['envs']:
@@ -328,7 +328,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_links(annos['links'], ['self', 'dataset'])
 
     def validate_file_handle(self, fh):
-        self.validate_keys(fh, ['id', 'name', 'columns', 'rows', 'createdAt', 'links'])
+        self.validate_keys(fh, ['id', 'name', 'columns', 'rows', 'size', 'createdAt', 'links'])
         links = {l['rel'] : l['href'] for l in fh['links']}
         self.validate_links(fh['links'], ['self', 'delete', 'rename', 'download'])
 

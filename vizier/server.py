@@ -1,9 +1,10 @@
 """Vizier Web Server - Implements the requests for the Vizier Web API as
 documented in http://cds-swg1.cims.nyu.edu/vizier/api/v1/doc/.
 """
-from flask import Flask, jsonify, make_response, request
+from flask import Flask, jsonify, make_response, request, send_file
 from flask_cors import CORS
 import csv
+import gzip
 import os
 import StringIO
 import shutil
@@ -174,15 +175,29 @@ def download_file(file_id):
     else:
         file_format = 'csv'
         writer = csv.writer(si)
-    reader, base_name = api.get_file_reader(file_id)
-    if not reader is None:
-        filename = base_name + '.' + file_format
-        for row in reader:
-            writer.writerow(row)
-        output = make_response(si.getvalue())
-        output.headers["Content-Disposition"] = "attachment; filename=" + filename
-        output.headers["Content-type"] = "text/csv"
-        return output
+    f_handle = api.get_file_handle(file_id)
+    if not f_handle is None:
+        # Return a csv/tsv file if the requested file has been verified as a
+        # valid csv (it is expected to be in tab-delimited format)
+        if f_handle.is_verified_csv:
+            filename = f_handle.base_name + '.' + file_format
+            with f_handle.open() as f:
+                for row in csv.reader(f, delimiter=f_handle.delimiter):
+                    writer.writerow(row)
+            output = make_response(si.getvalue())
+            output.headers["Content-Disposition"] = "attachment; filename=" + filename
+            output.headers["Content-type"] = "text/csv"
+            return output
+        else:
+            # Send the file as it was uploaded (with original name)
+            try:
+                return send_file(
+                    f_handle.filepath,
+                    attachment_filename=f_handle.upload_name,
+                    as_attachment=True
+                )
+            except Exception as ex:
+                raise InvalidRequest(str(ex))
     raise ResourceNotFound('unknown file \'' + file_id + '\'')
 
 
@@ -852,6 +867,13 @@ def invalid_request_or_resource_not_found(error):
     return response
 
 
+@app.errorhandler(413)
+def upload_error(exception):
+    """Exception handler for file uploads that exceed the file size limit."""
+    app.logger.error(exception)
+    return make_response(jsonify({'error': str(exception)}), 413)
+
+
 @app.errorhandler(500)
 def internal_error(exception):
     """Exception handler that logs exceptions."""
@@ -872,7 +894,7 @@ def validate_json_request(request, required=None, optional=None):
 
     Raises NoJsonInRequest exception if request does not contain a Json object
     and InvalidRequest exception if a required key is missing or if a key is
-    present that is not required or oprional.
+    present that is not required or optional.
 
     Parameters
     ----------
