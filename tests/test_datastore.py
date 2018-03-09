@@ -5,7 +5,7 @@ import unittest
 
 import vistrails.packages.mimir.init as mimir
 
-from vizier.datastore.base import create_dataset_from_csv
+from vizier.datastore.base import dataset_from_file
 from vizier.datastore.federated import FederatedDataStore
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.fs import DATA_FILE, METADATA_FILE
@@ -14,16 +14,27 @@ from vizier.datastore.mimir import MimirDataStore
 from vizier.datastore.metadata import UpdateCellAnnotation as UpdCell
 from vizier.datastore.metadata import UpdateColumnAnnotation as UpdCol
 from vizier.datastore.metadata import UpdateRowAnnotation as UpdRow
+from vizier.filestore.base import DefaultFileServer
 
 
 CSV_FILE = './data/dataset.csv'
+TSV_FILE = './data/dataset.tsv.gz'
+
 DATASTORE_DIRECTORY = './env/ds'
+FILESERVER_DIR = './env/fs'
 
 FS_DATASTORE = 'FS'
 MEM_DATASTORE = 'MEM'
 MIMIR_DATASTORE = 'MIMIR'
 
 class TestDataStore(unittest.TestCase):
+
+    def setup_fileserver(self):
+        """Create a fresh file server."""
+        if os.path.isdir(FILESERVER_DIR):
+            shutil.rmtree(FILESERVER_DIR)
+        os.mkdir(FILESERVER_DIR)
+        self.fileserver = DefaultFileServer(FILESERVER_DIR)
 
     def set_up(self, store_type):
         """Create empty data store directory."""
@@ -33,7 +44,7 @@ class TestDataStore(unittest.TestCase):
             # Remove directory if it exists
             if os.path.isdir(DATASTORE_DIRECTORY):
                 shutil.rmtree(DATASTORE_DIRECTORY)
-            os.makedirs(DATASTORE_DIRECTORY)
+            os.mkdir(DATASTORE_DIRECTORY)
             if store_type == FS_DATASTORE:
                 self.db = FileSystemDataStore(DATASTORE_DIRECTORY)
             elif store_type == MIMIR_DATASTORE:
@@ -42,23 +53,24 @@ class TestDataStore(unittest.TestCase):
     def tear_down(self, store_type):
         """Delete data store directory.
         """
-        if os.path.isdir(DATASTORE_DIRECTORY):
-            shutil.rmtree(DATASTORE_DIRECTORY)
+        for d in [DATASTORE_DIRECTORY, FILESERVER_DIR]:
+            if os.path.isdir(d):
+                shutil.rmtree(d)
 
     def test_federated_datastore(self):
         """Test functionality of the federated data store."""
+        self.setup_fileserver()
         store1 = InMemDataStore()
         store2 = InMemDataStore()
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        ds1 = store1.store_dataset(data)
-        ds2 = store2.store_dataset(data)
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
+        ds1 = store1.create_dataset(data)
+        ds2 = store2.create_dataset(data)
         fed_store = FederatedDataStore([store1, store2])
         self.assertIsNotNone(fed_store.get_dataset(ds1.identifier))
         self.assertIsNotNone(fed_store.get_dataset(ds2.identifier))
         self.assertIsNone(fed_store.get_dataset('UNDEFINED'))
         with self.assertRaises(NotImplementedError):
-            fed_store.store_dataset(data)
+            fed_store.create_dataset(data)
         upd = UpdRow(0, 'name', 'My Name')
         self.assertIsNotNone(fed_store.update_annotation(ds1.identifier, upd))
         self.assertIsNotNone(fed_store.update_annotation(ds2.identifier, upd))
@@ -76,14 +88,17 @@ class TestDataStore(unittest.TestCase):
         """Run test for Mimir datastore."""
         mimir.initialize()
         self.run_tests(MIMIR_DATASTORE)
+        self.set_up(MIMIR_DATASTORE)
+        self.load_tsv()
+        self.tear_down(MIMIR_DATASTORE)
         mimir.finalize()
 
     def test_volatile_datastore(self):
         """Test volatile data store on top of a file system data store."""
         self.set_up(FS_DATASTORE)
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        ds = self.db.store_dataset(data)
+        self.setup_fileserver()
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
+        ds = self.db.create_dataset(data)
         v_store = VolatileDataStore(self.db)
         # Make sure the existing dataset is accessible via the volatile store
         v_ds = v_store.get_dataset(ds.identifier)
@@ -92,7 +107,7 @@ class TestDataStore(unittest.TestCase):
         # Create an updated dataset. The original should be the same in both
         # stores
         ds.rows[1].set_value('Salary', '40K')
-        v_ds = v_store.store_dataset(ds)
+        v_ds = v_store.create_dataset(ds)
         self.assertEquals(self.db.get_dataset(ds.identifier).get_cell('Salary', 1), '30K')
         self.assertEquals(v_store.get_dataset(ds.identifier).get_cell('Salary', 1), '30K')
         self.assertEquals(v_store.get_dataset(v_ds.identifier).get_cell('Salary', 1), '40K')
@@ -131,9 +146,9 @@ class TestDataStore(unittest.TestCase):
 
     def datastore_init(self, store_type):
         """Test initalizing a datastore with existing datasets."""
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        ds = self.db.store_dataset(data)
+        self.setup_fileserver()
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
+        ds = self.db.create_dataset(data)
         if store_type == MEM_DATASTORE:
             self.db = InMemDataStore()
         elif store_type == FS_DATASTORE:
@@ -143,9 +158,9 @@ class TestDataStore(unittest.TestCase):
 
     def dataset_life_cycle(self):
         """Test create and delete dataset."""
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        ds = self.db.store_dataset(data)
+        self.setup_fileserver()
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
+        ds = self.db.create_dataset(data)
         # Ensure that the project data has three columns and two rows
         self.assertEquals(len(ds.columns), 3)
         self.assertEquals(len(ds.rows), 2)
@@ -155,12 +170,12 @@ class TestDataStore(unittest.TestCase):
 
     def dataset_annotations(self):
         """Test annotations after writing and reading a dataset."""
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
+        self.setup_fileserver()
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
         data.annotations.for_column(1).set_annotation('name', 'Dummy')
         data.annotations.for_row(0).set_annotation('name', 'Dummy')
         data.annotations.for_cell(1, 1).set_annotation('title', 'Dummy')
-        dh = self.db.store_dataset(data)
+        dh = self.db.create_dataset(data)
         self.db.update_annotation(dh.identifier, UpdCol(1, 'comment', 'Some Comment'))
         self.db.update_annotation(dh.identifier, UpdCol(1, 'name'))
         self.db.update_annotation(dh.identifier, UpdRow(0, 'name', 'My Name'))
@@ -186,9 +201,9 @@ class TestDataStore(unittest.TestCase):
 
     def dataset_read(self):
         """Test reading a dataset."""
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        dh = self.db.store_dataset(data)
+        self.setup_fileserver()
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
+        dh = self.db.create_dataset(data)
         ds = self.db.get_dataset(dh.identifier)
         self.assertEquals(dh.identifier, ds.identifier)
         self.assertEquals(len(dh.columns), len(ds.columns))
@@ -210,15 +225,15 @@ class TestDataStore(unittest.TestCase):
 
     def dataset_write(self):
         """Test writing a dataset."""
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        dh = self.db.store_dataset(data)
+        self.setup_fileserver()
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
+        dh = self.db.create_dataset(data)
         ds = self.db.get_dataset(dh.identifier)
         # Update first row
         row = ds.rows[0]
         row.set_value('Name', 'Carla')
         row.set_value('Salary', '45K')
-        dh1 = self.db.store_dataset(ds)
+        dh1 = self.db.create_dataset(ds)
         # Read both datasets
         ds = self.db.get_dataset(dh.identifier)
         # First Dataset
@@ -248,17 +263,19 @@ class TestDataStore(unittest.TestCase):
         self.assertEquals(row.get_value('Salary'), '30K')
 
     def dataset_write_invalid_dataset(self):
-        """Test writing a dataset."""
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        data.rows[1].values.append('A')
+        """Test writing a dataset with duplicate name twice."""
+        self.setup_fileserver()
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
         with self.assertRaises(ValueError):
-            self.db.store_dataset(data)
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
-        data.columns.append('A')
-        with self.assertRaises(ValueError):
-            self.db.store_dataset(data)
+            dataset_from_file(self.fileserver.upload_file(CSV_FILE))
+
+    def load_tsv(self):
+        """Test writing a dataset with duplicate name twice."""
+        self.setup_fileserver()
+        fh = self.fileserver.upload_file(TSV_FILE)
+        ds = self.db.load_dataset(fh)
+        self.assertEquals(len(ds.columns), 3)
+        self.assertEquals(len(ds.rows), 2)
 
 
 if __name__ == '__main__':

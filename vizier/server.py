@@ -182,7 +182,7 @@ def download_file(file_id):
         if f_handle.is_verified_csv:
             filename = f_handle.base_name + '.' + file_format
             with f_handle.open() as f:
-                for row in csv.reader(f, delimiter=f_handle.delimiter):
+                for row in csv.reader(f, delimiter=f_handle.delimiter, skipinitialspace=True):
                     writer.writerow(row)
             output = make_response(si.getvalue())
             output.headers["Content-Disposition"] = "attachment; filename=" + filename

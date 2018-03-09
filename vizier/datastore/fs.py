@@ -41,6 +41,35 @@ class FileSystemDataStore(DataStore):
         if not os.path.isdir(self.base_dir):
             os.makedirs(self.base_dir)
 
+    def create_dataset(self, dataset):
+        """Create a new dataset in the data store for the given data.
+
+        Raises ValueError if the number of values in each row of the dataset
+        doesn't match the number of columns in the dataset schema.
+
+        Parameters
+        ----------
+        dataset : vizier.datastore.base.Dataset
+            Dataset object
+
+        Returns
+        -------
+        vizier.datastore.base.Dataset
+        """
+        # Validate the given dataset schema. Will raise ValueError in case of
+        # schema violations
+        dataset.validate_schema()
+        # Get new identifier and create directory for new dataset
+        dataset.identifier = get_unique_identifier()
+        dataset_dir = self.get_dataset_dir(dataset.identifier)
+        os.makedirs(dataset_dir)
+        # Write dataset file
+        dataset.to_file(os.path.join(dataset_dir, DATA_FILE))
+        # Write metadata file
+        dataset.annotations.to_file(os.path.join(dataset_dir, METADATA_FILE))
+        # Return handle for new dataset
+        return dataset
+
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
         and False otherwise.
@@ -113,36 +142,7 @@ class FileSystemDataStore(DataStore):
         -------
         vizier.datastore.base.Dataset
         """
-        return self.store_dataset(dataset_from_file(f_handle))
-
-    def store_dataset(self, dataset):
-        """Create a new dataset in the data store for the given data.
-
-        Raises ValueError if the number of values in each row of the dataset
-        doesn't match the number of columns in the dataset schema.
-
-        Parameters
-        ----------
-        dataset : vizier.datastore.base.Dataset
-            Dataset object
-
-        Returns
-        -------
-        vizier.datastore.base.Dataset
-        """
-        # Validate the given dataset schema. Will raise ValueError in case of
-        # schema violations
-        dataset.validate_schema()
-        # Get new identifier and create directory for new dataset
-        dataset.identifier = get_unique_identifier()
-        dataset_dir = self.get_dataset_dir(dataset.identifier)
-        os.makedirs(dataset_dir)
-        # Write dataset file
-        dataset.to_file(os.path.join(dataset_dir, DATA_FILE))
-        # Write metadata file
-        dataset.annotations.to_file(os.path.join(dataset_dir, METADATA_FILE))
-        # Return handle for new dataset
-        return dataset
+        return self.create_dataset(dataset_from_file(f_handle))
 
     def update_annotation(self, identifier, upd_stmt):
         """Update the annotations for a component of the datasets with the given

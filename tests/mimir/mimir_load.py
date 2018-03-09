@@ -28,7 +28,11 @@ def load_dataset(filename):
     sql = 'SELECT * FROM ' + init_load_name
     rs = mimir._mimir.vistrailsQueryMimir(sql, True, True)
     mimir_schema = rs.schema()
-    reader = csv.reader(StringIO(rs.csvStr()), delimiter=',')
+    reader = csv.reader(
+        StringIO(rs.csvStr()),
+        delimiter=',',
+        skipinitialspace=True
+    )
     # Write retieved result to temp file. Add unique column names and row
     # identifier
     os.remove(tmp_file)

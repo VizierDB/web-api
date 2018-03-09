@@ -18,7 +18,7 @@ ENGINEENV_MIMIR = 'mimir'
 
 def is_null(val):
     """In Mimir, cells of type INT that have 'no value' will return '0'."""
-    return val in ['NULL', '', '0']
+    return val in ['NULL', '', '0', None]
 
 
 class TestVizualEngine(unittest.TestCase):
@@ -103,8 +103,8 @@ class TestVizualEngine(unittest.TestCase):
         ds = self.datastore.get_dataset(id1)
         # Schema is Name, Salary
         self.assertEquals(len(ds.columns), 2)
-        self.assertEquals(ds.columns[0].name, 'Name')
-        self.assertEquals(ds.columns[1].name, 'Salary')
+        self.assertEquals(ds.columns[0].name.upper(), 'NAME')
+        self.assertEquals(ds.columns[1].name.upper(), 'SALARY')
         # Make sure column identifier haven't changed
         for i in range(len(ds.columns)):
             self.assertEquals(ds.columns[i].identifier, col_ids[i])
@@ -154,7 +154,7 @@ class TestVizualEngine(unittest.TestCase):
         col_names = ['Name', 'Age', 'Salary']
         self.assertEquals(len(ds.columns), len(col_names))
         for i in range(len(ds.columns)):
-            self.assertEquals(ds.columns[i].name, col_names[i])
+            self.assertEquals(ds.columns[i].name.upper(), col_names[i].upper())
         # Make sure column identifier haven't changed
         for i in range(len(ds.columns)):
             self.assertEquals(ds.columns[i].identifier, col_ids[i])
@@ -196,7 +196,7 @@ class TestVizualEngine(unittest.TestCase):
         for i in range(len(col_names)):
             col = ds.columns[i]
             self.assertEquals(col.identifier, col_ids[i])
-            self.assertEquals(col.name, col_names[i])
+            self.assertEquals(col.name.upper(), col_names[i].upper())
         # Insert columns at last position
         col_ids.append(ds.column_counter)
         col_names.append('Weight')
@@ -214,7 +214,7 @@ class TestVizualEngine(unittest.TestCase):
         for i in range(len(col_names)):
             col = ds.columns[i]
             self.assertEquals(col.identifier, col_ids[i])
-            self.assertEquals(col.name, col_names[i])
+            self.assertEquals(col.name.upper(), col_names[i].upper())
         # The cell values for new columns are None all other values are not None
         for row in ds.rows:
             for i in range(len(ds.columns)):
@@ -323,9 +323,9 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(col_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
-        self.assertEquals(ds.columns[0].name, 'Age')
-        self.assertEquals(ds.columns[1].name, 'Name')
-        self.assertEquals(ds.columns[2].name, 'Salary')
+        self.assertEquals(ds.columns[0].name.upper(), 'Age'.upper())
+        self.assertEquals(ds.columns[1].name.upper(), 'Name'.upper())
+        self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds.rows[0]
         self.assertEquals(row.values[0], '23')
         self.assertEquals(row.values[1], 'Alice')
@@ -346,9 +346,9 @@ class TestVizualEngine(unittest.TestCase):
         col_ids.append(c)
         col_count, id2 = self.vizual.move_column(id1, 'Salary', 1)
         ds = self.datastore.get_dataset(id2)
-        self.assertEquals(ds.columns[0].name, 'Age')
-        self.assertEquals(ds.columns[1].name, 'Salary')
-        self.assertEquals(ds.columns[2].name, 'Name')
+        self.assertEquals(ds.columns[0].name.upper(), 'Age'.upper())
+        self.assertEquals(ds.columns[1].name.upper(), 'Salary'.upper())
+        self.assertEquals(ds.columns[2].name.upper(), 'Name'.upper())
         row = ds.rows[0]
         self.assertEquals(row.values[0], '23')
         self.assertEquals(row.values[1], '35K')
@@ -387,9 +387,9 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(row_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
-        self.assertEquals(ds.columns[0].name, 'Name')
-        self.assertEquals(ds.columns[1].name, 'Age')
-        self.assertEquals(ds.columns[2].name, 'Salary')
+        self.assertEquals(ds.columns[0].name.upper(), 'Name'.upper())
+        self.assertEquals(ds.columns[1].name.upper(), 'Age'.upper())
+        self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds.rows[0]
         self.assertEquals(row.values[0], 'Bob')
         self.assertEquals(row.values[1], '32')
@@ -408,9 +408,9 @@ class TestVizualEngine(unittest.TestCase):
         row_ids = [row for row in reversed(row_ids)]
         row_count, id2 = self.vizual.move_row(id1, 1, 0)
         ds = self.datastore.get_dataset(id2)
-        self.assertEquals(ds.columns[0].name, 'Name')
-        self.assertEquals(ds.columns[1].name, 'Age')
-        self.assertEquals(ds.columns[2].name, 'Salary')
+        self.assertEquals(ds.columns[0].name.upper(), 'Name'.upper())
+        self.assertEquals(ds.columns[1].name.upper(), 'Age'.upper())
+        self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds.rows[0]
         self.assertEquals(row.values[0], 'Alice')
         self.assertEquals(row.values[1], '23')
@@ -466,14 +466,14 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(col_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
-        self.assertEquals(ds.columns[0].name, 'Firstname')
-        self.assertEquals(ds.columns[1].name, 'Age')
-        self.assertEquals(ds.columns[2].name, 'Salary')
+        self.assertEquals(ds.columns[0].name.upper(), 'Firstname'.upper())
+        self.assertEquals(ds.columns[1].name.upper(), 'Age'.upper())
+        self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         col_count, id2 = self.vizual.rename_column(id1, 1, 'BDate')
         ds = self.datastore.get_dataset(id2)
-        self.assertEquals(ds.columns[0].name, 'Firstname')
+        self.assertEquals(ds.columns[0].name.upper(), 'Firstname'.upper())
         self.assertEquals(ds.columns[1].name, 'BDate')
-        self.assertEquals(ds.columns[2].name, 'Salary')
+        self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         # Ensure that row ids haven't changed
         for i in range(len(ds.rows)):
             self.assertEquals(ds.rows[i].identifier, row_ids[i])
@@ -508,7 +508,11 @@ class TestVizualEngine(unittest.TestCase):
         count, ds_id = self.vizual.delete_row(ds_id, 0)
         count, ds_id = self.vizual.delete_row(ds_id, 0)
         ds = self.datastore.get_dataset(ds_id)
-        self.assertEquals([col.name for col in ds.columns], ['Name', 'Height', 'Salary'])
+        names = ['Name', 'Height', 'Salary']
+        self.assertEquals(len(ds.columns), len(names))
+        for i in range(len(names)):
+            col = ds.columns[i]
+            self.assertEquals(col.name.upper(), names[i].upper())
         self.assertEquals([col.identifier for col in ds.columns], [0, 3, 2])
         self.assertEquals(len(ds.rows), 1)
         self.assertEquals(ds.rows[0].values, ['Carla', '160', '56K'])

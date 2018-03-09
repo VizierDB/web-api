@@ -47,7 +47,7 @@ class Dataset(object):
             identifier.
         column_counter: int
             Counter for unique column identifier
-        rows: list(DatasetRow), optional
+        rows: list(vizier.datastore.base.DatasetRow), optional
             List of dataset rows. It is expected that each row has a unique
             identifier.
         row_counter: int
@@ -423,6 +423,24 @@ class DataStore(VizierSystemComponent):
         return [component_descriptor('datastore', self.system_build())]
 
     @abstractmethod
+    def create_dataset(self, dataset):
+        """Create a new dataset in the data store for the given data.
+
+        Raises ValueError if the number of values in each row of the dataset
+        doesn't match the number of columns in the dataset schema.
+
+        Parameters
+        ----------
+        dataset : vizier.datastore.base.Dataset
+            Dataset object
+
+        Returns
+        -------
+        vizier.datastore.base.Dataset
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
         and False otherwise.
@@ -464,24 +482,6 @@ class DataStore(VizierSystemComponent):
         ----------
         f_handle : vizier.filestore.base.FileHandle
             handle for an uploaded file on the associated file server.
-
-        Returns
-        -------
-        vizier.datastore.base.Dataset
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def store_dataset(self, dataset):
-        """Create a new dataset in the data store for the given data.
-
-        Raises ValueError if the number of values in each row of the dataset
-        doesn't match the number of columns in the dataset schema.
-
-        Parameters
-        ----------
-        dataset : vizier.datastore.base.Dataset
-            Dataset object
 
         Returns
         -------
@@ -567,7 +567,11 @@ def dataset_from_file(f_handle):
     with f_handle.open() as csvfile:
         columns = []
         column_counter = 0
-        reader = csv.reader(csvfile, delimiter=f_handle.delimiter)
+        reader = csv.reader(
+            csvfile,
+            delimiter=f_handle.delimiter,
+            skipinitialspace=True
+        )
         for col_name in reader.next():
             columns.append(DatasetColumn(column_counter, col_name))
             column_counter += 1

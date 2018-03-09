@@ -10,9 +10,8 @@ import gzip
 import vistrails.packages.mimir.init as mimir
 
 from vizier.core.system import build_info
-from vizier.core.util import is_valid_name, get_unique_identifier
-from vizier.datastore.base import Dataset
-from vizier.datastore.mimir import MimirDatasetColumn, MimirDatasetDescriptor
+from vizier.core.util import is_valid_name
+from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import COL_PREFIX, ROW_ID
 from vizier.workflow.vizual.base import DefaultVizualEngine
 
@@ -73,19 +72,15 @@ class MimirVizualEngine(DefaultVizualEngine):
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds_id = get_unique_identifier()
-        self.datastore.create_dataset(
-            MimirDatasetDescriptor(
-                ds_id,
-                schema,
-                view_name,
-                dataset.row_ids,
-                dataset.column_counter,
-                dataset.row_counter,
-                dataset.annotations
-            )
+        ds = self.datastore.insert_dataset(
+            table_name=view_name,
+            columns=schema,
+            row_ids=dataset.row_ids,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
         )
-        return 1, ds_id
+        return 1, ds.identifier
 
     def delete_row(self, identifier, row):
         """Delete a row in a given dataset.
@@ -123,22 +118,18 @@ class MimirVizualEngine(DefaultVizualEngine):
         for col in dataset.columns:
             col_list.append(col.name_in_rdb)
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
-        sql += ' WHERE ' + ROW_ID + ' <> ' + dataset.rowid_to_sql_string(row_id)
+        sql += ' WHERE ' + ROW_ID + ' <> ' + dataset.rowid_column.to_sql_value(row_id)
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds_id = get_unique_identifier()
-        self.datastore.create_dataset(
-            MimirDatasetDescriptor(
-                ds_id,
-                dataset.columns,
-                view_name,
-                rows,
-                dataset.column_counter,
-                dataset.row_counter,
-                dataset.annotations
-            )
+        ds = self.datastore.insert_dataset(
+            table_name=view_name,
+            columns=dataset.columns,
+            row_ids=rows,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
         )
-        return 1, ds_id
+        return 1, ds.identifier
 
     def insert_column(self, identifier, position, name):
         """Insert column with given name at given position in dataset.
@@ -189,19 +180,15 @@ class MimirVizualEngine(DefaultVizualEngine):
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds_id = get_unique_identifier()
-        self.datastore.create_dataset(
-            MimirDatasetDescriptor(
-                ds_id,
-                schema,
-                view_name,
-                dataset.row_ids,
-                dataset.column_counter,
-                dataset.row_counter,
-                dataset.annotations
-            )
+        ds = self.datastore.insert_dataset(
+            table_name=view_name,
+            columns=schema,
+            row_ids=dataset.row_ids,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
         )
-        return 1, ds_id
+        return 1, ds.identifier
 
     def insert_row(self, identifier, position):
         """Insert row at given position in a dataset.
@@ -239,25 +226,21 @@ class MimirVizualEngine(DefaultVizualEngine):
         for col in dataset.columns:
             col_list.append(col.name_in_rdb)
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
-        union_list = [dataset.rowid_to_sql_string(row_id) + ' AS ' + ROW_ID]
+        union_list = [dataset.rowid_column.to_sql_value(row_id) + ' AS ' + ROW_ID]
         for col in dataset.columns:
             union_list.append('NULL AS ' + col.name_in_rdb)
         sql = '(' + sql + ') UNION ALL (SELECT ' + ','.join(union_list) + ')'
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds_id = get_unique_identifier()
-        self.datastore.create_dataset(
-            MimirDatasetDescriptor(
-                ds_id,
-                dataset.columns,
-                view_name,
-                row_ids,
-                dataset.column_counter,
-                dataset.row_counter,
-                dataset.annotations
-            )
+        ds = self.datastore.insert_dataset(
+            table_name=view_name,
+            columns=dataset.columns,
+            row_ids=row_ids,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
         )
-        return 1, ds_id
+        return 1, ds.identifier
 
     def move_column(self, identifier, column, position):
         """Move a column within a given dataset.
@@ -291,27 +274,22 @@ class MimirVizualEngine(DefaultVizualEngine):
         source_idx = dataset.column_index(column)
         # No need to do anything if source position equals target position
         if source_idx != position:
-            # Get a new identifier for the dataset.
-            ds_id = get_unique_identifier()
             # There are no changes to the underlying database. We only need to
             # change the column information in the dataset schema.
-
             schema = list(dataset.columns)
             schema.insert(position, schema.pop(source_idx))
             # Store updated dataset to get new identifier
-            self.datastore.create_dataset(
-                MimirDatasetDescriptor(
-                    ds_id,
-                    schema,
-                    dataset.table_name,
-                    dataset.row_ids,
-                    dataset.column_counter,
-                    dataset.row_counter,
-                    dataset.annotations
-                ),
+            ds = self.datastore.insert_dataset(
+                table_name=dataset.table_name,
+                columns=schema,
+                row_ids=dataset.row_ids,
+                rowid_column=dataset.rowid_column,
+                column_counter=dataset.column_counter,
+                row_counter=dataset.row_counter,
+                annotations=dataset.annotations,
                 adjust_metadata=False
             )
-            return 1, ds_id
+            return 1, ds.identifier
         else:
             return 0, identifier
 
@@ -349,22 +327,17 @@ class MimirVizualEngine(DefaultVizualEngine):
         # No need to do anything if source position equals target position
         if row != position:
             dataset.row_ids.insert(position, dataset.row_ids.pop(row))
-            # Get a new identifier for the dataset.
-            ds_id = get_unique_identifier()
             # Store updated dataset to get new identifier
-            self.datastore.create_dataset(
-                MimirDatasetDescriptor(
-                    ds_id,
-                    dataset.columns,
-                    dataset.table_name,
-                    dataset.row_ids,
-                    dataset.column_counter,
-                    dataset.row_counter,
-                    dataset.annotations
-                ),
+            ds = self.datastore.insert_dataset(
+                table_name=dataset.table_name,
+                columns=dataset.columns,
+                row_ids=dataset.row_ids,
+                rowid_column=dataset.rowid_column,
+                column_counter=dataset.column_counter,
+                row_counter=dataset.row_counter,
+                annotations=dataset.annotations,
                 adjust_metadata=False
             )
-            return 1, ds_id
             return 1, ds.identifier
         else:
             return 0, identifier
@@ -403,25 +376,21 @@ class MimirVizualEngine(DefaultVizualEngine):
         col = schema[dataset.column_index(column)]
         # No need to do anything if the name hasn't changed
         if col.name.lower() != name.lower():
-            # Get a new identifier for the dataset.
-            ds_id = get_unique_identifier()
             # There are no changes to the underlying database. We only need to
             # change the column information in the dataset schema.
             col.name = name
             # Store updated dataset to get new identifier
-            self.datastore.create_dataset(
-                MimirDatasetDescriptor(
-                    ds_id,
-                    schema,
-                    dataset.table_name,
-                    dataset.row_ids,
-                    dataset.column_counter,
-                    dataset.row_counter,
-                    dataset.annotations
-                ),
+            ds = self.datastore.insert_dataset(
+                table_name=dataset.table_name,
+                columns=schema,
+                row_ids=dataset.row_ids,
+                rowid_column=dataset.rowid_column,
+                column_counter=dataset.column_counter,
+                row_counter=dataset.row_counter,
+                annotations=dataset.annotations,
                 adjust_metadata=False
             )
-            return 1, ds_id
+            return 1, ds.identifier
         else:
             return 0, identifier
 
@@ -464,17 +433,8 @@ class MimirVizualEngine(DefaultVizualEngine):
         for i in range(len(dataset.columns)):
             col = dataset.columns[i]
             if i == col_index:
-                if col.is_numeric:
-                    try:
-                        val_stmt = str(int(value))
-                    except ValueError:
-                        try:
-                            val_stmt = str(float(value))
-                        except ValueError:
-                            val_stmt = '\'' + value + '\''
-                else:
-                    val_stmt = '\'' + value + '\''
-                stmt = 'CASE WHEN ' + ROW_ID + ' = ' + dataset.rowid_to_sql_string(row_id) + ' THEN '
+                val_stmt = col.to_sql_value(value)
+                stmt = 'CASE WHEN ' + ROW_ID + ' = ' + dataset.rowid_column.to_sql_value(row_id) + ' THEN '
                 stmt += val_stmt + ' ELSE ' + col.name_in_rdb + ' END '
                 stmt += 'AS ' + col.name_in_rdb
                 col_list.append(stmt)
@@ -488,16 +448,13 @@ class MimirVizualEngine(DefaultVizualEngine):
             row_id
         )
         # Store updated dataset information with new identifier
-        ds_id = get_unique_identifier()
-        self.datastore.create_dataset(
-            MimirDatasetDescriptor(
-                ds_id,
-                dataset.columns,
-                view_name,
-                dataset.row_ids,
-                dataset.column_counter,
-                dataset.row_counter,
-                dataset.annotations
-            )
+        ds = self.datastore.insert_dataset(
+            table_name=view_name,
+            columns=dataset.columns,
+            row_ids=dataset.row_ids,
+            rowid_column=dataset.rowid_column,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
         )
-        return 1, ds_id
+        return 1, ds.identifier

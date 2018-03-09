@@ -303,7 +303,7 @@ class DefaultVizualEngine(VizualEngine):
         for row in dataset.rows:
             del row.values[col_index]
         # Store updated dataset to get new identifier
-        ds = self.datastore.store_dataset(dataset)
+        ds = self.datastore.create_dataset(dataset)
         return 1, ds.identifier
 
     def delete_row(self, identifier, row):
@@ -335,7 +335,7 @@ class DefaultVizualEngine(VizualEngine):
         # Delete the row at the given position
         del dataset.rows[row]
         # Store updated dataset to get new identifier
-        ds = self.datastore.store_dataset(dataset)
+        ds = self.datastore.create_dataset(dataset)
         return 1, ds.identifier
 
     def insert_column(self, identifier, position, name):
@@ -373,7 +373,7 @@ class DefaultVizualEngine(VizualEngine):
         # Insert new column into dataset
         dataset.add_column(name, position)
         # Store updated dataset to get new identifier
-        ds = self.datastore.store_dataset(dataset)
+        ds = self.datastore.create_dataset(dataset)
         return 1, ds.identifier
 
     def insert_row(self, identifier, position):
@@ -405,7 +405,7 @@ class DefaultVizualEngine(VizualEngine):
         # Create empty set of values
         dataset.add_row(position=position)
         # Store updated dataset to get new identifier
-        ds = self.datastore.store_dataset(dataset)
+        ds = self.datastore.create_dataset(dataset)
         return 1, ds.identifier
 
     def load_dataset(self, file_id):
@@ -469,7 +469,7 @@ class DefaultVizualEngine(VizualEngine):
             for row in dataset.rows:
                 row.values.insert(position, row.values.pop(source_idx))
             # Store updated dataset to get new identifier
-            ds = self.datastore.store_dataset(dataset)
+            ds = self.datastore.create_dataset(dataset)
             return 1, ds.identifier
         else:
             return 0, identifier
@@ -509,7 +509,7 @@ class DefaultVizualEngine(VizualEngine):
         if row != position:
             dataset.rows.insert(position, dataset.rows.pop(row))
             # Store updated dataset to get new identifier
-            ds = self.datastore.store_dataset(dataset)
+            ds = self.datastore.create_dataset(dataset)
             return 1, ds.identifier
         else:
             return 0, identifier
@@ -549,7 +549,7 @@ class DefaultVizualEngine(VizualEngine):
         if dataset.columns[col_idx].name.lower() != name.lower():
             dataset.columns[col_idx].name = name
             # Store updated dataset to get new identifier
-            ds = self.datastore.store_dataset(dataset)
+            ds = self.datastore.create_dataset(dataset)
             return 1, ds.identifier
         else:
             return 0, identifier
@@ -587,5 +587,5 @@ class DefaultVizualEngine(VizualEngine):
         # Update the specified cell in the given data array
         dataset.rows[row].set_value(column, value)
         # Store updated dataset to get new identifier
-        ds = self.datastore.store_dataset(dataset)
+        ds = self.datastore.create_dataset(dataset)
         return 1, ds.identifier

@@ -58,10 +58,18 @@ class TestFileServer(unittest.TestCase):
 
     def test_list_file(self):
         """Test upload of different file types and the list files method."""
-        self.db.upload_file(CSV_FILE)
-        self.db.upload_file(GZIP_CSV_FILE)
-        self.db.upload_file(TSV_FILE)
-        self.db.upload_file(GZIP_TSV_FILE)
+        fh = self.db.upload_file(CSV_FILE)
+        self.assertFalse(fh.compressed)
+        self.assertEquals(fh.delimiter, ',')
+        fh = self.db.upload_file(GZIP_CSV_FILE)
+        self.assertTrue(fh.compressed)
+        self.assertEquals(fh.delimiter, ',')
+        fh = self.db.upload_file(TSV_FILE)
+        self.assertFalse(fh.compressed)
+        self.assertEquals(fh.delimiter, '\t')
+        fh = self.db.upload_file(GZIP_TSV_FILE)
+        self.assertTrue(fh.compressed)
+        self.assertEquals(fh.delimiter, '\t')
         files = self.db.list_files()
         self.assertEquals(len(files), 4)
         # Ensure that each of the files parses as a zipped TSV file

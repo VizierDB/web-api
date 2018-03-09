@@ -98,7 +98,7 @@ class VizierDBClient(object):
             raise ValueError('invalid dataset name \'' + name + '\'')
         # Write dataset to datastore and add new dataset to context
         dataset.annotations = DatasetMetadata()
-        ds = self.datastore.store_dataset(dataset)
+        ds = self.datastore.create_dataset(dataset)
         self.set_dataset_identifier(name, ds.identifier)
 
     def drop_dataset(self, name):
@@ -244,7 +244,7 @@ class VizierDBClient(object):
         # exception if the name is unknown
         identifier = self.get_dataset_identifier(name)
         # Write dataset to datastore and update context
-        ds = self.datastore.store_dataset(dataset)
+        ds = self.datastore.create_dataset(dataset)
         self.set_dataset_identifier(name, ds.identifier)
 
 

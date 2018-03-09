@@ -6,7 +6,7 @@ import time
 import unittest
 
 from vizier.config import TestEnv
-from vizier.datastore.base import create_dataset_from_csv
+from vizier.datastore.base import dataset_from_file
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.metadata import UpdateColumnAnnotation
 from vizier.filestore.base import DefaultFileServer
@@ -47,14 +47,14 @@ class TestWebServiceAPI(unittest.TestCase):
         # Setup datastore and API
         self.config = AppConfig(configuration_file=CONFIG_FILE)
         self.datastore = FileSystemDataStore(DATASTORE_DIRECTORY)
-
+        self.fileserver = DefaultFileServer(FILESERVER_DIR)
         self.api = VizierWebService(
             FileSystemViztrailRepository(
                 WORKTRAILS_DIRECTORY,
                 {ENV.identifier: ENV}
             ),
             self.datastore,
-            DefaultFileServer(FILESERVER_DIR),
+            self.fileserver,
             self.config
         )
 
@@ -122,12 +122,11 @@ class TestWebServiceAPI(unittest.TestCase):
 
     def test_datasets(self):
         """Test retireval of datasets."""
-        with open(CSV_FILE, 'r') as f:
-            data = create_dataset_from_csv(csv.reader(f))
+        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
         data.annotations.for_column(0).set_annotation('comment', 'Hello')
         data.annotations.for_row(1).set_annotation('comment', 'World')
         data.annotations.for_cell(1, 0).set_annotation('comment', '!')
-        ds = self.datastore.store_dataset(data)
+        ds = self.datastore.create_dataset(data)
         self.validate_dataset_handle(self.api.get_dataset(ds.identifier))
         self.validate_dataset_annotations(self.api.get_dataset_annotations(ds.identifier))
         # Update annotations
@@ -328,7 +327,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_links(annos['links'], ['self', 'dataset'])
 
     def validate_file_handle(self, fh):
-        self.validate_keys(fh, ['id', 'name', 'columns', 'rows', 'size', 'createdAt', 'links'])
+        self.validate_keys(fh, ['id', 'name', 'columns', 'rows', 'filesize', 'createdAt', 'lastModifiedAt', 'links'])
         links = {l['rel'] : l['href'] for l in fh['links']}
         self.validate_links(fh['links'], ['self', 'delete', 'rename', 'download'])
 

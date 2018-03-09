@@ -257,8 +257,9 @@ class VizierWebService(object):
             'name' : f_handle.name,
             'columns' : f_handle.columns,
             'rows': f_handle.rows,
-            'size': f_handle.size,
+            'filesize': f_handle.filesize,
             'createdAt': f_handle.created_at.isoformat(),
+            'lastModifiedAt': f_handle.last_modified_at.isoformat(),
             JSON_REFERENCES : [
                 self_reference(self_ref),
                 reference(REL_DELETE, self_ref),

@@ -7,15 +7,24 @@ import os
 import shutil
 import yaml
 
+from vizier.core.properties import ObjectProperty
 from vizier.core.util import get_unique_identifier
 from vizier.core.system import build_info, component_descriptor
 from vizier.core.system import VizierSystemComponent
 from vizier.core.timestamp import get_current_time, to_datetime
 
 
+"""File handle property keys."""
+FH_COLUMNS = 'columns'
+FH_COMPRESSED = 'compressed'
+FH_DELIMITER = 'delimiter'
+FH_ROWS = 'rows'
+FH_UPLOAD_NAME = 'uploadName'
+
+
 class FileHandle(object):
     """File handle containing statistics for an uploaded CSV file."""
-    def __init__(self, identifier, name, columns, rows, size, created_at, filepath, upload_name=None, active=True):
+    def __init__(self, identifier, name, filepath, created_at=None, last_modified_at=None, properties=None, active=True):
         """Initialize the file identifier, the (full) file path, and information
         about number of columns and rows in the CSV file.
 
@@ -25,29 +34,23 @@ class FileHandle(object):
             Unique file identifier
         name: string
             File base name (with suffix)
-        columns: int
-            Number of columns in the CSV file
-        rows: int
-            Number of rows in the CSV file (excluding the header).
-        size: int
-            File size in bytes
-        created_at : datetime.datetime
-            Timestamp of worktrail creation (UTC)
         filepath: string
             Absolute path to file on disk
-        upload_name: string
-            Name of the original uploaded file
+        created_at : datetime.datetime
+            Timestamp of file upload (UTC)
+        last_modified_at : datetime.datetime
+            Timestamp of last modification (UTC)
+        properties: dict, optional
+            Dictionary of file properties
         active: bool
             Flag indicating whether the file is active
         """
         self.identifier = identifier
         self.name = name
-        self.columns = columns
-        self.rows = rows
-        self.size = size
-        self.created_at = created_at
         self.filepath = filepath
-        self.upload_name = upload_name if not upload_name is None else name
+        self.created_at = created_at if not created_at is None else get_current_time()
+        self.last_modified_at = last_modified_at if not last_modified_at is None else self.created_at
+        self.properties = properties if not properties is None else dict()
         self.active = active
 
     @property
@@ -68,6 +71,28 @@ class FileHandle(object):
             return self.name
 
     @property
+    def columns(self):
+        """Return the number of columns in the file (if it was parsed
+        successfully as a CSV/TSV file).
+
+        Returns
+        -------
+        int
+        """
+        return self.get_property(FH_COLUMNS, default_value=-1)
+
+    @property
+    def compressed(self):
+        """Flag indicating whether the file is in gzip format. This is currently
+        determined by the file suffix at file upload time.
+
+        Returns
+        -------
+        bool
+        """
+        return self.get_property(FH_COMPRESSED, default_value=None)
+
+    @property
     def delimiter(self):
         """Determine the column delimiter for a CSV/TSV file based on the suffix
         of the name of the uploaded file.
@@ -76,32 +101,62 @@ class FileHandle(object):
         -------
         string
         """
-        if self.upload_name.endswith('.csv'):
-            return ','
-        elif self.upload_name.endswith('.csv.gz'):
-            return ','
-        elif self.upload_name.endswith('.tsv'):
-            return '\t'
-        elif self.upload_name.endswith('.tsv.gz'):
-            return '\t'
-        else:
-            return None
+        return self.get_property(FH_DELIMITER, default_value=None)
+
+    @property
+    def filesize(self):
+        """Return the size of the uploaded file on disk.
+
+        Returns
+        -------
+        int
+        """
+        return os.stat(self.filepath).st_size
 
     @staticmethod
     def from_dict(doc, func_filepath):
+        """Create a file handle instance from a dictionary representations.
+        Requires a function that maps the file identifier to the actual file on
+        disk.
+
+        Parameters
+        ----------
+        doc: dict
+            Dictionary representation of the file handle
+        func_filepath: func
+            Function that maps the file identifier to a file on disk.
         """
-        """
+        # Transform properties list
+        properties = dict()
+        for p in [ObjectProperty.from_dict(obj) for obj in doc['properties']]:
+            properties[p.key] = p.value
+        # Return new file handle
         return FileHandle(
             doc['identifier'],
             doc['name'],
-            get_optional_property(doc, 'columns', -1),
-            get_optional_property(doc, 'rows', -1),
-            get_optional_property(doc, 'size', -1),
-            to_datetime(doc['createdAt']),
             func_filepath(doc['identifier']),
-            upload_name=get_optional_property(doc, 'uploadName'),
+            to_datetime(doc['createdAt']),
+            last_modified_at=to_datetime(doc['lastModifiedAt']),
+            properties=properties,
             active=doc['active']
         )
+
+    def get_property(self, key, default_value=None):
+        """Return the property value for the given key or the default value if
+        the key does not exist.
+
+        Parameters
+        ----------
+        key: string
+            Property key
+        default_value: any
+            Default value for property key
+
+        Returns
+        -------
+        any
+        """
+        return self.properties[key] if key in self.properties else default_value
 
     @property
     def is_verified_csv(self):
@@ -127,6 +182,17 @@ class FileHandle(object):
         else:
             return open(self.filepath, 'r')
 
+    @property
+    def rows(self):
+        """Return the number of rows in the file (if it was parsed
+        successfully as a CSV/TSV file).
+
+        Returns
+        -------
+        int
+        """
+        return self.get_property(FH_ROWS, default_value=-1)
+
     def to_dict(self):
         """Get dictionary serialization for the file object.
 
@@ -137,13 +203,25 @@ class FileHandle(object):
         return {
             'identifier': self.identifier,
             'name': self.name,
-            'columns': self.columns,
-            'rows': self.rows,
-            'size': self.size,
             'createdAt' : self.created_at.isoformat(),
-            'uploadName': self.upload_name,
+            'lastModifiedAt' : self.last_modified_at.isoformat(),
+            'properties': [
+                ObjectProperty(key, self.properties[key]).to_dict()
+                    for key in self.properties
+            ],
             'active': self.active
         }
+
+    @property
+    def upload_name(self):
+        """Name of the originally uploaded file. This remains invariant while
+        the file.name property may be changed by the user.
+
+        Returns
+        -------
+        string
+        """
+        return self.get_property(FH_UPLOAD_NAME, default_value=self.name)
 
 
 class FileServer(VizierSystemComponent):
@@ -271,6 +349,7 @@ class DefaultFileServer(FileServer):
         self.file_directory = os.path.join(base_directory, 'files')
         if not os.path.isdir(self.file_directory):
             os.makedirs(self.file_directory)
+        self.files = self.read_index()
 
     def delete_file(self, identifier):
         """Delete file with given identifier. Returns True if file was deleted
@@ -287,16 +366,13 @@ class DefaultFileServer(FileServer):
         -------
         bool
         """
-        files = []
-        found = False
-        for f_desc in self.read_index()['files']:
-            if f_desc['identifier'] == identifier and f_desc['active']:
-                f_desc['active'] = False
-                found = True
-            files.append(f_desc)
-        if found:
-            self.write_index({'files': files})
-        return found
+        if identifier in self.files:
+            fh = self.files[identifier]
+            if fh.active == True:
+                fh.active = False
+                self.write_index(self.files)
+                return True
+        return False
 
     def get_file(self, identifier):
         """Get handle for file with given identifier. Returns None if no file
@@ -311,9 +387,10 @@ class DefaultFileServer(FileServer):
         -------
         FileHandle
         """
-        for f_desc in self.read_index()['files']:
-            if f_desc['identifier'] == identifier and f_desc['active']:
-                return FileHandle.from_dict(f_desc, self.get_filepath)
+        if identifier in self.files:
+            fh = self.files[identifier]
+            if fh.active:
+                return fh
         return None
 
     def get_filepath(self, identifier):
@@ -338,24 +415,26 @@ class DefaultFileServer(FileServer):
         -------
         list(FileHandle)
         """
-        files = list()
-        for f_desc in self.read_index()['files']:
-            if f_desc['active']:
-                files.append(FileHandle.from_dict(f_desc, self.get_filepath))
-        return files
+        active_files = list()
+        for fh in self.files.values():
+            if fh.active:
+                active_files.append(fh)
+        return active_files
 
     def read_index(self):
         """Return content of the file index.
 
         Returns
         -------
-        dict
+        dict(vizier.filestore.base.FileHandle)
         """
+        files = dict()
         if os.path.isfile(self.index_file):
             with open(self.index_file, 'r') as f:
-                return yaml.load(f.read())
-        else:
-            return {'files':[]}
+                for f_desc in yaml.load(f.read())['files']:
+                    fh = FileHandle.from_dict(f_desc, self.get_filepath)
+                    files[fh.identifier] = fh
+        return files
 
     def rename_file(self, identifier, name):
         """Rename file with given identifier. Returns the file handle for the
@@ -374,19 +453,17 @@ class DefaultFileServer(FileServer):
         -------
         FileHandle
         """
-        # Raise ValueError if a file with the given name already exists
-        files = []
         f_handle = None
-        for f_desc in self.read_index()['files']:
-            if f_desc['identifier'] == identifier and f_desc['active']:
-                f_desc['name'] = name
-                f_handle = FileHandle.from_dict(f_desc, self.get_filepath)
-                f_handle.name = name
-            elif f_desc['identifier'] != identifier and f_desc['name'] == name and f_desc['active']:
+        for fh in self.files.values():
+            if fh.identifier == identifier and fh.active:
+                fh.name = name
+                fh.last_modified_at = get_current_time()
+                f_handle = fh
+            elif fh.identifier != identifier and fh.name == name and fh.active:
+                # Raise ValueError if a file with the given name already exists
                 raise ValueError('file \'' + name + '\' already exists')
-            files.append(f_desc)
         if not f_handle is None:
-            self.write_index({'files': files})
+            self.write_index(self.files)
         return f_handle
 
     def upload_file(self, filename):
@@ -404,96 +481,86 @@ class DefaultFileServer(FileServer):
         """
         name = os.path.basename(filename).lower()
         # Raise ValueError if a file with the given name already exists
-        files = self.read_index()['files']
-        for f_desc in files:
-            if f_desc['name'] == name and f_desc['active']:
+        for fh in self.files.values():
+            if fh.name == name and fh.active:
                 raise ValueError('file \'' + name + '\' already exists')
         # Determine the file type based on the file name suffix. If the file
         # type is unknoen reader will be None
+        csvfile = None
         reader = None
+        delimiter = None
         if name.endswith('.csv'):
             csvfile = open(filename, 'r')
-            reader = csv.reader(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            reader = csv.reader(
+                csvfile,
+                delimiter=',',
+                quotechar='"',
+                quoting=csv.QUOTE_MINIMAL,
+                skipinitialspace=True
+            )
+            delimiter = ','
         elif name.endswith('.csv.gz'):
             csvfile = gzip.open(filename, 'rb')
-            reader = csv.reader(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            reader = csv.reader(
+                csvfile, delimiter=',',
+                quotechar='"',
+                quoting=csv.QUOTE_MINIMAL,
+                skipinitialspace=True
+            )
+            delimiter = ','
         elif name.endswith('.tsv'):
             csvfile = open(filename, 'r')
             reader = csv.reader(csvfile, delimiter='\t')
+            delimiter = '\t'
         elif name.endswith('.tsv.gz'):
             csvfile = gzip.open(filename, 'rb')
             reader = csv.reader(csvfile, delimiter='\t')
-        # Create a new unique identifier for the file.
-        identifier = get_unique_identifier()
-        # File properties
-        columns = -1
-        rows = 0
-        size =  os.stat(filename).st_size
-        created_at = get_current_time()
+            delimiter = '\t'
         # Parse csv file to get column and row statistics (and to ensure that
         # the file parses).
-        output_file = self.get_filepath(identifier)
-        if not reader is None:
+        properties = {FH_UPLOAD_NAME: os.path.basename(filename)}
+        if not reader is None and not csvfile is None:
+            columns = -1
+            rows = 0
             try:
                 for row in reader:
                     if columns == -1:
                         columns = len(row)
                     else:
                         rows += 1
+                properties[FH_COLUMNS] = columns
+                properties[FH_ROWS] = rows
+                properties[FH_COMPRESSED] = filename.endswith('.gz')
+                properties[FH_DELIMITER] = delimiter
             except Exception as ex:
-                columns = -1
-                rows = -1
+                pass
             csvfile.close()
-        else:
-            # Make sure to set number of rows to undefined (-1)
-            rows = -1
+        # Create a new unique identifier for the file.
+        identifier = get_unique_identifier()
+        created_at = get_current_time()
+        output_file = self.get_filepath(identifier)
         # Copy the uploaded file
         shutil.copyfile(filename, output_file)
         # Add file to file index
         f_handle = FileHandle(
             identifier,
             name,
-            columns,
-            rows,
-            size,
+            output_file,
             created_at,
-            output_file
+            properties=properties
         )
-        files.append(f_handle.to_dict())
-        self.write_index({'files': files})
+        self.files[identifier] = f_handle
+        self.write_index(self.files)
         return f_handle
 
-    def write_index(self, content):
+    def write_index(self, files):
         """Write content of the file index.
 
         Parameters
         -------
-        content: dict
+        files: dict
             New context for file index
         """
+        content = {'files' : [fh.to_dict() for fh in files.values()]}
         with open(self.index_file, 'w') as f:
             yaml.dump(content, f, default_flow_style=False)
-
-
-# ------------------------------------------------------------------------------
-# Helper Methods
-# ------------------------------------------------------------------------------
-
-def get_optional_property(properties, key, default_value=None):
-    """Return the property value for the given key or the default value if the
-    key does not exist.
-
-    Parameters
-    ----------
-    properties: dict
-        Dictionary of file properties
-    key: string
-        Property key
-    default_value: any
-        Default value for property key
-
-    Returns
-    -------
-    any
-    """
-    return properties[key] if key in properties else default_value

@@ -34,6 +34,21 @@ class ObjectProperty(object):
         self.key = key
         self.value = value
 
+    @staticmethod
+    def from_dict(doc):
+        """Create an object property instance from a dictionary representation.
+
+        Parameters
+        ----------
+        doc: dict
+            Dictionary representaion of an object property
+
+        Returns
+        -------
+        vizier.core.properties.ObjectProperty
+        """
+        return ObjectProperty(doc['key'], doc['value'])
+        
     def to_dict(self):
         """Dictionary serialization of the (key, value)-pair.
 
@@ -43,7 +58,7 @@ class ObjectProperty(object):
         """
         return {'key': self.key, 'value': self.value}
 
-        
+
 class ObjectPropertiesHandler(object):
     """Interface for accessing and updating user-defined properties that are
     associated with a Vizier object.

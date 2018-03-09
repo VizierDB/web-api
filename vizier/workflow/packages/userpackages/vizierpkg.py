@@ -178,7 +178,6 @@ class MimirLens(Module):
         else:
             outputs[TXT_NORMAL].append('Created ' + lens_name)
         # Create datastore entry for lens.
-        ds_id = get_unique_identifier()
         if not store_as_dataset is None:
             columns = list()
             for c_name in column_names:
@@ -188,31 +187,18 @@ class MimirLens(Module):
                     c_name,
                     COL_PREFIX + str(col_id)
                 ))
-            vizierdb.datastore.create_dataset(
-                MimirDatasetDescriptor(
-                    ds_id,
-                    columns,
-                    lens_name,
-                    None,
-                    len(columns),
-                    0,
-                    DatasetMetadata()
-                )
-            )
+            ds = vizierdb.datastore.insert_dataset(table_name, columns)
             ds_name = store_as_dataset
         else:
-            vizierdb.datastore.create_dataset(
-                MimirDatasetDescriptor(
-                    ds_id,
-                    dataset.columns,
-                    lens_name,
-                    dataset.row_ids,
-                    dataset.column_counter,
-                    dataset.row_counter,
-                    dataset.annotations
-                )
+            ds = vizierdb.datastore.insert_dataset(
+                table_name=lens_name,
+                columns=dataset.columns,
+                row_ids=dataset.row_ids,
+                column_counter=dataset.column_counter,
+                row_counter=dataset.row_counter,
+                annotations=dataset.annotations
             )
-        vizierdb.set_dataset_identifier(ds_name, ds_id)
+        vizierdb.set_dataset_identifier(ds_name, ds.identifier)
         # Propagate potential changes to the dataset mappings
         propagate_changes(module_id, vizierdb.datasets, context)
         # Set the module outputs

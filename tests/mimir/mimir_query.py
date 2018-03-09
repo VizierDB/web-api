@@ -8,10 +8,18 @@ import vistrails.packages.mimir.init as mimir
 #Alice,23,35K
 #Bob,32,30K
 
+CSV_FILE = '../data/dataset.csv'
+
+include_uncertainty = False
+include_reasons = False
+
 mimir.initialize()
 
-sql = 'SELECT * FROM LENS_KEY_REPAIR881751034'
-csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, True, True)
-print csvStrDet.csvStr()
+table_name = mimir._mimir.loadCSV(os.path.abspath(CSV_FILE))
+
+sql = 'SELECT * FROM ' + table_name
+rs = mimir._mimir.vistrailsQueryMimirJson(sql, include_uncertainty, include_reasons)
+
+print rs
 
 mimir.finalize()
