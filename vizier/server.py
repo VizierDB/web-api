@@ -295,23 +295,19 @@ def update_dataset_annotation(dataset_id):
 def download_dataset(dataset_id):
     """Get the dataset with given identifier in CSV format.
     """
-    # Get the dataset with given identifier. The result is None if no dataset
-    # with given identifier exists.
-    dataset = api.get_dataset(dataset_id)
+    # Get the handle for the dataset with given identifier. The result is None
+    # if no dataset with given identifier exists.
+    dataset = api.get_dataset_handle(dataset_id)
     if dataset is None:
         raise ResourceNotFound('unknown dataset \'' + dataset_id + '\'')
-    # Convert the dictionary into a CSV file in memory
-    csvfile = []
-    headline = []
-    data = dataset
-    for col in data['columns']:
-        headline.append(col['name'])
-    csvfile.append(headline)
-    for row in data['rows']:
-        csvfile.append(row['values'])
+    # Read the dataset into a string buffer in memory
     si = StringIO.StringIO()
     cw = csv.writer(si)
-    cw.writerows(csvfile)
+    cw.writerow([col.name for col in dataset.columns])
+    with dataset.reader() as reader:
+        for row in reader:
+            cw.writerow(row)
+    # Return the CSV file file
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=export.csv"
     output.headers["Content-type"] = "text/csv"

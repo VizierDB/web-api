@@ -6,19 +6,128 @@ For each dataset two files are maintained: info.yaml contains the dataset
 handle and data.tsv.gz contains the tab-delimited data file.
 """
 
+import json
 import os
 import shutil
 
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
-from vizier.datastore.base import Dataset, DatasetRow, DataStore
-from vizier.datastore.base import dataset_from_file
+from vizier.datastore.base import DatasetHandle, DatasetColumn, DataStore
+from vizier.datastore.mem import InMemDatasetHandle
+from vizier.datastore.reader import DefaultJsonDatasetReader
 from vizier.datastore.metadata import DatasetMetadata
 
 
 """Constants for data file names."""
-DATA_FILE = 'dataset.yaml'
-METADATA_FILE = 'annotation.yaml'
+DATA_FILE = 'data.json'
+HANDLE_FILE = 'handle.json'
+METADATA_FILE = 'annotation.json'
+
+
+class FileSystemDatasetHandle(DatasetHandle):
+    """Handle for a dataset that is stored on the file system.
+
+    The dataset handle keeps counters for columns and rows id's to generate
+    unique unique identifier.
+
+    The dataset rows are stored in a separate file. The file format is JSON with
+    the following structure:
+        {
+            'rows': [
+                {'id': int, 'values': [...]}
+            ]
+        }
+    """
+    def __init__(
+        self, identifier, columns, datafile, column_counter=0, row_counter=0,
+        annotations=None
+    ):
+        """Initialize the dataset handle.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier.
+        columns: list(vizier.datastore.base.DatasetColumn)
+            List of columns. It is expected that each column has a unique
+            identifier.
+        datafile: string
+            Path to the file that contains the dataset rows. The data is stored
+            in Json format.
+        column_counter: int, optional
+            Counter to generate unique column identifier
+        row_counter: int, optional
+            Counter to generate unique row identifier
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
+        """
+        super(FileSystemDatasetHandle, self).__init__(
+            identifier=identifier,
+            columns=columns,
+            annotations=annotations
+        )
+        self.datafile = datafile
+        self.column_counter = column_counter
+        self.row_counter = row_counter
+
+    @staticmethod
+    def from_file(filename, datafile, annotations=None):
+        """Read dataset from file. Expects the file to be in Json format which
+        is the default serialization format used by to_file().
+
+        Parameters
+        ----------
+        filename: string
+            Name of the file to read.
+        datafile: string
+            Path to the file that contains the dataset rows. The data is stored
+            in Json format.
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
+        Returns
+        -------
+        vizier.datastore.base.Dataset
+        """
+        with open(filename, 'r') as f:
+            doc = json.loads(f.read())
+        return FileSystemDatasetHandle(
+            identifier=doc['id'],
+            columns=[
+                DatasetColumn.from_dict(col) for col in doc['columns']
+            ],
+            datafile=datafile,
+            column_counter=doc['columnCounter'],
+            row_counter=doc['rowCounter'],
+            annotations=annotations
+        )
+
+    def reader(self):
+        """Get reader for the dataset to access the dataset rows.
+
+        Returns
+        -------
+        vizier.datastore.reader.DatasetReader
+        """
+        return DefaultJsonDatasetReader(self.datafile)
+
+    def to_file(self, filename):
+        """Write dataset handle to file. The default serialization format is
+        Json. The datafile information is not written to disk. The intention is
+        to make it easier for Vizier data folders to be moved around.
+
+        Parameters
+        ----------
+        filename: string
+            Name of the file to write
+        """
+        doc = {
+            'id': self.identifier,
+            'columns': [col.to_dict() for col in self.columns],
+            'columnCounter': self.column_counter,
+            'rowCounter': self.row_counter
+        }
+        with open(filename, 'w') as f:
+            json.dump(doc, f)
 
 
 class FileSystemDataStore(DataStore):
@@ -41,30 +150,78 @@ class FileSystemDataStore(DataStore):
         if not os.path.isdir(self.base_dir):
             os.makedirs(self.base_dir)
 
-    def create_dataset(self, dataset):
+    def create_dataset(self, columns, rows, column_counter=None, row_counter=None, annotations=None):
         """Create a new dataset in the data store for the given data.
 
-        Raises ValueError if the number of values in each row of the dataset
-        doesn't match the number of columns in the dataset schema.
+        Raises ValueError if (1) any of the column or row identifier have a
+        negative value, or (2) if the given column or row counter have value
+        lower or equal to any of the column or row identifier.
 
         Parameters
         ----------
-        dataset : vizier.datastore.base.Dataset
-            Dataset object
+        columns: list(vizier.datastore.base.DatasetColumn)
+            List of columns. It is expected that each column has a unique
+            identifier.
+        rows: list(vizier.datastore.base.DatasetRow)
+            Path to the file that contains the dataset rows. The data is stored
+            in Json format.
+        column_counter: int, optional
+            Counter to generate unique column identifier
+        row_counter: int, optional
+            Counter to generate unique row identifier
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.fs.FileSystemDatasetHandle
         """
-        # Validate the given dataset schema. Will raise ValueError in case of
-        # schema violations
-        dataset.validate_schema()
+        # Validate that all column identifier are smaller that the given
+        # column counter
+        if not column_counter is None:
+            for col in columns:
+                if col.identifier >= column_counter:
+                    raise ValueError('invalid column counter')
+        else:
+            # Set column counter to max. column identifier + 1
+            column_counter = -1
+            for col in columns:
+                if col.identifier > column_counter:
+                    column_counter = col.identifier
+            column_counter += 1
+        # Validate that all row ids are non-negative, unique, lower that the
+        # given row_counter
+        max_rowid = -1
+        row_ids = set()
+        for row in rows:
+            if row.identifier < 0:
+                raise ValueError('invalid row identifier \'' + str(row.identifier) + '\'')
+            elif not row_counter is None and row.identifier >= row_counter:
+                raise ValueError('invalid row counter')
+            elif row.identifier in row_ids:
+                raise ValueError('duplicate row identifier \'' + str(row.identifier) + '\'')
+            row_ids.add(row.identifier)
+            if row_counter is None and row.identifier > max_rowid:
+                max_rowid = row.identifier
+        if row_counter is None:
+            row_counter = max_rowid + 1
         # Get new identifier and create directory for new dataset
-        dataset.identifier = get_unique_identifier()
-        dataset_dir = self.get_dataset_dir(dataset.identifier)
+        identifier = get_unique_identifier()
+        dataset_dir = self.get_dataset_dir(identifier)
         os.makedirs(dataset_dir)
-        # Write dataset file
-        dataset.to_file(os.path.join(dataset_dir, DATA_FILE))
+        # Write rows to data file
+        datafile = os.path.join(dataset_dir, DATA_FILE)
+        DefaultJsonDatasetReader(datafile).write(rows)
+        # Create dataset an write dataset file
+        dataset = FileSystemDatasetHandle(
+            identifier=identifier,
+            columns=columns,
+            datafile=datafile,
+            column_counter=column_counter,
+            row_counter=row_counter,
+            annotations=annotations
+        )
+        dataset.to_file(os.path.join(dataset_dir, HANDLE_FILE))
         # Write metadata file
         dataset.annotations.to_file(os.path.join(dataset_dir, METADATA_FILE))
         # Return handle for new dataset
@@ -116,13 +273,15 @@ class FileSystemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         dataset_dir = self.get_dataset_dir(identifier)
+        datafile = os.path.join(dataset_dir, DATA_FILE)
         if os.path.isdir(dataset_dir):
-            return Dataset.from_file(
-                os.path.join(dataset_dir, DATA_FILE),
-                DatasetMetadata.from_file(
+            return FileSystemDatasetHandle.from_file(
+                filename=os.path.join(dataset_dir, HANDLE_FILE),
+                datafile=os.path.join(dataset_dir, DATA_FILE),
+                annotations=DatasetMetadata.from_file(
                     os.path.join(dataset_dir, METADATA_FILE)
                 )
             )
@@ -140,9 +299,15 @@ class FileSystemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
-        return self.create_dataset(dataset_from_file(f_handle))
+        dataset = InMemDatasetHandle.from_file(f_handle)
+        return self.create_dataset(
+            columns=dataset.columns,
+            rows=dataset.rows(),
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter
+        )
 
     def update_annotation(self, identifier, upd_stmt):
         """Update the annotations for a component of the datasets with the given

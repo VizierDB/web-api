@@ -971,14 +971,11 @@ definitions:
         description: Columns and cell values in a dataset
         required:
             - id
-            - uri
             - columns
             - rows
             - links
         properties:
             id:
-                type: string
-            uri:
                 type: string
             columns:
                 type: array

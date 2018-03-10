@@ -15,9 +15,14 @@ from vizier.datastore.metadata import DatasetMetadata
 # Datsets
 # ------------------------------------------------------------------------------
 
-class Dataset(object):
-    """Object to manipulate a Vizier DB dataset. Contains lists of column names
-    and rows objects for the datasets.
+class DatasetHandle(object):
+    """Abstract class to maintain information about a dataset in a Vizier
+    datastore. Contains the unique dataset identifier, the lists of
+    columns in the dataset schema, and a reference to the dataset
+    annotations.
+
+    The dataset reader is dependent on the different datastore
+    implementations.
 
     Attributes
     ----------
@@ -25,14 +30,10 @@ class Dataset(object):
         Annotations for dataset components
     columns: list(DatasetColumns)
         List of dataset columns
-    identifier : string
+    identifier: string
         Unique dataset identifier
-    rows : list(DatasetRow)
-        List of rows in the dataset
-    uri: string
-        Unique resource identifier for the dataset
     """
-    def __init__(self, identifier=None, columns=None, column_counter=0, rows=None, row_counter=0, annotations=None):
+    def __init__(self, identifier, columns, annotations=None):
         """Initialize the dataset.
 
         Raises ValueError if dataset columns or rows do not have unique
@@ -45,119 +46,22 @@ class Dataset(object):
         columns: list(DatasetColumn), optional
             List of columns. It is expected that each column has a unique
             identifier.
-        column_counter: int
-            Counter for unique column identifier
-        rows: list(vizier.datastore.base.DatasetRow), optional
-            List of dataset rows. It is expected that each row has a unique
-            identifier.
-        row_counter: int
-            Counter for unique row identifier
         annotations: vizier.datastore.metadata.DatasetMetadata
             Annotations for dataset components
         """
         self.identifier = identifier
-        # Initialize the list of columns
-        if columns is None:
-            self.columns = list()
-        else:
-            # Ensure that all columns have a unique identifier
-            ids = set()
-            for col in columns:
-                if col.identifier in ids:
-                    raise ValueError('duplicate column identifier \'' + str(col.identifier) + '\'')
-                ids.add(col.identifier)
-            self.columns = columns
-        self.column_counter = column_counter
-        # Initialize the list or rows.
-        if rows is None:
-            self.rows = list()
-        else:
-            # Ensure that all rows have a unique identifiers
-            ids = set()
-            for row in rows:
-                if row.identifier in ids:
-                    raise ValueError('duplicate row identifier \'' + str(row.identifier) + '\'')
-                ids.add(row.identifier)
-            self.rows = rows
-            # Set dataset handle for each row
-            for row in self.rows:
-                row.dataset = self
-        self.row_counter = row_counter
-        if annotations is None:
-            self.annotations = DatasetMetadata()
-        else:
-            self.annotations = annotations
-
-    def add_column(self, name, position=None):
-        """Add a new column to the dataset schema.
-
-        Parameters
-        ----------
-        name: string
-            Name of the new column
-        position: int, optional
-            Position in the dataset schema where new column is inserted. If
-            None, the column is appended to the list of dataset columns.
-
-        Returns
-        DatasetColumn
-        """
-        column = DatasetColumn(self.column_counter, name)
-        self.column_counter += 1
-        if not position is None:
-            self.columns.insert(position, column)
-            # Add a null value to each row for the new column
-            for row in self.rows:
-                row.values.insert(position, '')
-        else:
-            self.columns.append(column)
-            # Add a null value to each row for the new column
-            for row in self.rows:
-                row.values.append('')
-        return column
-
-    def add_row(self, values=None, position=None):
-        """Add a new row to the dataset. Expects a list of string values, one
-        for each of the columns.
-
-        Raises ValueError if the length of the values list does not match the
-        number of columns in the dataset.
-
-        Parameters
-        ----------
-        values: list(string), optional
-            List of column values. Use empty string if no values are given
-        position: int, optional
-            Position where row is inserted. If None, the new row is appended to
-            the list of dataset rows.
-
-        Returns
-        -------
-        DatasetRow
-        """
-        # Ensure that there is exactly one value for each column in the dataset
-        if not values is None:
-            if len(values) != len(self.columns):
-                raise ValueError('invalid number of values for dataset schema')
-            row = DatasetRow(
-                self.row_counter,
-                [str(v) for v in values],
-                dataset=self
-            )
-        else:
-            # All values in the new row are set to the empty string by default.
-            row = DatasetRow(
-                self.row_counter,
-                values = [''] * len(self.columns),
-                dataset=self
-            )
-
-        self.row_counter += 1
-        if not position is None:
-            self.rows.insert(position, row)
-        else:
-            self.rows.append(row)
-        return row
+        # Ensure that all columns have a unique identifier
+        ids = set()
+        for col in columns:
+            if col.identifier in ids:
+                raise ValueError('duplicate column identifier \'' + str(col.identifier) + '\'')
+            elif col.identifier < 0:
+                raise ValueError('invalid column identifier \'' + str(col.identifier) + '\'')
+            ids.add(col.identifier)
+        self.columns = columns
+        # Set the dataset annotations. If no annotations were given
+        # create an empty annotation set
+        self.annotations = annotations if not annotations is None else DatasetMetadata()
 
     def column_index(self, column_id):
         """Get position of a given column in the dataset schema. The given
@@ -214,101 +118,54 @@ class Dataset(object):
                 return name_index
             raise ValueError('unknown column \'' + str(column_id) + '\'')
 
-    @staticmethod
-    def from_file(filename, annotations=None):
-        """Read dataset from file. Expects the file to be in Yaml format which
-        is the default serialization format used by to_file().
-
-        Parameters
-        ----------
-        filename: string
-            Name of the file to read.
-        annotations: vizier.datastore.metadata.DatasetMetadata, optional
-            Annotations for dataset components
-        Returns
-        -------
-        vizier.datastore.base.Dataset
-        """
-        with open(filename, 'r') as f:
-            doc = yaml.load(f.read())
-        return Dataset(
-            identifier=doc['id'],
-            columns=[
-                DatasetColumn(col['id'], col['name']) for col in doc['columns']
-            ],
-            column_counter=doc['column_counter'],
-            rows=[DatasetRow(row['id'], row['values']) for row in doc['rows']],
-            row_counter=doc['row_counter'],
-            annotations=annotations
-        )
-
-    def get_cell(self, column, row):
-        """Get dataset value for specified cell.
-
-        Raises ValueError if [column, row] does not reference an existing cell.
-
-        Parameters
-        ----------
-        column : int or string
-            Column identifier
-        row : int
-            Row index
+    @abstractmethod
+    def reader(self):
+        """Get reader for the dataset to access the dataset rows.
 
         Returns
         -------
-        string
+        vizier.datastore.reader.DatasetReader
         """
-        if row < 0 or row > len(self.rows):
-            raise ValueError('unknown row \'' + str(row) + '\'')
-        return self.rows[row].get_value(column)
+        raise NotImplementedError
 
-    def to_file(self, filename):
-        """Write dataset to file. The default serialization format is Yaml.
+    def rows(self, offset=0, limit=-1):
+        """Get list of dataset rows. The offset and limit parameters are
+        intended for pagination.
 
         Parameters
         ----------
-        filename: string
-            Name of the file to write
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
+
+        Result
+        ------
+        list(vizier.dataset.base.DatasetRow)
         """
-        doc = {
-            'id': self.identifier,
-            'columns': [
-                {'id': col.identifier, 'name': col.name} for col in self.columns
-            ],
-            'column_counter': self.column_counter,
-            'rows': [
-                {'id': row.identifier, 'values': row.values}
-                    for row in self.rows
-            ],
-            'row_counter': self.row_counter
-        }
-        with open(filename, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
+        # Return empty list for special case that limit is 0
+        if limit == 0:
+            return list()
+        # Collect rows in result list. Skip first rows if offset is greater than
+        # zero
+        rows = list()
+        skip = offset
+        with self.reader() as reader:
+            for row in reader:
+                if skip > 0:
+                    skip -= 1
+                else:
+                    rows.append(row)
+                    if limit > 0 and len(rows) > limit:
+                        break
+        return rows
 
-    @property
-    def uri(self):
-        """Unique resource identifier for the dataset.
-
-        Returns
-        -------
-        string
-        """
-        return 'dataset://' + self.identifier
-
-    def validate_schema(self):
-        """Validate the given dataset to ensure that all rows have exactly one
-        value for each column in the dataset schema.
-
-        Raises ValueError in case of a schema violation.
-        """
-        for i in range(len(self.rows)):
-            row = self.rows[i]
-            if len(row.values) != len(self.columns):
-                raise ValueError('schema violation for row \'' + str(i) + '\'')
 
 
 class DatasetColumn(object):
-    """Column in a dataset. Each column has a unique identifier and a name.
+    """Column in a dataset. Each column has a unique identifier and a
+    column name. Column names are not necessarily unique within a
+    dataset.
 
     Attributes
     ----------
@@ -329,6 +186,25 @@ class DatasetColumn(object):
         """
         self.identifier = identifier
         self.name = name
+
+    @staticmethod
+    def from_dict(obj):
+        """Create dataset column instance from a given dictionary serialization.
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetColumn
+        """
+        return DatasetColumn(int(obj['id']), obj['name'])
+
+    def to_dict(self):
+        """Dictionary serialization of the dataset column object.
+
+        Returns
+        -------
+        dict
+        """
+        return {'id': self.identifier, 'name': self.name}
 
 
 class DatasetRow(object):
@@ -356,6 +232,16 @@ class DatasetRow(object):
         self.identifier = identifier
         self.values = values
         self.dataset = dataset
+
+    @staticmethod
+    def from_dict(obj):
+        """Create dataset row instance from a given dictionary serialization.
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetRow
+        """
+        return DatasetRow(int(obj['id']), obj['values'])
 
     def get_value(self, column):
         """Get the row value for the given column.
@@ -393,6 +279,15 @@ class DatasetRow(object):
                 self.identifier
             )
 
+    def to_dict(self):
+        """Dictionary serialization of the dataset row object.
+
+        Returns
+        -------
+        dict
+        """
+        return {'id': self.identifier, 'values':self.values}
+
 
 # ------------------------------------------------------------------------------
 # Datastore
@@ -423,24 +318,6 @@ class DataStore(VizierSystemComponent):
         return [component_descriptor('datastore', self.system_build())]
 
     @abstractmethod
-    def create_dataset(self, dataset):
-        """Create a new dataset in the data store for the given data.
-
-        Raises ValueError if the number of values in each row of the dataset
-        doesn't match the number of columns in the dataset schema.
-
-        Parameters
-        ----------
-        dataset : vizier.datastore.base.Dataset
-            Dataset object
-
-        Returns
-        -------
-        vizier.datastore.base.Dataset
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
         and False otherwise.
@@ -468,7 +345,7 @@ class DataStore(VizierSystemComponent):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         raise NotImplementedError
 
@@ -485,7 +362,7 @@ class DataStore(VizierSystemComponent):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         raise NotImplementedError
 
@@ -546,36 +423,50 @@ def collabel_2_index(label):
     return num
 
 
-def dataset_from_file(f_handle):
-    """Create dataset instance from a handle to a CSV/TSV file on the file
-    server.
-
-    Raises ValueError if the file cannot be parsed correctly.
+def max_column_id(columns):
+    """Return maximum identifier for a list of columns.
 
     Parameters
     ----------
-    f_handle: vizier.filestore.base.FileHandle
-        Handle for file on file server
+    columns: list(vizier.datastore.base.DatasetColumn)
+        List of dataset columns
 
     Returns
     -------
-    vizier.datastore.base.Dataset
+    int
     """
-    # Make sure that the given file has been parsed successfully on upload
-    if not f_handle.is_verified_csv:
-        raise ValueError('failed to create dataset from file \'' + f_handle.name + '\'')
-    with f_handle.open() as csvfile:
-        columns = []
-        column_counter = 0
-        reader = csv.reader(
-            csvfile,
-            delimiter=f_handle.delimiter,
-            skipinitialspace=True
-        )
-        for col_name in reader.next():
-            columns.append(DatasetColumn(column_counter, col_name))
-            column_counter += 1
-        dataset = Dataset(columns=columns, column_counter=column_counter)
-        for row in reader:
-            dataset.add_row(row)
-    return dataset
+    return max_object_id(columns)
+
+
+def max_object_id(object):
+    """Return maximum identifier for a list of identifiable objects.
+
+    Parameters
+    ----------
+    object: list()
+        List of dataset columns or rows
+
+    Returns
+    -------
+    int
+    """
+    max_id = -1
+    for obj in objects:
+        if obj.identifier > max_id:
+            max_id = obj.identifier
+    return max_id
+
+
+def max_row_id(rows):
+    """Return maximum identifier for a list of rows.
+
+    Parameters
+    ----------
+    rows: list(vizier.datastore.base.DataseRow)
+        List of dataset rows
+
+    Returns
+    -------
+    int
+    """
+    return max_object_id(rows)

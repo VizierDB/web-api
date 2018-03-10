@@ -2,10 +2,92 @@
 implementation is primarily for test purposes.
 """
 
+import csv
+
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
-from vizier.datastore.base import DataStore, Dataset, DatasetRow
-from vizier.datastore.base import dataset_from_file
+from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
+from vizier.datastore.base import DataStore, max_column_id, max_row_id
+from vizier.datastore.reader import InMemDatasetReader
+
+
+class InMemDatasetHandle(DatasetHandle):
+    """Handle for a dataset that are kept in memory."""
+    def __init__(
+        self, identifier, columns, rows, column_counter=0, row_counter=0,
+        annotations=None
+    ):
+        """Initialize the dataset handle.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier.
+        columns: list(vizier.datastore.base.DatasetColumn)
+            List of columns. It is expected that each column has a unique
+            identifier.
+        rows: list(vizier.datastore.base.DatasetRow)
+            List of rows in the dataset
+        column_counter: int, optional
+            Counter to generate unique column identifier
+        row_counter: int, optional
+            Counter to generate unique row identifier
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
+        """
+        super(InMemDatasetHandle, self).__init__(
+            identifier=identifier,
+            columns=columns,
+            annotations=annotations
+        )
+        self.datarows = rows
+        self.column_counter = column_counter
+        self.row_counter = row_counter
+
+    @staticmethod
+    def from_file(f_handle):
+        """Read dataset from file. Expects the file to be in Json format which
+        is the default serialization format used by to_file().
+
+        Parameters
+        ----------
+        f_handle : vizier.filestore.base.FileHandle
+            Handle for an uploaded file on a file server
+
+        Returns
+        -------
+        vizier.datastore.base.Dataset
+        """
+        # Expects a CSV/TSV file. The first row contains the column names.
+        # Read all information and return a InMemDatasetHandle
+        if not f_handle.is_verified_csv:
+            raise ValueError('failed to create dataset from file \'' + f_handle.name + '\'')
+        # Read all information and return a InMemDatasetHandle
+        columns = []
+        rows = []
+        with f_handle.open() as csvfile:
+            reader = csv.reader(csvfile, delimiter=f_handle.delimiter)
+            for col_name in reader.next():
+                columns.append(DatasetColumn(len(columns), col_name))
+            for row in reader:
+                rows.append(DatasetRow(len(rows), row))
+        # Return InMemDatasetHandle
+        return InMemDatasetHandle(
+            identifier=get_unique_identifier(),
+            columns=columns,
+            rows=rows,
+            column_counter=len(columns),
+            row_counter=len(rows)
+        )
+
+    def reader(self):
+        """Get reader for the dataset to access the dataset rows.
+
+        Returns
+        -------
+        vizier.datastore.reader.DatasetReader
+        """
+        return InMemDatasetReader(self.datarows)
 
 
 class InMemDataStore(DataStore):
@@ -17,35 +99,56 @@ class InMemDataStore(DataStore):
         super(InMemDataStore, self).__init__(build_info('InMemDataStore'))
         self.datasets = dict()
 
-    def create_dataset(self, dataset):
+    def create_dataset(
+        self, identifier=None, columns=None, rows=None, column_counter=None,
+        row_counter=None, annotations=None
+    ):
         """Create a new dataset in the data store for the given data.
 
-        Raises ValueError if the number of values in each row of the dataset
-        doesn't match the number of columns in the dataset schema.
+        Raises ValueError if (1) any of the column or row identifier have a
+        negative value, or (2) if the given column or row counter have value
+        lower or equal to any of the column or row identifier.
 
         Parameters
         ----------
-        dataset : vizier.datastore.base.Dataset
-            Dataset object
+        identifier: string, optional
+            Unique dataset identifier
+        columns: list(vizier.datastore.base.DatasetColumn)
+            List of columns. It is expected that each column has a unique
+            identifier.
+        rows: list(vizier.datastore.base.DatasetRow)
+            Path to the file that contains the dataset rows. The data is stored
+            in Json format.
+        column_counter: int, optional
+            Counter to generate unique column identifier
+        row_counter: int, optional
+            Counter to generate unique row identifier
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.mem.InMemDatasetHandle
         """
         # Validate the given dataset schema. Will raise ValueError in case of
         # schema violations
-        dataset.validate_schema()
-        identifier = get_unique_identifier()
-        self.datasets[identifier] = Dataset(
+        if identifier is None:
+            identifier = get_unique_identifier()
+        if columns is None:
+            columns = list()
+        if rows is None:
+            rows = list()
+        if column_counter is None:
+            column_counter = max_column_id(columns) + 1
+        if row_counter is None:
+            row_counter = max_row_id(rows)
+        self.datasets[identifier] = InMemDatasetHandle(
             identifier=identifier,
-            columns=list(dataset.columns),
-            rows=[
-                DatasetRow(row.identifier, list(row.values))
-                    for row in dataset.rows
-            ],
-            column_counter=dataset.column_counter,
-            row_counter=dataset.row_counter,
-            annotations=dataset.annotations.copy_metadata()
+            columns=list(columns),
+            rows=list(rows),
+            column_counter=column_counter,
+            row_counter=row_counter,
+            annotations=annotations.copy_metadata()
         )
         return self.datasets[identifier]
 
@@ -79,16 +182,16 @@ class InMemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         if identifier in self.datasets:
             dataset = self.datasets[identifier]
-            return Dataset(
+            return InMemDatasetHandle(
                 identifier=identifier,
                 columns=list(dataset.columns),
                 rows=[
                     DatasetRow(row.identifier, list(row.values))
-                        for row in dataset.rows
+                        for row in dataset.rows()
                 ],
                 column_counter=dataset.column_counter,
                 row_counter=dataset.row_counter,
@@ -103,13 +206,21 @@ class InMemDataStore(DataStore):
         Parameters
         ----------
         f_handle : vizier.filestore.base.FileHandle
-            handle for an uploaded file on the associated file server.
+            Handle for an uploaded file on a file server.
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
-        return self.create_dataset(dataset_from_file(f_handle))
+        dataset = InMemDatasetHandle.from_file(f_handle)
+        return self.create_dataset(
+            identifier=dataset.identifier,
+            columns=dataset.columns,
+            rows=dataset.rows(),
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
+        )
 
     def update_annotation(self, identifier, upd_stmt):
         """Update the annotations for a component of the datasets with the given
@@ -135,6 +246,7 @@ class InMemDataStore(DataStore):
             return dataset.annotations
         return None
 
+
 class VolatileDataStore(DataStore):
     """Non-persistent implementation of data store that reads datasets from
     an existing data store.
@@ -156,22 +268,45 @@ class VolatileDataStore(DataStore):
         self.mem_store = InMemDataStore()
         self.deleted_datasets = set()
 
-    def create_dataset(self, dataset):
+    def create_dataset(
+        self, identifier=None, columns=None, rows=None, column_counter=None,
+        row_counter=None, annotations=None
+    ):
         """Create a new dataset in the data store for the given data.
 
-        Raises ValueError if the number of values in each row of the dataset
-        doesn't match the number of columns in the dataset schema.
+        Raises ValueError if (1) any of the column or row identifier have a
+        negative value, or (2) if the given column or row counter have value
+        lower or equal to any of the column or row identifier.
 
         Parameters
         ----------
-        dataset : vizier.datastore.base.Dataset
-            Dataset object
+        identifier: string, optional
+            Unique dataset identifier
+        columns: list(vizier.datastore.base.DatasetColumn)
+            List of columns. It is expected that each column has a unique
+            identifier.
+        rows: list(vizier.datastore.base.DatasetRow)
+            Path to the file that contains the dataset rows. The data is stored
+            in Json format.
+        column_counter: int, optional
+            Counter to generate unique column identifier
+        row_counter: int, optional
+            Counter to generate unique row identifier
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.mem.InMemDatasetHandle
         """
-        return self.mem_store.create_dataset(dataset)
+        return self.mem_store.create_dataset(
+            identifier=identifier,
+            columns=columns,
+            rows=rows,
+            column_counter=column_counter,
+            row_counter=row_counter,
+            annotations=annotations
+        )
 
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
@@ -205,7 +340,7 @@ class VolatileDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         if identifier in self.deleted_datasets:
             return None

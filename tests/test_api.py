@@ -6,9 +6,9 @@ import time
 import unittest
 
 from vizier.config import TestEnv
-from vizier.datastore.base import dataset_from_file
 from vizier.datastore.fs import FileSystemDataStore
-from vizier.datastore.metadata import UpdateColumnAnnotation
+from vizier.datastore.mem import InMemDatasetHandle
+from vizier.datastore.metadata import DatasetMetadata, UpdateColumnAnnotation
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
 from vizier.workflow.command import MODTYPE_PYTHON, PYTHON_SOURCE, python_cell
@@ -122,11 +122,16 @@ class TestWebServiceAPI(unittest.TestCase):
 
     def test_datasets(self):
         """Test retireval of datasets."""
-        data = dataset_from_file(self.fileserver.upload_file(CSV_FILE))
-        data.annotations.for_column(0).set_annotation('comment', 'Hello')
-        data.annotations.for_row(1).set_annotation('comment', 'World')
-        data.annotations.for_cell(1, 0).set_annotation('comment', '!')
-        ds = self.datastore.create_dataset(data)
+        ds = InMemDatasetHandle.from_file(self.fileserver.upload_file(CSV_FILE))
+        annotations = DatasetMetadata()
+        annotations.for_column(0).set_annotation('comment', 'Hello')
+        annotations.for_row(1).set_annotation('comment', 'World')
+        annotations.for_cell(1, 0).set_annotation('comment', '!')
+        ds = self.datastore.create_dataset(
+            columns=ds.columns,
+            rows=ds.rows(),
+            annotations=annotations
+        )
         self.validate_dataset_handle(self.api.get_dataset(ds.identifier))
         self.validate_dataset_annotations(self.api.get_dataset_annotations(ds.identifier))
         # Update annotations
@@ -295,7 +300,7 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_workflow_descriptor(wf)
 
     def validate_dataset_handle(self, ds):
-        self.validate_keys(ds, ['id', 'columns', 'rows', 'uri', 'links'])
+        self.validate_keys(ds, ['id', 'columns', 'rows', 'links'])
         for col in ds['columns']:
             self.validate_keys(col, ['id', 'name'])
         for row in ds['rows']:

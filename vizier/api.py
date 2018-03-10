@@ -314,18 +314,14 @@ class VizierWebService(object):
         # does not exist the result is None.
         dataset = self.datastore.get_dataset(dataset_id)
         if not dataset is None:
+            # Read dataset rows
+            with dataset.reader() as reader:
+                rows = [row.to_dict() for row in reader]
             # Serialize the dataset schema and cells
             obj = {
                 'id' : dataset.identifier,
-                'uri' : 'dataset://' + dataset.identifier,
-                'columns' : [
-                    {'id': col.identifier, 'name': col.name}
-                        for col in dataset.columns
-                ],
-                'rows': [
-                    {'id': row.identifier, 'values': row.values}
-                        for row in dataset.rows
-                ]
+                'columns' : [col.to_dict() for col in dataset.columns],
+                'rows': rows
             }
             if include_annotations:
                 obj['annotations'] = self.serialize_dataset_annotations(
@@ -372,6 +368,21 @@ class VizierWebService(object):
             )
         else:
             return None
+
+    def get_dataset_handle(self, dataset_id):
+        """Get handle for dataset with given identifier. The result is None if
+        no dataset with the given identifier exists.
+
+        Parameters
+        ----------
+        dataset_id : string
+            Unique dataset identifier
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetHandle
+        """
+        return self.datastore.get_dataset(dataset_id)
 
     def serialize_dataset_annotations(self, dataset_id, annotations):
         """Get dictionary serialization for dataset annotations.

@@ -5,7 +5,7 @@ identifiable components of a dataset. the identifiable components of a dataset
 are COLUMN, ROW, and CELL.
 """
 
-import yaml
+import json
 
 
 # ------------------------------------------------------------------------------
@@ -243,7 +243,7 @@ class DatasetMetadata(object):
     @staticmethod
     def from_file(filename):
         """Read dataset annotations from file. Assumes that the file has been
-        created using the default serialization (to_file), i.e., is in Yaml
+        created using the default serialization (to_file), i.e., is in Json
         format.
 
         Parameters
@@ -256,7 +256,7 @@ class DatasetMetadata(object):
         vizier.database.metadata.DatsetMetadata
         """
         with open(filename, 'r') as f:
-            doc = yaml.load(f.read())
+            doc = json.loads(f.read())
         return DatasetMetadata(
             column_annotations=annotations_from_list(doc['columns']),
             row_annotations=annotations_from_list(doc['rows']),
@@ -304,7 +304,7 @@ class DatasetMetadata(object):
 
     def to_file(self, filename):
         """Write current annotations to file in default file format. The default
-        serializartion format is Yaml.
+        serializartion format is Json.
 
         Parameters
         ----------
@@ -317,7 +317,7 @@ class DatasetMetadata(object):
             'cells': annotations_to_list(self.cell_annotations)
         })
         with open(filename, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
+            json.dump(doc, f)
 
 
 # ------------------------------------------------------------------------------

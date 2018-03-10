@@ -13,8 +13,7 @@ import vistrails.packages.mimir.init as mimir
 
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
-from vizier.datastore.base import Dataset, DatasetColumn, DatasetRow, DataStore
-from vizier.datastore.base import dataset_from_file
+from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow, DataStore
 from vizier.datastore.metadata import DatasetMetadata
 
 
@@ -129,7 +128,7 @@ class MimirDatasetColumn(DatasetColumn):
         return '\'' + value + '\''
 
 
-class MimirDatasetDescriptor(Dataset):
+class MimirDatasetDescriptor(DatasetHandle):
     """Internal descriptor for datasets managed by the Mimir data store.
     Contains mapping for column names from a dataset to the corresponding object
     in a relational and a reference to the table or view that contains the
@@ -189,7 +188,7 @@ class MimirDatasetDescriptor(Dataset):
             Annotations for dataset components
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         with open(filename, 'r') as f:
             doc = yaml.load(f.read())
@@ -269,12 +268,12 @@ class MimirDataStore(DataStore):
 
         Parameters
         ----------
-        dataset : vizier.datastore.base.Dataset
+        dataset : vizier.datastore.base.DatasetHandle
             Dataset object
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         # Get unique identifier for new dataset
         identifier = 'DS_' + get_unique_identifier()
@@ -376,7 +375,7 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         ds = self.get_dataset_descriptor(identifier)
         if not ds is None:
@@ -595,7 +594,7 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         # Create a copy of the original file under a unique name. If the input
         # file is tab-delimited (and therefore has been successfully parsed on

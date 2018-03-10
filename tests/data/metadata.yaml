@@ -1,17 +1,1 @@
-cells:
-- annotations:
-  - key: title
-    value: Nonsense
-  key: 1#1
-columns:
-- annotations:
-  - key: comment
-    value: Some Comment
-  - key: name
-    value: foo
-  key: '1'
-rows:
-- annotations:
-  - key: name
-    value: Nonsense
-  key: '0'
+{"cells": [{"annotations": [{"value": "Nonsense", "key": "title"}], "key": "1#1"}], "rows": [{"annotations": [{"value": "Nonsense", "key": "name"}], "key": "0"}], "columns": [{"annotations": [{"value": "Some Comment", "key": "comment"}, {"value": "foo", "key": "name"}], "key": "1"}]}

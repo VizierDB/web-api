@@ -49,7 +49,7 @@ class FederatedDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.base.DatasetHandle
         """
         # Assumes that at most one data store will contain a dataset with the
         # given identifier
