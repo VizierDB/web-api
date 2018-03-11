@@ -300,11 +300,11 @@ class DefaultVizualEngine(VizualEngine):
         columns = list(dataset.columns)
         del columns[col_index]
         # Delete all value for the deleted column
-        rows = dataset.rows()
+        rows = dataset.fetch_rows()
         for row in rows:
             del row.values[col_index]
         # Store updated dataset to get new identifier
-        ds = self.datastore.create_dataset(
+        ds, rows = self.datastore.create_dataset(
             columns=columns,
             rows=rows,
             column_counter=dataset.column_counter,
@@ -337,13 +337,13 @@ class DefaultVizualEngine(VizualEngine):
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that row refers a valid row in the dataset
-        rows = dataset.rows()
+        rows = dataset.fetch_rows()
         if row < 0 or row >= len(rows):
             raise ValueError('invalid row index \'' + str(row) + '\'')
         # Delete the row at the given position
         del rows[row]
         # Store updated dataset to get new identifier
-        ds = self.datastore.create_dataset(
+        ds, rows = self.datastore.create_dataset(
             columns=dataset.columns,
             rows=rows,
             column_counter=dataset.column_counter,
@@ -386,13 +386,13 @@ class DefaultVizualEngine(VizualEngine):
             raise ValueError('invalid column index \'' + str(position) + '\'')
         # Insert new column into dataset
         columns = list(dataset.columns)
-        rows = dataset.rows()
+        rows = dataset.fetch_rows()
         columns.insert(position, DatasetColumn(dataset.column_counter, name))
          # Add a null value to each row for the new column
         for row in rows:
             row.values.insert(position, None)
         # Store updated dataset to get new identifier
-        ds = self.datastore.create_dataset(
+        ds, rows = self.datastore.create_dataset(
             columns=columns,
             rows=rows,
             column_counter=dataset.column_counter + 1,
@@ -425,14 +425,14 @@ class DefaultVizualEngine(VizualEngine):
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that position is a valid row index in the new dataset
-        rows = dataset.rows()
+        rows = dataset.fetch_rows()
         if position < 0 or position > len(rows):
             raise ValueError('invalid row index \'' + str(position) + '\'')
         # Create empty set of values
         row = DatasetRow(dataset.row_counter, [None] * len(dataset.columns))
         rows.insert(position, row)
         # Store updated dataset to get new identifier
-        ds = self.datastore.create_dataset(
+        ds, rows = self.datastore.create_dataset(
             columns=dataset.columns,
             rows=rows,
             column_counter=dataset.column_counter,
@@ -457,7 +457,7 @@ class DefaultVizualEngine(VizualEngine):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle
+        vizier.datastore.base.DatasetHandle, int
         """
         # Ensure that file name references a previously uploaded file.
         f_handle = self.fileserver.get_file(file_id)
@@ -500,11 +500,11 @@ class DefaultVizualEngine(VizualEngine):
         if source_idx != position:
             columns = list(dataset.columns)
             columns.insert(position, columns.pop(source_idx))
-            rows = dataset.rows()
+            rows = dataset.fetch_rows()
             for row in rows:
                 row.values.insert(position, row.values.pop(source_idx))
             # Store updated dataset to get new identifier
-            ds = self.datastore.create_dataset(
+            ds, rows = self.datastore.create_dataset(
                 columns=columns,
                 rows=rows,
                 column_counter=dataset.column_counter,
@@ -541,7 +541,7 @@ class DefaultVizualEngine(VizualEngine):
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that row is within dataset bounds
-        rows = dataset.rows()
+        rows = dataset.fetch_rows()
         if row < 0 or row >= len(rows):
             raise ValueError('invalid source row \'' + str(row) + '\'')
         # Make sure that position is a valid row index in the new dataset
@@ -551,7 +551,7 @@ class DefaultVizualEngine(VizualEngine):
         if row != position:
             rows.insert(position, rows.pop(row))
             # Store updated dataset to get new identifier
-            ds = self.datastore.create_dataset(
+            ds, rows = self.datastore.create_dataset(
                 columns=dataset.columns,
                 rows=rows,
                 column_counter=dataset.column_counter,
@@ -601,9 +601,9 @@ class DefaultVizualEngine(VizualEngine):
                 name
             )
             # Store updated dataset to get new identifier
-            ds = self.datastore.create_dataset(
+            ds, rows = self.datastore.create_dataset(
                 columns=columns,
-                rows=dataset.rows(),
+                rows=dataset.fetch_rows(),
                 column_counter=dataset.column_counter,
                 row_counter=dataset.row_counter,
                 annotations=dataset.annotations
@@ -642,7 +642,7 @@ class DefaultVizualEngine(VizualEngine):
         # Get column index forst in case it raises an exception
         col_idx = dataset.column_index(column)
         # Make sure that row refers a valid row in the dataset
-        rows = dataset.rows()
+        rows = dataset.fetch_rows()
         if row < 0 or row >= len(rows):
             raise ValueError('invalid cell [' + str(column) + ', ' + str(row) + ']')
         # Update the specified cell in the given data array
@@ -651,7 +651,7 @@ class DefaultVizualEngine(VizualEngine):
         values[col_idx] = value
         rows[row] = DatasetRow(r.identifier, values)
         # Store updated dataset to get new identifier
-        ds = self.datastore.create_dataset(
+        ds, rows = self.datastore.create_dataset(
             columns=dataset.columns,
             rows=rows,
             column_counter=dataset.column_counter,

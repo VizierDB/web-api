@@ -49,8 +49,8 @@ def get_unique_identifier():
 
 def is_valid_name(name):
     """Returns Ture if a given string represents a valid name (e.g., for a
-    dataset). Valid names contain only letters, digits or underline. A
-    valid name has to contain at least one digit or letter.
+    dataset). Valid names contain only letters, digits, hyphen, underline, or
+    blanl. A valid name has to contain at least one digit or letter.
 
     Parameters
     ----------
@@ -65,6 +65,6 @@ def is_valid_name(name):
     for c in name:
         if c.isalnum():
             allnums += 1
-        elif c != '_':
+        elif not c in ['_', '-', ' ']:
             return False
     return (allnums > 0)

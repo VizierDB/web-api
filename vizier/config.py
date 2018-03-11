@@ -78,6 +78,8 @@ class AppConfig(object):
                   directory
         viztrails:
             directory
+        defaults:
+            rowlimit
         name
         debug
         logs
@@ -110,6 +112,7 @@ class AppConfig(object):
         # environment later if necessary
         self.envs = dict()
         self.viztrails = FSObjectConfig(os.path.join(ENV_DIRECTORY, 'wt'))
+        self.defaults = APIDefaults()
         self.name = 'Vizier Web API'
         self.debug = True
         self.logs = os.path.join(ENV_DIRECTORY, 'logs')
@@ -136,6 +139,8 @@ class AppConfig(object):
                     self.envs[env.identifier] = env
             if 'viztrails' in doc:
                 self.viztrails.from_dict(doc['viztrails'])
+            if 'defaults' in doc:
+                self.defaults.from_dict(doc['defaults'])
             if 'name' in doc:
                 self.name = doc['name']
             if 'debug' in doc:
@@ -282,6 +287,18 @@ class ExecEnv(object):
         bool
         """
         return self.identifier == ENGINEENV_MIMIR
+
+
+class APIDefaults(object):
+    """Collection of default values for API."""
+    def __init__(self):
+        """Initialize default values."""
+        self.rowlimit = -1
+
+    def from_dict(self, doc):
+        """Initialize from dictionary."""
+        if 'rowlimit' in doc:
+            self.rowlimit = int(doc['rowlimit'])
 
 
 class FSObjectConfig(object):

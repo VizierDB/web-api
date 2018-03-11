@@ -237,7 +237,29 @@ def get_dataset(dataset_id):
     annotations = False
     if not request.args.get('includeAnnotations') is None:
         annotations = (request.args.get('includeAnnotations').lower() == 'true')
-    dataset = api.get_dataset(dataset_id, include_annotations=annotations)
+    # Get offset and limit parameters
+    offset = request.args.get('offset')
+    if not offset is None:
+        try:
+            offset = int(offset)
+        except ValueError as ex:
+            raise InvalidRequest('invalid offset \'' + str(offset) + '\'')
+    else:
+        offset = 0
+    limit = request.args.get('limit')
+    if not limit is None:
+        try:
+            limit = int(limit)
+        except ValueError as ex:
+            raise InvalidRequest('invalid limit \'' + str(limit) + '\'')
+    else:
+        limit = config.defaults.rowlimit
+    dataset = api.get_dataset(
+        dataset_id,
+        offset=offset,
+        limit=limit,
+        include_annotations=annotations
+    )
     if not dataset is None:
         return jsonify(dataset)
     raise ResourceNotFound('unknown dataset: ' + dataset_id)
@@ -306,7 +328,7 @@ def download_dataset(dataset_id):
     cw.writerow([col.name for col in dataset.columns])
     with dataset.reader() as reader:
         for row in reader:
-            cw.writerow(row)
+            cw.writerow(row.values)
     # Return the CSV file file
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=export.csv"

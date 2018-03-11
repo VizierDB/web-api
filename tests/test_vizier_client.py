@@ -4,7 +4,7 @@ import unittest
 
 import vistrails.packages.mimir.init as mimir
 
-from vizier.datastore.base import Dataset
+from vizier.datastore.client import DatasetClient
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mem import InMemDataStore
 from vizier.datastore.mimir import MimirDataStore
@@ -14,6 +14,8 @@ from vizier.workflow.context import VizierDBClient
 
 DATASTORE_DIR = './env/ds'
 SERVER_DIR = './data/fs'
+
+CSV_FILE = './data/dataset.csv'
 
 
 class TestVizierClient(unittest.TestCase):
@@ -33,37 +35,37 @@ class TestVizierClient(unittest.TestCase):
 
     def test_fs_client(self):
         """Run tests for default engine and file server data store."""
-        fs = DefaultFileServer(SERVER_DIR)
-        ds = FileSystemDataStore(DATASTORE_DIR)
+        self.fs = DefaultFileServer(SERVER_DIR)
+        self.ds = FileSystemDataStore(DATASTORE_DIR)
         self.run_client_tests(
-            VizierDBClient(ds, dict(), DefaultVizualEngine(ds, fs))
+            VizierDBClient(self.ds, dict(), DefaultVizualEngine(self.ds, self.fs))
         )
 
     def test_mem_client(self):
         """Run tests for default engine and in-memory data store."""
-        fs = DefaultFileServer(SERVER_DIR)
-        ds = InMemDataStore()
+        self.fs = DefaultFileServer(SERVER_DIR)
+        self.ds = InMemDataStore()
         self.run_client_tests(
-            VizierDBClient(ds, dict(), DefaultVizualEngine(ds, fs))
+            VizierDBClient(self.ds, dict(), DefaultVizualEngine(self.ds, self.fs))
         )
 
     def test_mimir_client(self):
         """Run tests for default engine and Mimir data store."""
         mimir.initialize()
-        fs = DefaultFileServer(SERVER_DIR)
-        ds = MimirDataStore(DATASTORE_DIR)
+        self.fs = DefaultFileServer(SERVER_DIR)
+        self.ds = MimirDataStore(DATASTORE_DIR)
         self.run_client_tests(
-            VizierDBClient(ds, dict(), DefaultVizualEngine(ds, fs))
+            VizierDBClient(self.ds, dict(), DefaultVizualEngine(self.ds, self.fs))
         )
         mimir.finalize()
 
     def run_client_tests(self, client):
         """Test creating and updating a dataset via the client."""
-        ds = Dataset()
-        ds.add_column('Name')
-        ds.add_column('Age')
-        ds.add_row(['Alice', '23'])
-        ds.add_row(['Bob', '25'])
+        ds = DatasetClient()
+        ds.insert_column('Name')
+        ds.insert_column('Age')
+        ds.insert_row(['Alice', '23'])
+        ds.insert_row(['Bob', '25'])
         ds.annotations.for_cell(1, 1).set_annotation('value', '26')
         client.create_dataset('MyDataset', ds)
         # Ensure the returned dataset contains the input data
@@ -86,6 +88,26 @@ class TestVizierClient(unittest.TestCase):
         client.rename_dataset('MyDataset', 'SomeDataset')
         ds = client.get_dataset('SomeDataset')
         client.update_dataset('SomeDataset', ds)
+        # Move columns around
+        ds, rows = self.ds.load_dataset(self.fs.upload_file(CSV_FILE))
+        ds = client.create_dataset('people', DatasetClient(ds))
+        col_1 = [row.get_value(1) for row in ds.rows]
+        ds.insert_column('empty', 2)
+        ds = client.update_dataset('people', ds)
+        col_2 = [row.get_value(2) for row in ds.rows]
+        ds.move_column('empty', 1)
+        ds = client.update_dataset('people', ds)
+        for i in range(len(ds.rows)):
+            row = ds.rows[i]
+            self.assertEquals(row.values[1], col_2[i])
+            self.assertEquals(row.values[2], col_1[i])
+        # Rename
+        ds.columns[1].name = 'allnone'
+        ds = client.update_dataset('people', ds)
+        for i in range(len(ds.rows)):
+            row = ds.rows[i]
+            self.assertEquals(row.get_value('allnone'), col_2[i])
+            self.assertEquals(row.values[2], col_1[i])
 
 if __name__ == '__main__':
     unittest.main()

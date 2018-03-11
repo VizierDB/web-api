@@ -8,7 +8,7 @@ from StringIO import StringIO
 import vistrails.packages.mimir.init as mimir
 from vizier.core.util import get_unique_identifier
 from vizier.datastore.metadata import DatasetMetadata
-from vizier.datastore.mimir import MimirDatasetColumn, MimirDatasetDescriptor
+from vizier.datastore.mimir import MimirDatasetColumn, MimirDatasetHandle
 from vizier.datastore.mimir import COL_PREFIX, ROW_ID
 
 
@@ -77,7 +77,7 @@ def load_dataset(filename):
     rs = mimir._mimir.vistrailsQueryMimir(sql, True, True)
     reasons = rs.celReasons()
     uncertainty = rs.colsDet()
-    return MimirDatasetDescriptor(
+    return MimirDatasetHandle(
         get_unique_identifier(),
         columns,
         table_name,

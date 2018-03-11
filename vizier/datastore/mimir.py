@@ -13,8 +13,10 @@ import vistrails.packages.mimir.init as mimir
 
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
-from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow, DataStore
+from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
+from vizier.datastore.base import DataStore, max_column_id
 from vizier.datastore.metadata import DatasetMetadata
+from vizier.datastore.reader import DatasetReader, InMemDatasetReader
 
 
 """Column name prefix (Important: Use upper case!)."""
@@ -44,7 +46,7 @@ class MimirDatasetColumn(DatasetColumn):
     name_in_rdb: string
         Name of the corresponding attribute in a relational table or views
     """
-    def __init__(self, identifier, name_in_dataset, name_in_rdb=None, data_type=None):
+    def __init__(self, identifier=None, name_in_dataset=None, name_in_rdb=None, data_type=None):
         """Initialize the dataset column.
 
         Parameters
@@ -59,12 +61,27 @@ class MimirDatasetColumn(DatasetColumn):
             Identifier for data type of column values. Default is String
         """
         # Ensure that a valid data type is given
-        super(MimirDatasetColumn, self).__init__(identifier, name_in_dataset)
+        super(MimirDatasetColumn, self).__init__(
+            identifier=identifier,
+            name=name_in_dataset
+        )
         if not name_in_rdb is None:
             self.name_in_rdb = name_in_rdb.upper()
         else:
             self.name_in_rdb = name_in_dataset.upper()
         self.data_type = data_type
+
+    def __str__(self):
+        """Human-readable string representation for the column.
+
+        Returns
+        -------
+        string
+        """
+        name = self.name
+        if not self.data_type is None:
+             name += '(' + str(self.data_type) + ')'
+        return name
 
     @staticmethod
     def from_dict(doc):
@@ -128,7 +145,7 @@ class MimirDatasetColumn(DatasetColumn):
         return '\'' + value + '\''
 
 
-class MimirDatasetDescriptor(DatasetHandle):
+class MimirDatasetHandle(DatasetHandle):
     """Internal descriptor for datasets managed by the Mimir data store.
     Contains mapping for column names from a dataset to the corresponding object
     in a relational and a reference to the table or view that contains the
@@ -136,7 +153,7 @@ class MimirDatasetDescriptor(DatasetHandle):
     """
     def __init__(
         self, identifier, columns, rowid_column, table_name, row_ids,
-        column_counter, row_counter, rows=None, annotations=None
+        column_counter, row_counter, annotations=None
     ):
         """Initialize the descriptor.
 
@@ -157,18 +174,14 @@ class MimirDatasetDescriptor(DatasetHandle):
             Counter for unique column ids
         row_counter: int
             Counter for unique row ids
-        rows: list(vizier.datastore.base.DatasetRow), optional
-            List of dataset rows. It is expected that each row has a unique
-            identifier.
         annotations: vizier.datastore.metadata.DatasetMetadata
             Annotations for dataset components
         """
-        super(MimirDatasetDescriptor, self).__init__(
+        super(MimirDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
             column_counter=column_counter,
             row_counter=row_counter,
-            rows=rows,
             annotations=annotations
         )
         self.rowid_column = rowid_column
@@ -192,7 +205,7 @@ class MimirDatasetDescriptor(DatasetHandle):
         """
         with open(filename, 'r') as f:
             doc = yaml.load(f.read())
-        return MimirDatasetDescriptor(
+        return MimirDatasetHandle(
             identifier=doc['id'],
             columns=[MimirDatasetColumn.from_dict(obj) for obj in doc['columns']],
             rowid_column=MimirDatasetColumn.from_dict(doc['rowIdColumn']),
@@ -202,6 +215,15 @@ class MimirDatasetDescriptor(DatasetHandle):
             row_counter=doc['rowCounter'],
             annotations=annotations
         )
+
+    def reader(self):
+        """Get reader for the dataset to access the dataset rows.
+
+        Returns
+        -------
+        vizier.datastore.reader.DatasetReader
+        """
+        return MimirDatasetReader(self.table_name, self.columns, self.row_ids)
 
     @property
     def row_count(self):
@@ -234,6 +256,100 @@ class MimirDatasetDescriptor(DatasetHandle):
             yaml.dump(doc, f, default_flow_style=False)
 
 
+class MimirDatasetReader(DatasetReader):
+    """Dataset reader for delimited files (CSV or TSV)."""
+    def __init__(self, table_name, columns, row_ids):
+        """Initialize information about the delimited file and the file format.
+
+        Parameters
+        ----------
+        filename: string
+            Path to the file on disk
+        compressed: bool, optional
+            Flag indicating if the file is compressed (gzip)
+        delimiter: string, optional
+            The column delimiter used by the file
+        quotechar: string, optional
+            The quote char used in the file
+        has_row_ids: bool, optional
+            Flag indicating whether the first columnn in the file contains
+            unique row identifier
+        """
+        self.table_name = table_name
+        self.columns = columns
+        self.row_ids = row_ids
+        # Uses a InMemReader when open
+        self.reader = None
+
+    def close(self):
+        """Close any open files and set the is_open flag to False."""
+        if not self.reader is None:
+            self.reader.close()
+        self.reader = None
+
+    def next(self):
+        """Return the next row in the dataset iterator. Raises StopIteration if
+        end of file is reached or file has been closed.
+
+        Automatically closes any open file when end of iteration is reached for
+        the first time.
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetRow
+        """
+        if not self.reader is None:
+            return self.reader.next()
+        raise StopIteration()
+
+    def open(self):
+        """Setup the reader by opening the associacted file and instantiating
+        the csv reader.
+
+        Returns
+        -------
+        vizier.datastore.base.DelimitedFileReader
+        """
+        # If there is an associated reader that is still open return
+        if not self.reader is None:
+            if self.reader.is_open:
+                return self
+        # Query the database to get the list of rows. Sort rows according to
+        # order in row_ids and return a InMemReader
+        sql = get_select_query(self.table_name, self.columns)
+        rs = mimir._mimir.vistrailsQueryMimir(sql, False, False)
+        reader = csv.reader(
+            StringIO(rs.csvStr()),
+            delimiter=',',
+            quotechar='\'',
+            quoting=csv.QUOTE_MINIMAL,
+            skipinitialspace=True
+        )
+        # Skip header information
+        reader.next()
+        # Read remaining rows containing dataset rows
+        rows = list()
+        for row in reader:
+            row_id = int(row[0].strip())
+            values = []
+            for val in row[1:]:
+                val = val.strip()
+                if val == 'NULL':
+                    val = None
+                values.append(val)
+            rows.append(DatasetRow(row_id, values))
+        # Sort rows according to order in row_ids
+        row_index = dict()
+        for i in range(len(self.row_ids)):
+            row_index[self.row_ids[i]] = i
+        # Create ordered list of rows
+        sorted_rows = list([None] * len(rows))
+        for row in rows:
+            sorted_rows[row_index[row.identifier]] = row
+        self.reader = InMemDatasetReader(sorted_rows).open()
+        return self
+
+
 class MimirDataStore(DataStore):
     """Vizier data store implementation using Mimir.
 
@@ -260,7 +376,10 @@ class MimirDataStore(DataStore):
         if not os.path.isdir(self.base_dir):
             os.makedirs(self.base_dir)
 
-    def create_dataset(self, dataset):
+    def create_dataset(
+        self, identifier=None, columns=list(), rows=list(), column_counter=0,
+        row_counter=0, annotations=None
+    ):
         """Create a new dataset in the data store for the given data.
 
         Raises ValueError if the number of values in each row of the dataset
@@ -273,45 +392,39 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle
+        vizier.datastore.mimit.MimirDatasetHandle, int
         """
         # Get unique identifier for new dataset
         identifier = 'DS_' + get_unique_identifier()
         # Write rows to temporary file in CSV format
-        tmp_dir = tempfile.mkdtemp()
-        tmp_file = os.path.join(tmp_dir, identifier + '.csv')
+        tmp_file = get_tempfile()
         # Create a list of columns that contain the user-vizible column name and
         # the name in the database
-        columns = list()
+        db_columns = list()
+        for col in columns:
+            db_columns.append(MimirDatasetColumn(
+                identifier=col.identifier,
+                name_in_dataset=col.name,
+                name_in_rdb=COL_PREFIX + str(len(db_columns))
+            ))
+        # List of row ids in the new dataset
+        db_row_ids = list()
+        # Create CSV file for load
         with open(tmp_file, 'w') as f_out:
             writer = csv.writer(f_out, quoting=csv.QUOTE_MINIMAL)
-            col_names = list()
-            for i in range(len(dataset.columns)):
-                col = dataset.columns[i]
-                name_in_rdb = COL_PREFIX + str(i)
-                col_names.append(name_in_rdb)
-                columns.append(
-                    MimirDatasetColumn(
-                        col.identifier,
-                        col.name,
-                        name_in_rdb
-                    )
-                )
-            writer.writerow([ROW_ID] + col_names)
-            for row in dataset.rows:
+            writer.writerow([ROW_ID] + [col.name_in_rdb for col in db_columns])
+            for row in rows:
                 writer.writerow([str(row.identifier)] + row.values)
+                db_row_ids.append(row.identifier)
         # Load CSV file using Mimirs loadCSV method.
         table_name = mimir._mimir.loadCSV(tmp_file)
         # Delete temporary files
-        shutil.rmtree(tmp_dir)
-        # Create and return metadata descriptor for the loaded dataset
-        return self.insert_dataset(
-            table_name,
-            columns,
-            [row.identifier for row in dataset.rows],
-            column_counter=dataset.column_counter,
-            row_counter=dataset.row_counter,
-            rows=dataset.rows
+        os.remove(tmp_file)
+        # Insert the new dataset metadata information into the datastore
+        return self.register_dataset(
+            table_name=table_name,
+            columns=db_columns,
+            row_ids=db_row_ids
         )
 
     def delete_dataset(self, identifier):
@@ -377,23 +490,7 @@ class MimirDataStore(DataStore):
         -------
         vizier.datastore.base.DatasetHandle
         """
-        ds = self.get_dataset_descriptor(identifier)
-        if not ds is None:
-            sql = get_select_query(ds.table_name, ds.columns)
-            rs = mimir._mimir.vistrailsQueryMimir(sql, False, False)
-            reader = csv.reader(
-                StringIO(rs.csvStr()),
-                delimiter=',',
-                quotechar='\'',
-                quoting=csv.QUOTE_MINIMAL,
-                skipinitialspace=True
-            )
-            # Skip headline row
-            reader.next()
-            # Remaining rows are dataset rows
-            rows = [parse_row(row, dataset=ds) for row in reader]
-            ds.rows = sort_rows(rows, ds.row_ids)
-        return ds
+        return self.get_dataset_descriptor(identifier)
 
     def get_dataset_descriptor(self, identifier, include_annotations=True):
         """Get the Mimir dataset descriptor for the dataset with tthe given
@@ -413,7 +510,7 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.mimir.MimirDatasetDescriptor
+        vizier.datastore.mimir.MimirDatasetHandle
         """
         # Return None if the dataset file does not exist
         dataset_file = self.get_dataset_file(identifier)
@@ -424,7 +521,7 @@ class MimirDataStore(DataStore):
             annotations = DatasetMetadata.from_file(
                 self.get_metadata_filename(identifier)
             )
-        return MimirDatasetDescriptor.from_file(
+        return MimirDatasetHandle.from_file(
             dataset_file,
             annotations=annotations
         )
@@ -444,144 +541,6 @@ class MimirDataStore(DataStore):
         """
         return os.path.join(self.get_dataset_dir(identifier), 'annotation.yaml')
 
-    def insert_dataset(
-        self, table_name, columns, row_ids=None, column_counter=None,
-        row_counter=None, rowid_column=None, rows=None, annotations=None,
-        adjust_metadata=True
-    ):
-        """Create a new record for a database table or view. Note that this
-        method does not actually create the table or view in the database but
-        adds the datasets metadata to the data store. The table or view will
-        have been created by a load command or be the result from executing
-        a lens or a VizUAL commandhas.
-
-        Parameters
-        ----------
-        table_name: string
-            Reference to relational database table or view containing the dataset.
-        columns: list(vizier.datastore.mimir.MimirDatasetColumn)
-            List of column names in the dataset schema and their corresponding
-            names in the relational database table or view.
-        row_ids: list(int)
-            List of row ids. Determines the order of rows in the dataset
-        column_counter: int
-            Counter for unique column ids
-        row_counter: int
-            Counter for unique row ids
-        rowid_column: vizier.datastore.mimir.MimirDatasetColumn, optional
-            Descriptor for unique row id column
-        annotations: vizier.datastore.metadata.DatasetMetadata
-            Annotations for dataset components
-        adjust_metadata: bool, optional
-            Flag indicating whether the metadata in the given dataset is correct
-            (False) or needs to be adjusted (True). The former is the case for
-            VizUAL MOVE and RENAME_COLUMN operations.
-
-        Returns
-        -------
-        vizier.datastore.mimir.MimirDatasetDescriptor
-        """
-        # If the adjust metadata flag is set retrieve the full dataset from
-        # the underlying database.
-        if adjust_metadata:
-            # Query the database
-            sql = get_select_query(table_name, columns)
-            rs = mimir._mimir.vistrailsQueryMimir(sql, True, True)
-            # Get dataset schema information
-            mimir_schema = rs.schema()
-            reader = csv.reader(
-                StringIO(rs.csvStr()),
-                delimiter=',',
-                quotechar='\'',
-                quoting=csv.QUOTE_MINIMAL,
-                skipinitialspace=True
-            )
-            # Create a dictionary of columns including the hidden ROW ID column.
-            rowid_column = MimirDatasetColumn(-1, ROW_ID)
-            ds_columns = dict({rowid_column.name_in_rdb: rowid_column})
-            for col in columns:
-                ds_columns[col.name_in_rdb] = col
-            # Use the dictionary to adjust the columns data types.
-            for name_in_dataset in reader.next():
-                name_in_dataset = name_in_dataset.strip()
-                data_type=str(mimir_schema.get(name_in_dataset))[5:-1]
-                ds_columns[name_in_dataset.upper()].data_type = data_type
-            # Read all rows to get list of row ids. If no rows have been passed
-            # as argument we need to create objects for each row as well.
-            read_rows = rows is None
-            if read_rows:
-                rows = list()
-            ds_rowids = list()
-            for row in reader:
-                if read_rows:
-                    r = parse_row(row)
-                    rows.append(r)
-                    row_id = r.identifier
-                else:
-                    row_id = int(row[0].strip())
-                ds_rowids.append(row_id)
-            # Remove row ids from the array if they do not exist in the dataset.
-            # The row_ids argument may be None. In this case create a list of
-            # all the row_ids in the result. Make sure to adjust the row counter
-            # as well.
-            if not row_ids is None:
-                if len(ds_rowids) != len(row_ids):
-                    adjusted_row_ids = list()
-                    for row_id in row_ids:
-                        if row_id in ds_rowids:
-                            adjusted_row_ids.append(row_id)
-                    row_ids = adjusted_row_ids
-            else:
-                row_ids = ds_rowids
-            # Sort rows if they were read
-            if read_rows:
-                rows = sort_rows(rows, row_ids)
-            # Create dataset descriptor with annotations
-            annotations = get_annotations(
-                columns,
-                row_ids,
-                rs.celReasons(),
-                rs.colsDet(),
-                annotations=annotations
-            )
-        # Set column counter to max. column id + 1 if None
-        if column_counter is None:
-            column_counter = -1
-            for col in columns:
-                if col.identifier > column_counter:
-                    column_counter = col.identifier
-            column_counter += 1
-        # Set row counter to max. row id + 1 if None
-        if row_counter is None:
-            row_counter = -1
-            # The set of row ids may be None at this point
-            if not row_ids is None:
-                for row_id in row_ids:
-                    if row_id > row_counter:
-                        row_counter = row_id
-            row_counter += 1
-        dataset = MimirDatasetDescriptor(
-            identifier=get_unique_identifier(),
-            columns=columns,
-            rowid_column=rowid_column,
-            table_name=table_name,
-            row_ids=row_ids,
-            column_counter=column_counter,
-            row_counter=row_counter,
-            rows=rows,
-            annotations=annotations
-        )
-        # Create a new directory for the dataset if it doesn't exist.
-        dataset_dir = self.get_dataset_dir(dataset.identifier)
-        if not os.path.isdir(dataset_dir):
-            os.makedirs(dataset_dir)
-        # Write dataset and annotation file to disk
-        dataset.to_file(self.get_dataset_file(dataset.identifier))
-        dataset.annotations.to_file(
-            self.get_metadata_filename(dataset.identifier)
-        )
-        return dataset
-
     def load_dataset(self, f_handle):
         """Create a new dataset from a given file.
 
@@ -594,7 +553,7 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle
+        vizier.datastore.mimir.MimirDatasetHandle, int
         """
         # Create a copy of the original file under a unique name. If the input
         # file is tab-delimited (and therefore has been successfully parsed on
@@ -633,6 +592,7 @@ class MimirDataStore(DataStore):
         # List of Mimir dataset column descriptors for the dataset schema.
         # Create load file for dataset that includes unique row identifier
         columns = list()
+        row_ids = list()
         with open(tmp_file, 'w') as csvfile:
             writer = csv.writer(
                 csvfile,
@@ -649,16 +609,14 @@ class MimirDataStore(DataStore):
                 col_id = len(columns)
                 name_in_rdb = COL_PREFIX + str(col_id)
                 col = MimirDatasetColumn(
-                    col_id,
-                    name_in_dataset,
-                    name_in_rdb,
-                    data_type=str(mimir_schema.get(name_in_dataset))[5:-1]
+                    identifier=col_id,
+                    name_in_dataset=name_in_dataset,
+                    name_in_rdb=name_in_rdb
                 )
                 columns.append(col)
                 out_schema.append(name_in_rdb)
             writer.writerow(out_schema)
             # Remaining rows are dataset rows
-            row_ids = list()
             for row in reader:
                 row_id = len(row_ids)
                 row_ids.append(row_id)
@@ -671,8 +629,111 @@ class MimirDataStore(DataStore):
                 writer.writerow(out_row)
         table_name = mimir._mimir.loadCSV(tmp_file)
         os.remove(tmp_file)
-        # Create and return metadata descriptor for the loaded dataset
-        return self.insert_dataset(table_name, columns, row_ids)
+        # Insert the new dataset metadata information into the datastore
+        return self.register_dataset(
+            table_name=table_name,
+            columns=columns,
+            row_ids=row_ids
+        )
+
+    def register_dataset(
+        self, table_name, columns, row_ids, column_counter=None,
+        row_counter=None, annotations=None, update_rows=False,
+        update_annotations=True
+    ):
+        """Create a new record for a database table or view. Note that this
+        method does not actually create the table or view in the database but
+        adds the datasets metadata to the data store. The table or view will
+        have been created by a load command or be the result from executing
+        a lens or a VizUAL commandhas.
+
+        Parameters
+        ----------
+        table_name: string
+            Reference to relational database table or view containing the dataset.
+        columns: list(vizier.datastore.mimir.MimirDatasetColumn)
+            List of column names in the dataset schema and their corresponding
+            names in the relational database table or view.
+        row_ids: list(int)
+            List of row ids. Determines the order of rows in the dataset
+        column_counter: int
+            Counter for unique column ids
+        row_counter: int
+            Counter for unique row ids
+        annotations: vizier.datastore.metadata.DatasetMetadata
+            Annotations for dataset components
+        update_rows: bool, optional
+            Flag indicating that the number of rows may have changed and the
+            list of row identifier therefore needs to be checked.
+        update_annotations: bool, optional
+            Flag indicating whether the metadata in the given dataset is correct
+            (False) or needs to be adjusted (True). The former is the case for
+            VizUAL MOVE and RENAME_COLUMN operations.
+
+        Returns
+        -------
+        vizier.datastore.mimir.MimirDatasetHandle, int
+        """
+        # Query the database to get schema information and row ids if necessary
+        sql = get_select_query(table_name, columns)
+        rs = mimir._mimir.vistrailsQueryMimir(sql, True, True)
+        # Get dataset schema information
+        mimir_schema = rs.schema()
+        # Update schema information for dataset columns. Will modify the data
+        # type of columns in the list and return row id column object
+        rowid_column = update_schema_information(columns, mimir_schema)
+        # Update row identifier if flag is set to true
+        if update_rows:
+            # Create dataset reader. Make sure to skip the first row
+            reader = csv.reader(
+                StringIO(rs.csvStr()),
+                delimiter=',',
+                quotechar='\'',
+                quoting=csv.QUOTE_MINIMAL,
+                skipinitialspace=True
+            )
+            reader.next()
+            row_ids = update_rowids(row_ids, reader)
+        # Update annotations is flag is set
+        if update_annotations:
+            # Get updated annotations annotations
+            annotations = get_annotations(
+                columns,
+                row_ids,
+                rs.celReasons(),
+                rs.colsDet(),
+                annotations=annotations
+            )
+        # Set column counter to max column id + 1if None
+        if column_counter is None:
+            column_counter = max_column_id(columns) + 1
+        # Set row counter to max. row id + 1 if None
+        if row_counter is None:
+            row_counter = -1
+            for row_id in row_ids:
+                if row_id > row_counter:
+                    row_counter = row_id
+            row_counter += 1
+        dataset = MimirDatasetHandle(
+            identifier=get_unique_identifier(),
+            columns=columns,
+            rowid_column=rowid_column,
+            table_name=table_name,
+            row_ids=row_ids,
+            column_counter=column_counter,
+            row_counter=row_counter,
+            annotations=annotations
+        )
+        # Create a new directory for the dataset if it doesn't exist.
+        dataset_dir = self.get_dataset_dir(dataset.identifier)
+        if not os.path.isdir(dataset_dir):
+            os.makedirs(dataset_dir)
+        # Write dataset and annotation file to disk
+        dataset.to_file(self.get_dataset_file(dataset.identifier))
+        dataset.annotations.to_file(
+            self.get_metadata_filename(dataset.identifier)
+        )
+        return dataset, len(row_ids)
 
     def update_annotation(self, identifier, upd_stmt):
         """Update the annotations for a component of the datasets with the given
@@ -715,7 +776,7 @@ def create_missing_key_view(dataset, lens_name, key_column_name):
 
     Parameters
     ----------
-    dataset: vizier.datastore.mimir.MimirDatasetDescriptor
+    dataset: vizier.datastore.mimir.MimirDatasetHandle
         Descriptor for the dataset on which the lens was created
     lens_name: string
         Identifier of the created MISSING_KEY lens
@@ -766,12 +827,12 @@ def get_annotations(columns, row_ids, reasons, uncertainty, annotations=None):
 
     Parameters
     ----------
-    dataset: vizier.datastore.mimir.MimirDatasetDescriptor
+    dataset: vizier.datastore.mimir.MimirDatasetHandle
         Dataset descriptor that is being updated
 
     Returns
     -------
-    vizier.datastore.mimir.MimirDatasetDescriptor
+    vizier.datastore.mimir.MimirDatasetHandle
     """
     if annotations is None:
         annotations = DatasetMetadata()
@@ -827,50 +888,52 @@ def get_tempfile():
     return tempfile.mkstemp(suffix='.csv', prefix=tmp_prefix)[1]
 
 
-def parse_row(row, dataset=None):
-    """Converts a row from a CSV fiel into a data set row object.
+def update_rowids(row_ids, reader):
+    """Update the list of row identifier by iterating through the dataset reader
 
     Parameters
     ----------
-    row: list()
-        Row in a CSV file as returned by the CSV parser.
-    dataset: vizier.datastore.mimir.MimirDatasetDescriptor, optional
-        Descriptor for dataset the row belongs to
-
-    Returns
-    -------
-    vizier.datastore.base.DatasetRow
-    """
-    row_id = int(row[0].strip())
-    values = []
-    for val in row[1:]:
-        val = val.strip()
-        if val == 'NULL':
-            val = None
-        values.append(val)
-    return DatasetRow(row_id, values, dataset=dataset)
-
-
-def sort_rows(rows, row_ids):
-    """Sort the given list of rows according to the given order of row ids.
-
-    Parameters
-    ----------
-    rows: list(vizier.datastore.base.DatasetRow)
-        List of rows
     row_ids: list(int)
-        List of rows defining the order of rows
+        Current list of row identifier
+    reader: csv.reader
+        Row reader
 
     Returns
     -------
-    list(vizier.datastore.base.DatasetRow)
+    list(int)
     """
-    # Create mapping of row ids to positions
-    row_index = dict()
-    for i in range(len(row_ids)):
-        row_index[row_ids[i]] = i
-    # Create ordered list of rows
-    result = list([None] * len(rows))
-    for row in rows:
-        result[row_index[row.identifier]] = row
-    return result
+    # Get list of row identifier in current dataset
+    dataset_row_ids = set()
+    for row in reader:
+        dataset_row_ids.add(int(row[0].strip()))
+    modified_row_ids = list()
+    for row_id in row_ids:
+        if row_id in dataset_row_ids:
+            modified_row_ids.append(row_id)
+    return modified_row_ids
+
+
+def update_schema_information(columns, schema):
+    """Update data type information for a given list of columns.
+
+    Parameters
+    ----------
+    columns: list(vizier.databstore.mimir.MimirDatasetColumn)
+        List of columns in the dataset schema
+    schema: obj
+        Schema information as returned by Mimir
+
+    Returns
+    -------
+    vizier.datastore.base.DatasetColumn
+    """
+    # Create column for row Identifier
+    rowid_column = MimirDatasetColumn(
+        name_in_dataset=ROW_ID,
+        data_type=str(schema.get(ROW_ID))[5:-1]
+    )
+    # Get data type information for each column in the schema
+    for col in columns:
+        data_type=str(schema.get(col.name_in_rdb))[5:-1]
+        col.data_type = data_type
+    return rowid_column

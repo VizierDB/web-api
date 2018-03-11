@@ -9,28 +9,11 @@ persisted or propagated to following modules.
 
 The Vizier datastore client enables access to and manipulation of datasets in a
 Vizier datastore from within a python script.
-
-The general format of the context dictionary is:
-
-{
-    'env': {
-        'datastore': <datatore-directory>,
-        'fileserver': <fileserver-directory>
-    },
-    datasets: [
-        'moduleId': <int>,
-        'mapping': {
-            <dataset-name>: <dataset-identifier>
-        ]
-    },
-    'variables': {
-        ...
-    }
-    'type': <str>
-}
 """
 
 from vizier.core.util import is_valid_name
+from vizier.datastore.base import max_column_id, max_row_id
+from vizier.datastore.client import DatasetClient
 from vizier.datastore.metadata import DatasetMetadata
 
 
@@ -89,6 +72,10 @@ class VizierDBClient(object):
             Unique dataset name
         dataset : vizier.datastore.base.Dataset
             Dataset object
+
+        Returns
+        -------
+        vizier.datastore.client.DatasetClient
         """
         # Raise an exception if a dataset with the given name already exists or
         # if the name is not valid
@@ -96,10 +83,30 @@ class VizierDBClient(object):
             raise ValueError('dataset \'' + name + '\' already exists')
         if not is_valid_name(name):
             raise ValueError('invalid dataset name \'' + name + '\'')
+        columns = dataset.columns
+        rows = dataset.rows
+        column_counter = max(max_column_id(columns) + 1, 0)
+        row_counter = max(max_row_id(rows) + 1, 0)
+        # Ensure that all columns has positive identifier
+        for col in columns:
+            if col.identifier < 0:
+                col.identifier = column_counter
+                column_counter += 1
+        # Ensure that all rows have positive identifier
+        for row in rows:
+            if row.identifier < 0:
+                row.identifier = row_counter
+                row_counter += 1
         # Write dataset to datastore and add new dataset to context
-        dataset.annotations = DatasetMetadata()
-        ds = self.datastore.create_dataset(dataset)
+        ds, rows = self.datastore.create_dataset(
+            columns=columns,
+            rows=rows,
+            column_counter=column_counter,
+            row_counter=row_counter,
+            annotations=dataset.annotations
+        )
         self.set_dataset_identifier(name, ds.identifier)
+        return DatasetClient(dataset=ds)
 
     def drop_dataset(self, name):
         """Remove the dataset with the given name.
@@ -127,16 +134,16 @@ class VizierDBClient(object):
 
         Returns
         -------
-        vizier.datastore.base.Dataset
+        vizier.datastore.client.DatasetClient
         """
         # Get identifier for the dataset with the given name. Will raise an
         # exception if the name is unknown
         identifier = self.get_dataset_identifier(name)
         # Read dataset from datastore and return it.
-        return self.datastore.get_dataset(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
-        return dataset
+        return DatasetClient(dataset=dataset)
 
     def get_dataset_identifier(self, name):
         """Returns the unique identifier for the dataset with the given name.
@@ -172,6 +179,15 @@ class VizierDBClient(object):
         """
         # Dataset names are case insensitive
         return name.lower() in self.datasets
+
+    def new_dataset(self):
+        """Get a dataset client instance for a new dataset.
+
+        Returns
+        -------
+        vizier.datastore.client.DatasetClient
+        """
+        return DatasetClient()
 
     def remove_dataset_identifier(self, name):
         """Remove the entry in the dataset distionary that is associated with
@@ -239,13 +255,43 @@ class VizierDBClient(object):
             Unique dataset name
         dataset : vizier.datastore.base.Dataset
             Dataset object
+
+        Returns
+        -------
+        vizier.datastore.client.DatasetClient
         """
         # Get identifier for the dataset with the given name. Will raise an
         # exception if the name is unknown
         identifier = self.get_dataset_identifier(name)
-        # Write dataset to datastore and update context
-        ds = self.datastore.create_dataset(dataset)
+        # Read dataset from datastore to get the column and row counter.
+        source_dataset = self.datastore.get_dataset(identifier)
+        if source_dataset is None:
+            raise ValueError('unknown dataset \'' + identifier + '\'')
+        column_counter = source_dataset.column_counter
+        row_counter = source_dataset.row_counter
+        # Update column and row identifier
+        columns = dataset.columns
+        rows = dataset.rows
+        # Ensure that all columns has positive identifier
+        for col in columns:
+            if col.identifier < 0:
+                col.identifier = column_counter
+                column_counter += 1
+        # Ensure that all rows have positive identifier
+        for row in rows:
+            if row.identifier < 0:
+                row.identifier = row_counter
+                row_counter += 1
+        # Write dataset to datastore and add new dataset to context
+        ds, rows = self.datastore.create_dataset(
+            columns=columns,
+            rows=rows,
+            column_counter=column_counter,
+            row_counter=row_counter,
+            annotations=dataset.annotations
+        )
         self.set_dataset_identifier(name, ds.identifier)
+        return DatasetClient(dataset=ds)
 
 
 # ------------------------------------------------------------------------------

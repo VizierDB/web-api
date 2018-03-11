@@ -10,6 +10,7 @@ import vistrails.packages.mimir.init as mimir
 
 from vizier.config import ExecEnv, FileServerConfig
 from vizier.config import ENGINEENV_DEFAULT, ENGINEENV_MIMIR
+from vizier.datastore.client import DatasetClient
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
@@ -30,12 +31,11 @@ INCOMPLETE_CSV_FILE = './data/dataset_with_missing_values.csv'
 DS_NAME = 'people'
 
 CREATE_DATASET_PY = """
-from vizier.datastore.base import Dataset
-ds = Dataset()
-ds.add_column('Name')
-ds.add_column('Age')
-ds.add_row(['Alice', 23])
-ds.add_row(['Bob', 34])
+ds = vizierdb.new_dataset()
+ds.insert_column('Name')
+ds.insert_column('Age')
+ds.insert_row(['Alice', 23])
+ds.insert_row(['Bob', 34])
 vizierdb.create_dataset('people', ds)
 """
 
@@ -174,7 +174,7 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
-        ds = self.datastore.get_dataset(wf.modules[-1].datasets['people'])
+        ds = DatasetClient(self.datastore.get_dataset(wf.modules[-1].datasets['people']))
         self.assertEquals(ds.rows[0].get_value('Age'), '28')
         self.assertEquals(ds.rows[1].get_value('Age'), '42')
         # DELETE UPDATE CELL
@@ -184,7 +184,7 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
-        ds = self.datastore.get_dataset(wf.modules[-1].datasets['people'])
+        ds = DatasetClient(self.datastore.get_dataset(wf.modules[-1].datasets['people']))
         self.assertEquals(ds.rows[0].get_value('Age'), '23')
         # DELETE LOAD (will introduce error)
         self.db.delete_workflow_module(
@@ -281,7 +281,7 @@ class TestWorkflows(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
         # Ensure that all names are Bobby
-        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        ds = DatasetClient(self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME]))
         age = ['23', '28', '32']
         for i in range(len(ds.rows)):
             row = ds.rows[i]

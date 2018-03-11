@@ -296,6 +296,7 @@ class InMemDatasetReader(DatasetReader):
                 row = self.rows[self.read_index]
                 self.read_index += 1
                 return row
+            self.close()
         raise StopIteration
 
     def open(self):

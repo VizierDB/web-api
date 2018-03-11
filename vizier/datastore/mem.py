@@ -8,6 +8,7 @@ from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, max_column_id, max_row_id
+from vizier.datastore.base import validate_schema
 from vizier.datastore.reader import InMemDatasetReader
 
 
@@ -38,11 +39,11 @@ class InMemDatasetHandle(DatasetHandle):
         super(InMemDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
+            column_counter=column_counter,
+            row_counter=row_counter,
             annotations=annotations
         )
         self.datarows = rows
-        self.column_counter = column_counter
-        self.row_counter = row_counter
 
     @staticmethod
     def from_file(f_handle):
@@ -117,8 +118,7 @@ class InMemDataStore(DataStore):
             List of columns. It is expected that each column has a unique
             identifier.
         rows: list(vizier.datastore.base.DatasetRow)
-            Path to the file that contains the dataset rows. The data is stored
-            in Json format.
+            List of dataset rows.
         column_counter: int, optional
             Counter to generate unique column identifier
         row_counter: int, optional
@@ -128,16 +128,20 @@ class InMemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.mem.InMemDatasetHandle
+        vizier.datastore.mem.InMemDatasetHandle, int
         """
-        # Validate the given dataset schema. Will raise ValueError in case of
-        # schema violations
-        if identifier is None:
-            identifier = get_unique_identifier()
+        # Set columns and rows if not given
         if columns is None:
             columns = list()
         if rows is None:
             rows = list()
+        else:
+            # Validate the number of values in the given rows
+            validate_schema(columns, rows)
+        # Validate the given dataset schema. Will raise ValueError in case of
+        # schema violations
+        if identifier is None:
+            identifier = get_unique_identifier()
         if column_counter is None:
             column_counter = max_column_id(columns) + 1
         if row_counter is None:
@@ -150,7 +154,7 @@ class InMemDataStore(DataStore):
             row_counter=row_counter,
             annotations=annotations.copy_metadata()
         )
-        return self.datasets[identifier]
+        return self.datasets[identifier], len(rows)
 
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
@@ -188,10 +192,13 @@ class InMemDataStore(DataStore):
             dataset = self.datasets[identifier]
             return InMemDatasetHandle(
                 identifier=identifier,
-                columns=list(dataset.columns),
+                columns=[
+                    DatasetColumn(col.identifier, col.name)
+                        for col in dataset.columns
+                ],
                 rows=[
                     DatasetRow(row.identifier, list(row.values))
-                        for row in dataset.rows()
+                        for row in dataset.fetch_rows()
                 ],
                 column_counter=dataset.column_counter,
                 row_counter=dataset.row_counter,
@@ -210,13 +217,13 @@ class InMemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle
+        vizier.datastore.base.DatasetHandle, int
         """
         dataset = InMemDatasetHandle.from_file(f_handle)
         return self.create_dataset(
             identifier=dataset.identifier,
             columns=dataset.columns,
-            rows=dataset.rows(),
+            rows=dataset.fetch_rows(),
             column_counter=dataset.column_counter,
             row_counter=dataset.row_counter,
             annotations=dataset.annotations
@@ -286,8 +293,7 @@ class VolatileDataStore(DataStore):
             List of columns. It is expected that each column has a unique
             identifier.
         rows: list(vizier.datastore.base.DatasetRow)
-            Path to the file that contains the dataset rows. The data is stored
-            in Json format.
+            List of dataset rows.
         column_counter: int, optional
             Counter to generate unique column identifier
         row_counter: int, optional

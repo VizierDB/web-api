@@ -36,7 +36,7 @@ class TestDataStore(unittest.TestCase):
 
     def test_datastore(self):
         """Test functionality of the file server data store."""
-        ds = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
+        ds, rows = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
         self.assertEquals(ds.column_counter, 3)
         self.assertEquals(ds.row_counter, 2)
         ds = self.db.get_dataset(ds.identifier)
@@ -45,18 +45,18 @@ class TestDataStore(unittest.TestCase):
             col = ds.columns[i]
             self.assertEquals(col.identifier, i)
             self.assertEquals(col.name, names[i])
-        rows = ds.rows()
+        rows = ds.fetch_rows()
         for i in range(len(rows)):
             row = rows[i]
             self.assertEquals(row.identifier, i)
         rows[0].values[0] = 'Jane'
-        ds = self.db.create_dataset(columns=ds.columns, rows=rows)
+        ds, rows = self.db.create_dataset(columns=ds.columns, rows=rows)
         ds = self.db.get_dataset(ds.identifier)
         for i in range(3):
             col = ds.columns[i]
             self.assertEquals(col.identifier, i)
             self.assertEquals(col.name, names[i])
-        rows = ds.rows()
+        rows = ds.fetch_rows()
         for i in range(len(rows)):
             row = rows[i]
             self.assertEquals(row.identifier, i)

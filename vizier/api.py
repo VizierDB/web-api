@@ -293,7 +293,7 @@ class VizierWebService(object):
     # --------------------------------------------------------------------------
     # Datasets
     # --------------------------------------------------------------------------
-    def get_dataset(self, dataset_id, include_annotations=False):
+    def get_dataset(self, dataset_id, offset=0, limit=-1, include_annotations=False):
         """Get dataset with given identifier. The result is None if no dataset
         with the given identifier exists.
 
@@ -301,6 +301,10 @@ class VizierWebService(object):
         ----------
         dataset_id : string
             Unique dataset identifier
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
         include_annotations: bool
             Flag indicating whether dataset annotations should be included in
             the result
@@ -315,8 +319,9 @@ class VizierWebService(object):
         dataset = self.datastore.get_dataset(dataset_id)
         if not dataset is None:
             # Read dataset rows
-            with dataset.reader() as reader:
-                rows = [row.to_dict() for row in reader]
+            rows = list()
+            for row in dataset.fetch_rows(offset=offset, limit=limit):
+                rows.append(row.to_dict())
             # Serialize the dataset schema and cells
             obj = {
                 'id' : dataset.identifier,

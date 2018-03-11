@@ -13,6 +13,7 @@ import shutil
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DataStore
+from vizier.datastore.base import validate_schema
 from vizier.datastore.mem import InMemDatasetHandle
 from vizier.datastore.reader import DefaultJsonDatasetReader
 from vizier.datastore.metadata import DatasetMetadata
@@ -64,11 +65,11 @@ class FileSystemDatasetHandle(DatasetHandle):
         super(FileSystemDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
+            column_counter=column_counter,
+            row_counter=row_counter,
             annotations=annotations
         )
         self.datafile = datafile
-        self.column_counter = column_counter
-        self.row_counter = row_counter
 
     @staticmethod
     def from_file(filename, datafile, annotations=None):
@@ -150,7 +151,10 @@ class FileSystemDataStore(DataStore):
         if not os.path.isdir(self.base_dir):
             os.makedirs(self.base_dir)
 
-    def create_dataset(self, columns, rows, column_counter=None, row_counter=None, annotations=None):
+    def create_dataset(
+        self, identifier=None, columns=None, rows=None, column_counter=None,
+        row_counter=None, annotations=None
+    ):
         """Create a new dataset in the data store for the given data.
 
         Raises ValueError if (1) any of the column or row identifier have a
@@ -159,12 +163,13 @@ class FileSystemDataStore(DataStore):
 
         Parameters
         ----------
+        identifier: string, optional
+            Unique dataset identifier
         columns: list(vizier.datastore.base.DatasetColumn)
             List of columns. It is expected that each column has a unique
             identifier.
         rows: list(vizier.datastore.base.DatasetRow)
-            Path to the file that contains the dataset rows. The data is stored
-            in Json format.
+            List of dataset rows.
         column_counter: int, optional
             Counter to generate unique column identifier
         row_counter: int, optional
@@ -176,6 +181,14 @@ class FileSystemDataStore(DataStore):
         -------
         vizier.datastore.fs.FileSystemDatasetHandle
         """
+        # Set columns and rows if not given
+        if columns is None:
+            columns = list()
+        if rows is None:
+            rows = list()
+        else:
+            # Validate the number of values in the given rows
+            validate_schema(columns, rows)
         # Validate that all column identifier are smaller that the given
         # column counter
         if not column_counter is None:
@@ -225,7 +238,7 @@ class FileSystemDataStore(DataStore):
         # Write metadata file
         dataset.annotations.to_file(os.path.join(dataset_dir, METADATA_FILE))
         # Return handle for new dataset
-        return dataset
+        return dataset, len(rows)
 
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
@@ -299,12 +312,12 @@ class FileSystemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle
+        vizier.datastore.base.DatasetHandle, int
         """
         dataset = InMemDatasetHandle.from_file(f_handle)
         return self.create_dataset(
             columns=dataset.columns,
-            rows=dataset.rows(),
+            rows=dataset.fetch_rows(),
             column_counter=dataset.column_counter,
             row_counter=dataset.row_counter
         )

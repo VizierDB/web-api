@@ -97,7 +97,7 @@ class TestDataStore(unittest.TestCase):
         """Test volatile data store on top of a file system data store."""
         self.set_up(FS_DATASTORE)
         self.setup_fileserver()
-        ds = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
+        ds, rows = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
         v_store = VolatileDataStore(self.db)
         # Make sure the existing dataset is accessible via the volatile store
         v_ds = v_store.get_dataset(ds.identifier)
@@ -137,7 +137,7 @@ class TestDataStore(unittest.TestCase):
     def datastore_init(self, store_type):
         """Test initalizing a datastore with existing datasets."""
         self.setup_fileserver()
-        ds = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
+        ds, rows = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
         if store_type == MEM_DATASTORE:
             self.db = InMemDataStore()
         elif store_type == FS_DATASTORE:
@@ -148,10 +148,11 @@ class TestDataStore(unittest.TestCase):
     def dataset_life_cycle(self):
         """Test create and delete dataset."""
         self.setup_fileserver()
-        ds = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
+        ds, rows = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
         # Ensure that the project data has three columns and two rows
         self.assertEquals(len(ds.columns), 3)
-        self.assertEquals(len(ds.rows()), 2)
+        self.assertEquals(len(ds.fetch_rows()), 2)
+        self.assertEquals(rows, 2)
         # Delete dataset and ensure that the dataset directory no longer exists
         self.assertTrue(self.db.delete_dataset(ds.identifier))
         self.assertFalse(self.db.delete_dataset(ds.identifier))
@@ -159,12 +160,12 @@ class TestDataStore(unittest.TestCase):
     def dataset_read(self):
         """Test reading a dataset."""
         self.setup_fileserver()
-        dh = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
+        dh, rows = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
         ds = self.db.get_dataset(dh.identifier)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(dh.identifier, ds.identifier)
         self.assertEquals(len(dh.columns), len(ds.columns))
-        self.assertEquals(len(dh.rows()), len(ds_rows))
+        self.assertEquals(len(dh.fetch_rows()), len(ds_rows))
         # Name,Age,Salary
         # Alice,23,35K
         # Bob,32,30K
@@ -172,19 +173,19 @@ class TestDataStore(unittest.TestCase):
         self.assertEquals(ds.column_index('Age'), 1)
         self.assertEquals(ds.column_index('Salary'), 2)
         row = ds_rows[0]
-        self.assertEquals(row.get_value('Name'), 'Alice')
-        self.assertEquals(row.get_value('Age'), '23')
-        self.assertEquals(row.get_value('Salary'), '35K')
+        self.assertEquals(row.values[0], 'Alice')
+        self.assertEquals(row.values[1], '23')
+        self.assertEquals(row.values[2], '35K')
         row = ds_rows[1]
-        self.assertEquals(row.get_value('Name'), 'Bob')
-        self.assertEquals(row.get_value('Age'), '32')
-        self.assertEquals(row.get_value('Salary'), '30K')
+        self.assertEquals(row.values[0], 'Bob')
+        self.assertEquals(row.values[1], '32')
+        self.assertEquals(row.values[2], '30K')
 
     def load_tsv(self):
         """Test writing a dataset with duplicate name twice."""
         self.setup_fileserver()
         fh = self.fileserver.upload_file(TSV_FILE)
-        ds = self.db.load_dataset(fh)
+        ds, rows = self.db.load_dataset(fh)
         self.assertEquals(len(ds.columns), 3)
         self.assertEquals(len(ds.rows), 2)
 

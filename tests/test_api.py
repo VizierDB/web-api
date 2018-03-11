@@ -127,9 +127,9 @@ class TestWebServiceAPI(unittest.TestCase):
         annotations.for_column(0).set_annotation('comment', 'Hello')
         annotations.for_row(1).set_annotation('comment', 'World')
         annotations.for_cell(1, 0).set_annotation('comment', '!')
-        ds = self.datastore.create_dataset(
+        ds, row_count = self.datastore.create_dataset(
             columns=ds.columns,
-            rows=ds.rows(),
+            rows=ds.fetch_rows(),
             annotations=annotations
         )
         self.validate_dataset_handle(self.api.get_dataset(ds.identifier))

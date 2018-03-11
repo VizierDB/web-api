@@ -82,8 +82,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to delete a column."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -102,7 +102,7 @@ class TestVizualEngine(unittest.TestCase):
         # Alice, 35K
         # Bob, 30K
         ds = self.datastore.get_dataset(id1)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         # Schema is Name, Salary
         self.assertEquals(len(ds.columns), 2)
         self.assertEquals(ds.columns[0].name.upper(), 'NAME')
@@ -133,8 +133,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to delete a row."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -153,7 +153,7 @@ class TestVizualEngine(unittest.TestCase):
         # ------------
         # Alice, 23, 35K
         ds = self.datastore.get_dataset(id1)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         # Schema is Name, Salary
         col_names = ['Name', 'Age', 'Salary']
         self.assertEquals(len(ds.columns), len(col_names))
@@ -179,8 +179,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to insert a columns."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -214,7 +214,7 @@ class TestVizualEngine(unittest.TestCase):
         # Retrieve dataset and ensure that it has the following schema:
         # Name, Height, Age, Salary, Weight
         ds = self.datastore.get_dataset(id2)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         # Ensure that there are five rows
         self.assertEquals(len(ds.columns), len(col_names))
         for i in range(len(col_names)):
@@ -235,8 +235,9 @@ class TestVizualEngine(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.vizual.insert_column('unknown:uri', 1, 'Height')
         # Ensure exception is thrown if column name is invalid
+        self.vizual.insert_column(ds.identifier, 1, 'Height from ground')
         with self.assertRaises(ValueError):
-            self.vizual.insert_column(ds.identifier, 1, 'Height from ground')
+            self.vizual.insert_column(ds.identifier, 1, 'Height from ground!@#')
         # Ensure exception is thrown if column position is out of bounds
         with self.assertRaises(ValueError):
             self.vizual.insert_column(ds.identifier, 100, 'Height')
@@ -246,8 +247,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to insert a row."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -261,7 +262,7 @@ class TestVizualEngine(unittest.TestCase):
         self.assertNotEquals(id1, ds.identifier)
         # Retrieve modified dataset
         ds = self.datastore.get_dataset(id1)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         # Ensure that there are three rows
         self.assertEquals(len(ds_rows), 3)
         # The second row has empty values for each column
@@ -275,7 +276,7 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(row_count, 1)
         self.assertNotEquals(id1, id2)
         ds = self.datastore.get_dataset(id2)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         # Ensure that there are three rows
         self.assertEquals(len(ds_rows), 4)
         # The next to last row has non-empty values for each column
@@ -308,8 +309,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to load a dataset."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         self.assertEquals(len(ds.columns), 3)
         self.assertEquals(len(ds_rows), 2)
         # Ensure exception is thrown if dataset identifier is unknown
@@ -321,8 +322,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to move a column."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -334,7 +335,7 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(col_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Age'.upper())
         self.assertEquals(ds.columns[1].name.upper(), 'Name'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
@@ -358,7 +359,7 @@ class TestVizualEngine(unittest.TestCase):
         col_ids.append(c)
         col_count, id2 = self.vizual.move_column(id1, 'Salary', 1)
         ds = self.datastore.get_dataset(id2)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Age'.upper())
         self.assertEquals(ds.columns[1].name.upper(), 'Salary'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Name'.upper())
@@ -390,8 +391,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to move a row."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -401,7 +402,7 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(row_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Name'.upper())
         self.assertEquals(ds.columns[1].name.upper(), 'Age'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
@@ -423,7 +424,7 @@ class TestVizualEngine(unittest.TestCase):
         row_ids = [row for row in reversed(row_ids)]
         row_count, id2 = self.vizual.move_row(id1, 1, 0)
         ds = self.datastore.get_dataset(id2)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Name'.upper())
         self.assertEquals(ds.columns[1].name.upper(), 'Age'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
@@ -445,7 +446,7 @@ class TestVizualEngine(unittest.TestCase):
         row_count, id3 = self.vizual.move_row(id2, 0, 2)
         row_ids = [row for row in reversed(row_ids)]
         ds = self.datastore.get_dataset(id3)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Bob')
         self.assertEquals(row.values[1], '32')
@@ -474,8 +475,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to rename a column."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -489,7 +490,7 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         col_count, id2 = self.vizual.rename_column(id1, 1, 'BDate')
         ds = self.datastore.get_dataset(id2)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Firstname'.upper())
         self.assertEquals(ds.columns[1].name, 'BDate')
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
@@ -511,7 +512,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test sequence of calls that modify a dataset."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
         count, ds_id = self.vizual.insert_row(ds.identifier, 1)
         count, ds_id = self.vizual.insert_column(ds_id, 3, 'HDate')
         count, ds_id = self.vizual.update_cell(ds_id, 'HDate', 0, '180')
@@ -527,7 +528,7 @@ class TestVizualEngine(unittest.TestCase):
         count, ds_id = self.vizual.delete_row(ds_id, 0)
         count, ds_id = self.vizual.delete_row(ds_id, 0)
         ds = self.datastore.get_dataset(ds_id)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         names = ['Name', 'Height', 'Salary']
         self.assertEquals(len(ds.columns), len(names))
         for i in range(len(names)):
@@ -543,8 +544,8 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to update a dataset cell."""
         self.set_up(engine)
         # Create a new dataset
-        ds = self.vizual.load_dataset(self.file.identifier)
-        ds_rows = ds.rows()
+        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
@@ -555,11 +556,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(upd_rows, 1)
         self.assertNotEquals(ds.identifier, id1)
         ds = self.datastore.get_dataset(id1)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(ds_rows[0].values[0], 'MyValue')
         upd_rows, id2 = self.vizual.update_cell(id1, 'Name', 0, 'AValue')
         ds = self.datastore.get_dataset(id2)
-        ds_rows = ds.rows()
+        ds_rows = ds.fetch_rows()
         self.assertEquals(ds_rows[0].values[0], 'AValue')
         self.assertEquals(ds_rows[0].values[ds.column_index('Name')], 'AValue')
         # Ensure that row ids haven't changed

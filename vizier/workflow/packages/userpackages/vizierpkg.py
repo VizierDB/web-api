@@ -14,7 +14,7 @@ from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mem import VolatileDataStore
 from vizier.datastore.metadata import DatasetMetadata
 from vizier.datastore.mimir import COL_PREFIX, ROW_ID
-from vizier.datastore.mimir import MimirDatasetColumn, MimirDatasetDescriptor
+from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import MimirDataStore, create_missing_key_view
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import TXT_NORMAL, TXT_ERROR
@@ -77,6 +77,7 @@ class MimirLens(Module):
         # Module outputs
         outputs = dict({TXT_NORMAL: list(), TXT_ERROR: list()})
         store_as_dataset = None
+        update_rows = False
         # Get dataset. Raise exception if dataset is unknown
         ds_name = get_argument(cmd.PARA_DATASET, args).lower()
         dataset_id = vizierdb.get_dataset_identifier(ds_name)
@@ -88,6 +89,7 @@ class MimirLens(Module):
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
             column = dataset.columns[dataset.column_index(c_col)]
             params = [column.name_in_rdb]
+            update_rows = True
         elif lens == cmd.MIMIR_MISSING_KEY:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
             column = dataset.columns[dataset.column_index(c_col)]
@@ -173,10 +175,6 @@ class MimirLens(Module):
                 column.name_in_rdb
             )
             dataset.row_counter = row_counter
-        if lens == cmd.MIMIR_SCHEMA_MATCHING:
-            outputs[TXT_NORMAL].append('Created ' + lens_name + ' as ' + store_as_dataset)
-        else:
-            outputs[TXT_NORMAL].append('Created ' + lens_name)
         # Create datastore entry for lens.
         if not store_as_dataset is None:
             columns = list()
@@ -187,17 +185,26 @@ class MimirLens(Module):
                     c_name,
                     COL_PREFIX + str(col_id)
                 ))
-            ds = vizierdb.datastore.insert_dataset(table_name, columns)
+            #ds = vizierdb.datastore.create_dataset(table_name, columns)
+            ds, _ = vizierdb.datastore.register_dataset(
+                table_name=lens_name,
+                columns=columns,
+                row_ids=dataset.row_ids,
+                annotations=dataset.annotations,
+                update_rows=True
+            )
             ds_name = store_as_dataset
         else:
-            ds = vizierdb.datastore.insert_dataset(
+            ds, _ = vizierdb.datastore.register_dataset(
                 table_name=lens_name,
                 columns=dataset.columns,
                 row_ids=dataset.row_ids,
                 column_counter=dataset.column_counter,
                 row_counter=dataset.row_counter,
-                annotations=dataset.annotations
+                annotations=dataset.annotations,
+                update_rows=update_rows
             )
+        print_dataset_schema(outputs, store_as_dataset, ds.columns)
         vizierdb.set_dataset_identifier(ds_name, ds.identifier)
         # Propagate potential changes to the dataset mappings
         propagate_changes(module_id, vizierdb.datasets, context)
@@ -351,16 +358,10 @@ class VizualCell(NotCacheable, Module):
                 raise ValueError('invalid dataset name \'' + ds_name + '\'')
             # Execute VizUAL creat dataset command. Add new dataset to
             # dictionary and add dataset schema and row count to output
-            ds = v_eng.load_dataset(ds_file)
+            ds, rows = v_eng.load_dataset(ds_file)
             vizierdb.set_dataset_identifier(ds_name, ds.identifier)
-            outputs[TXT_NORMAL].append(ds_name + ' (')
-            for i in range(len(ds.columns)):
-                text = '  ' + ds.columns[i].name
-                if i != len(ds.columns) - 1:
-                    text += ','
-                outputs[TXT_NORMAL].append(text)
-            outputs[TXT_NORMAL].append(')')
-            outputs[TXT_NORMAL].append(str(len(ds.rows)) + ' row(s)')
+            print_dataset_schema(outputs, ds_name, ds.columns)
+            outputs[TXT_NORMAL].append(str(rows) + ' row(s)')
         elif name == cmd.VIZUAL_MOV_COL:
             # Get dataset name, column name, and target position. Raise
             # exception if the specified dataset does not exist or the
@@ -527,6 +528,27 @@ def get_env(module_id, context):
         vizual = MimirVizualEngine(datastore, fileserver)
     # Return vizier client
     return VizierDBClient(datastore, datasets, vizual)
+
+
+def print_dataset_schema(outputs, name, columns):
+    """Add schema infromation for given dataset to cell output.
+
+    Parameters
+    ----------
+    outputs: dict
+        Cell outputs dictionary
+    name: string
+        Dataset name
+    columns: list(vizier.datasetore.base.DatasetColumn)
+        Columns in the dataset schema
+    """
+    outputs[TXT_NORMAL].append(name + ' (')
+    for i in range(len(columns)):
+        text = '  ' + str(columns[i])
+        if i != len(columns) - 1:
+            text += ','
+        outputs[TXT_NORMAL].append(text)
+    outputs[TXT_NORMAL].append(')')
 
 
 def propagate_changes(module_id, datasets, context):

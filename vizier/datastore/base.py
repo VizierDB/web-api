@@ -30,10 +30,14 @@ class DatasetHandle(object):
         Annotations for dataset components
     columns: list(DatasetColumns)
         List of dataset columns
+    column_counter: int
+        Counter to generate unique column identifier
+    row_counter: int
+        Counter to generate unique row identifier
     identifier: string
         Unique dataset identifier
     """
-    def __init__(self, identifier, columns, annotations=None):
+    def __init__(self, identifier, columns, column_counter=0, row_counter=0, annotations=None):
         """Initialize the dataset.
 
         Raises ValueError if dataset columns or rows do not have unique
@@ -46,6 +50,10 @@ class DatasetHandle(object):
         columns: list(DatasetColumn), optional
             List of columns. It is expected that each column has a unique
             identifier.
+        column_counter: int, optional
+            Counter to generate unique column identifier
+        row_counter: int, optional
+            Counter to generate unique row identifier
         annotations: vizier.datastore.metadata.DatasetMetadata
             Annotations for dataset components
         """
@@ -59,6 +67,9 @@ class DatasetHandle(object):
                 raise ValueError('invalid column identifier \'' + str(col.identifier) + '\'')
             ids.add(col.identifier)
         self.columns = columns
+        # Column and row counter
+        self.column_counter = column_counter
+        self.row_counter = row_counter
         # Set the dataset annotations. If no annotations were given
         # create an empty annotation set
         self.annotations = annotations if not annotations is None else DatasetMetadata()
@@ -118,17 +129,7 @@ class DatasetHandle(object):
                 return name_index
             raise ValueError('unknown column \'' + str(column_id) + '\'')
 
-    @abstractmethod
-    def reader(self):
-        """Get reader for the dataset to access the dataset rows.
-
-        Returns
-        -------
-        vizier.datastore.reader.DatasetReader
-        """
-        raise NotImplementedError
-
-    def rows(self, offset=0, limit=-1):
+    def fetch_rows(self, offset=0, limit=-1):
         """Get list of dataset rows. The offset and limit parameters are
         intended for pagination.
 
@@ -156,10 +157,19 @@ class DatasetHandle(object):
                     skip -= 1
                 else:
                     rows.append(row)
-                    if limit > 0 and len(rows) > limit:
+                    if limit > 0 and len(rows) >= limit:
                         break
         return rows
 
+    @abstractmethod
+    def reader(self):
+        """Get reader for the dataset to access the dataset rows.
+
+        Returns
+        -------
+        vizier.datastore.reader.DatasetReader
+        """
+        raise NotImplementedError
 
 
 class DatasetColumn(object):
@@ -174,18 +184,27 @@ class DatasetColumn(object):
     name: string
         Column name
     """
-    def __init__(self, identifier, name):
+    def __init__(self, identifier=None, name=None):
         """Initialize the column object.
 
         Parameters
         ----------
-        identifier: int
+        identifier: int, optional
             Unique column identifier
-        name: string
+        name: string, optional
             Column name
         """
-        self.identifier = identifier
+        self.identifier = identifier if not identifier is None else -1
         self.name = name
+
+    def __str__(self):
+        """Human-readable string representation for the column.
+
+        Returns
+        -------
+        string
+        """
+        return self.name
 
     @staticmethod
     def from_dict(obj):
@@ -217,21 +236,18 @@ class DatasetRow(object):
     values : list(string)
         List of column values in the row
     """
-    def __init__(self, identifier, values, dataset=None):
+    def __init__(self, identifier=None, values=None):
         """Initialize the row object.
 
         Parameters
         ----------
-        identifier: int
+        identifier: int, optional
             Unique row identifier
-        values : list(string)
+        values : list(string), optional
             List of column values in the row
-        dataset : Dataset, optional
-            Reference to dataset that contains the row
         """
-        self.identifier = identifier
+        self.identifier = identifier if not identifier is None else -1
         self.values = values
-        self.dataset = dataset
 
     @staticmethod
     def from_dict(obj):
@@ -242,42 +258,6 @@ class DatasetRow(object):
         vizier.datastore.base.DatasetRow
         """
         return DatasetRow(int(obj['id']), obj['values'])
-
-    def get_value(self, column):
-        """Get the row value for the given column.
-
-        Parameters
-        ----------
-        column : int or string
-            Column index, name, or label
-
-        Returns
-        -------
-        string
-        """
-        col_index = self.dataset.column_index(column)
-        return self.values[col_index]
-
-    def set_value(self, column, value, clear_annotations=True):
-        """Set the row value for the given column.
-
-        Parameters
-        ----------
-        column : int or string
-            Column index, name, or label
-        value : string
-            New cell value
-        keep_annotations: bool, optional
-            Flag indicating whether to keep or clear the annotations that are
-            associated with this cell
-        """
-        col_index = self.dataset.column_index(column)
-        self.values[col_index] = value
-        if clear_annotations:
-            self.dataset.annotations.clear_cell(
-                self.dataset.columns[col_index].identifier,
-                self.identifier
-            )
 
     def to_dict(self):
         """Dictionary serialization of the dataset row object.
@@ -316,6 +296,39 @@ class DataStore(VizierSystemComponent):
         list
         """
         return [component_descriptor('datastore', self.system_build())]
+
+    @abstractmethod
+    def create_dataset(
+        self, identifier=None, columns=None, rows=None, column_counter=None,
+        row_counter=None, annotations=None
+    ):
+        """Create a new dataset in the data store for the given data.
+
+        Raises ValueError if (1) any of the column or row identifier have a
+        negative value, or (2) if the given column or row counter have value
+        lower or equal to any of the column or row identifier.
+
+        Parameters
+        ----------
+        identifier: string, optional
+            Unique dataset identifier
+        columns: list(vizier.datastore.base.DatasetColumn)
+            List of columns. It is expected that each column has a unique
+            identifier.
+        rows: list(vizier.datastore.base.DatasetRow)
+            List of dataset rows.
+        column_counter: int, optional
+            Counter to generate unique column identifier
+        row_counter: int, optional
+            Counter to generate unique row identifier
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetHandle, int
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def delete_dataset(self, identifier):
@@ -362,7 +375,7 @@ class DataStore(VizierSystemComponent):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle
+        vizier.datastore.base.DatasetHandle, int
         """
         raise NotImplementedError
 
@@ -438,7 +451,7 @@ def max_column_id(columns):
     return max_object_id(columns)
 
 
-def max_object_id(object):
+def max_object_id(objects):
     """Return maximum identifier for a list of identifiable objects.
 
     Parameters
@@ -470,3 +483,15 @@ def max_row_id(rows):
     int
     """
     return max_object_id(rows)
+
+
+def validate_schema(columns, rows):
+    """Validate that the given set of rows contains exactly one value for each
+    column in a dataset schema.
+
+    Raises ValueError in case of a schema violation.
+    """
+    for i in range(len(rows)):
+        row = rows[i]
+        if len(row.values) != len(columns):
+            raise ValueError('schema violation for row \'' + str(i) + '\'')
