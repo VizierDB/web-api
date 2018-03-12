@@ -9,8 +9,8 @@ import unittest
 from vizier.config import TestEnv
 from vizier.workflow.base import DEFAULT_BRANCH
 from vizier.workflow.module import ModuleSpecification
-from vizier.workflow.command import MODTYPE_PYTHON, PYTHON_CODE, PYTHON_SOURCE, python_cell
-from vizier.workflow.command import MODTYPE_VIZUAL, VIZUAL_LOAD, load_dataset, PARA_FILE, PARA_NAME
+from vizier.workflow.command import PACKAGE_PYTHON, PYTHON_CODE, PYTHON_SOURCE, python_cell
+from vizier.workflow.command import PACKAGE_VIZUAL, VIZUAL_LOAD, load_dataset, PARA_FILE, PARA_NAME
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 
 VIZTRAILS_DIRECTORY = './env/vt'
@@ -54,8 +54,8 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         # Ensure that all modules have non-negative identifier
         for m in head.modules:
             self.assertTrue(m.identifier >= 0)
-        self.assertEquals(head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(head.modules[1].command.module_type, MODTYPE_VIZUAL)
+        self.assertEquals(head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(head.modules[1].command.module_type, PACKAGE_VIZUAL)
         self.assertEquals(head.version, 1)
         # Re-load the viztrails to ensure that all information has been persisted properly
         self.db = FileSystemViztrailRepository(
@@ -73,8 +73,8 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         # Ensure that all modules have non-negative identifier
         for m in head.modules:
             self.assertTrue(m.identifier >= 0)
-        self.assertEquals(head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(head.modules[1].command.module_type, MODTYPE_VIZUAL)
+        self.assertEquals(head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(head.modules[1].command.module_type, PACKAGE_VIZUAL)
         self.assertEquals(head.version, 1)
         # Append a third moduel to the head of the default branch
         self.db.append_workflow_module(viztrail_id=vt.identifier, command=python_cell('def'))
@@ -83,9 +83,9 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         for m in wf.modules:
             self.assertTrue(m.identifier >= 0)
             self.assertEquals(m.stdout[0], 'SUCCESS ' + str(m.identifier))
-        self.assertEquals(wf.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(wf.modules[1].command.module_type, MODTYPE_VIZUAL)
-        self.assertEquals(wf.modules[2].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(wf.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(wf.modules[1].command.module_type, PACKAGE_VIZUAL)
+        self.assertEquals(wf.modules[2].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.version, 2)
         # Append a module to the first version in the branch. The resulting new
         # branch HEAD is expected to contain only two modules then.
@@ -100,8 +100,8 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         for m in wf.modules:
             self.assertTrue(m.identifier >= 0)
             self.assertEquals(m.stdout[0], 'SUCCESS ' + str(m.identifier))
-        self.assertEquals(wf.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(wf.modules[1].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(wf.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(wf.modules[1].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.version, 3)
 
     def test_branching(self):
@@ -155,17 +155,17 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         )
         master_head = vt.get_workflow()
         self.assertEquals(len(master_head.modules), 3)
-        self.assertEquals(master_head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(master_head.modules[1].command.module_type, MODTYPE_VIZUAL)
-        self.assertEquals(master_head.modules[2].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(master_head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(master_head.modules[1].command.module_type, PACKAGE_VIZUAL)
+        self.assertEquals(master_head.modules[2].command.module_type, PACKAGE_PYTHON)
         b2_head = vt.get_workflow(branch_id=newbranch.identifier)
         self.assertEquals(len(b2_head.modules), 2)
-        self.assertEquals(b2_head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(b2_head.modules[1].command.module_type, MODTYPE_VIZUAL)
+        self.assertEquals(b2_head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(b2_head.modules[1].command.module_type, PACKAGE_VIZUAL)
         b3_head = vt.get_workflow(branch_id=thirdbranch.identifier)
         self.assertEquals(len(b3_head.modules), 2)
-        self.assertEquals(b3_head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(b3_head.modules[1].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(b3_head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(b3_head.modules[1].command.module_type, PACKAGE_PYTHON)
         # Replace second module of third branch
         self.db.replace_workflow_module(
             viztrail_id=vt.identifier,
@@ -175,17 +175,17 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         )
         b3_head = vt.get_workflow(branch_id=thirdbranch.identifier)
         self.assertEquals(len(b3_head.modules), 2)
-        self.assertEquals(b3_head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(b3_head.modules[1].command.module_type, MODTYPE_VIZUAL)
+        self.assertEquals(b3_head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(b3_head.modules[1].command.module_type, PACKAGE_VIZUAL)
         master_head = vt.get_workflow()
         self.assertEquals(len(master_head.modules), 3)
-        self.assertEquals(master_head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(master_head.modules[1].command.module_type, MODTYPE_VIZUAL)
-        self.assertEquals(master_head.modules[2].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(master_head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(master_head.modules[1].command.module_type, PACKAGE_VIZUAL)
+        self.assertEquals(master_head.modules[2].command.module_type, PACKAGE_PYTHON)
         b2_head = vt.get_workflow(branch_id=newbranch.identifier)
         self.assertEquals(len(b2_head.modules), 2)
-        self.assertEquals(b2_head.modules[0].command.module_type, MODTYPE_PYTHON)
-        self.assertEquals(b2_head.modules[1].command.module_type, MODTYPE_VIZUAL)
+        self.assertEquals(b2_head.modules[0].command.module_type, PACKAGE_PYTHON)
+        self.assertEquals(b2_head.modules[1].command.module_type, PACKAGE_VIZUAL)
         # Ensure there are exceptions raised when branching of an unknown branch
         # or module
         with self.assertRaises(ValueError):
@@ -216,11 +216,11 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         self.assertEquals(wf.version, 1)
         self.assertEquals(len(wf.modules), 2)
         self.assertEquals(len(wf.modules[0].stdout), 1)
-        self.assertEquals(wf.modules[0].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(wf.modules[0].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.modules[0].command.command_identifier, PYTHON_CODE)
         self.assertEquals(wf.modules[0].command.arguments[PYTHON_SOURCE], 'abc')
         self.assertEquals(len(wf.modules[1].stdout), 1)
-        self.assertEquals(wf.modules[1].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(wf.modules[1].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.modules[1].command.command_identifier, PYTHON_CODE)
         self.assertEquals(wf.modules[1].command.arguments[PYTHON_SOURCE], 'def')
         self.db.replace_workflow_module(viztrail_id=vt.identifier, module_id=0, command=load_dataset('file', 'ds'))
@@ -228,12 +228,12 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         self.assertEquals(wf.version, 2)
         self.assertEquals(len(wf.modules), 2)
         self.assertEquals(len(wf.modules[0].stdout), 1)
-        self.assertEquals(wf.modules[0].command.module_type, MODTYPE_VIZUAL)
+        self.assertEquals(wf.modules[0].command.module_type, PACKAGE_VIZUAL)
         self.assertEquals(wf.modules[0].command.command_identifier, VIZUAL_LOAD)
         self.assertEquals(wf.modules[0].command.arguments[PARA_FILE], 'file')
         self.assertEquals(wf.modules[0].command.arguments[PARA_NAME], 'ds')
         self.assertEquals(len(wf.modules[1].stdout), 2)
-        self.assertEquals(wf.modules[1].command.module_type, MODTYPE_PYTHON)
+        self.assertEquals(wf.modules[1].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.modules[1].command.command_identifier, PYTHON_CODE)
         self.assertEquals(wf.modules[1].command.arguments[PYTHON_SOURCE], 'def')
 

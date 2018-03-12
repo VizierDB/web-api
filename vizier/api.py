@@ -44,6 +44,11 @@ REL_INSERT = 'insert'
 REL_MODULES = 'modules'
 REL_MODULE_SPECS = 'environment'
 REL_NOTEBOOK = 'notebook'
+REL_PAGE = 'page'
+REL_PAGE_FIRST = REL_PAGE + 'first'
+REL_PAGE_LAST = REL_PAGE + 'last'
+REL_PAGE_NEXT = REL_PAGE + 'next'
+REL_PAGE_PREV = REL_PAGE + 'prev'
 REL_PROJECT = 'project'
 REL_PROJECTS = 'projects'
 REL_RENAME = 'rename'
@@ -83,9 +88,12 @@ class VizierWebService(object):
         config : vizier.config.AppConfig
             Application configuration parameters
         """
+        self.config = config
         self.viztrails = viztrail_repository
         self.datastore = datastore
         self.fileserver = fileserver
+        # Cache for dataset descriptors
+        self.datasets = dict()
         # Initialize the factory for API resource Urls
         self.urls = UrlFactory(config)
         # Initialize the service description dictionary
@@ -101,7 +109,8 @@ class VizierWebService(object):
                     'id': config.envs[key].identifier,
                     'name': config.envs[key].name,
                     'description': config.envs[key].description,
-                    'default': config.envs[key].default
+                    'default': config.envs[key].default,
+                    'packages': config.envs[key].packages
                 } for key in config.envs
             ],
             JSON_REFERENCES : [
@@ -293,7 +302,114 @@ class VizierWebService(object):
     # --------------------------------------------------------------------------
     # Datasets
     # --------------------------------------------------------------------------
-    def get_dataset(self, dataset_id, offset=0, limit=-1, include_annotations=False):
+    def dataset_page_urls(self, dataset, rel, offset, limit):
+        """Get a pair of Urls to access a specific page of a dataset. the result
+        contains one Url to access the data with annotations and one Url to
+        access the data without annotations.
+
+        Parameters
+        ----------
+        dataset: vizier.datastore.base.DatasetHandle
+            Handle for the dataset
+        rel: string
+            HATEOS reference relationship
+        offset: int
+            Current pagination offset
+        limit: int
+            Current paginatio limit
+
+        Returns
+        -------
+        list
+        """
+        # Shortcuts
+        d_id = dataset.identifier
+        url = self.urls.dataset_pagination_url
+        # Return list with two references
+        return [
+            reference(rel, url(d_id, offset=offset, limit=limit)),
+            reference(
+                rel + 'anno',
+                url(d_id, offset=offset, limit=limit, include_annotations=True)
+            )
+        ]
+
+    def dataset_pagination_urls(self, dataset, offset=0, limit=None):
+        """Get a list of dataset references to allow browsing the dataset rows.
+
+        Parameters
+        ----------
+        dataset: vizier.datastore.base.DatasetHandle
+            Handle for the dataset
+        offset: int, optional
+            Current pagination offset
+        limit: int, optional
+            Current paginatio limit
+
+        Returns
+        -------
+        list()
+        """
+        # Max. number of records shown
+        if not limit is None and limit >= 0:
+            max_rows_per_request = int(limit)
+        elif self.config.defaults.row_limit >= 0:
+            max_rows_per_request = self.config.defaults.row_limit
+        elif self.config.defaults.max_row_limit >= 0:
+            max_rows_per_request = self.config.defaults.max_row_limit
+        else:
+            max_rows_per_request = -1
+        # List of pagination Urls
+        urls = list()
+        # FIRST: Always include Url's to access the first page
+        urls.extend(
+            self.dataset_page_urls(
+                dataset,
+                rel=REL_PAGE_FIRST,
+                offset=0,
+                limit=limit
+            )
+        )
+        # PREV: If offset is greater than zero allow to fetch previous page
+        if not offset is None and offset > 0:
+            if max_rows_per_request >= 0:
+                prev_offset = offset - max_rows_per_request
+                if prev_offset >= 0:
+                    urls.extend(
+                        self.dataset_page_urls(
+                            dataset,
+                            rel=REL_PAGE_PREV,
+                            offset=prev_offset,
+                            limit=limit
+                        )
+                    )
+        # NEXT & LAST: If there are rows beyond the current offset+limit include
+        # Url's to fetch next page and last page.
+        if offset < dataset.row_count and max_rows_per_request >= 0:
+            next_offset = offset + max_rows_per_request
+            if next_offset < dataset.row_count:
+                urls.extend(
+                    self.dataset_page_urls(
+                        dataset,
+                        rel=REL_PAGE_NEXT,
+                        offset=next_offset,
+                        limit=limit
+                    )
+                )
+            last_offset = (dataset.row_count - max_rows_per_request)
+            if last_offset > offset:
+                urls.extend(
+                    self.dataset_page_urls(
+                        dataset,
+                        rel=REL_PAGE_LAST,
+                        offset=last_offset,
+                        limit=limit
+                    )
+                )
+        # Return pagination Url list
+        return urls
+
+    def get_dataset(self, dataset_id, offset=None, limit=None, include_annotations=False):
         """Get dataset with given identifier. The result is None if no dataset
         with the given identifier exists.
 
@@ -316,17 +432,34 @@ class VizierWebService(object):
         """
         # Get dataset with given identifier from data store. If the dataset
         # does not exist the result is None.
-        dataset = self.datastore.get_dataset(dataset_id)
+        dataset = self.get_dataset_handle(dataset_id)
         if not dataset is None:
+            # Determine offset and limits
+            if not offset is None:
+                offset = max(0, int(offset))
+            else:
+                offset = 0
+            if not limit is None:
+                result_size = int(limit)
+            else:
+                result_size = self.config.defaults.row_limit
+            if result_size < 0 and self.config.defaults.max_row_limit > 0:
+                result_size = self.config.defaults.max_row_limit
+            elif self.config.defaults.max_row_limit >= 0:
+                result_size = min(result_size, self.config.defaults.max_row_limit)
             # Read dataset rows
             rows = list()
-            for row in dataset.fetch_rows(offset=offset, limit=limit):
-                rows.append(row.to_dict())
+            for row in dataset.fetch_rows(offset=offset, limit=result_size):
+                obj = row.to_dict()
+                obj['index'] = len(rows) + offset
+                rows.append(obj)
             # Serialize the dataset schema and cells
             obj = {
                 'id' : dataset.identifier,
                 'columns' : [col.to_dict() for col in dataset.columns],
-                'rows': rows
+                'rows': rows,
+                'offset': offset,
+                'rowcount': dataset.row_count
             }
             if include_annotations:
                 obj['annotations'] = self.serialize_dataset_annotations(
@@ -344,7 +477,7 @@ class VizierWebService(object):
                     REL_ANNOTATIONS,
                     self.urls.dataset_annotations_url(dataset_id)
                 )
-            ]
+            ] + self.dataset_pagination_urls(dataset, offset=offset, limit=limit)
             return obj
         else:
             return None
@@ -365,7 +498,7 @@ class VizierWebService(object):
         """
         # Get dataset with given identifier from data store. If the dataset
         # does not exist the result is None.
-        dataset = self.datastore.get_dataset(dataset_id)
+        dataset = self.get_dataset_handle(dataset_id)
         if not dataset is None:
             return self.serialize_dataset_annotations(
                 dataset_id,
@@ -387,7 +520,13 @@ class VizierWebService(object):
         -------
         vizier.datastore.base.DatasetHandle
         """
-        return self.datastore.get_dataset(dataset_id)
+        if dataset_id in self.datasets:
+            dataset = self.datasets[dataset_id]
+        else:
+            dataset = self.datastore.get_dataset(dataset_id)
+            if not dataset is None:
+                self.datasets[dataset_id] = dataset
+        return dataset
 
     def serialize_dataset_annotations(self, dataset_id, annotations):
         """Get dictionary serialization for dataset annotations.
@@ -1046,8 +1185,8 @@ class VizierWebService(object):
         ]
         return obj
 
-    def serialize_dataset_instance(self, dataset_id, dataset_name):
-        """Create dictionary serialization for dataset instance.
+    def serialize_dataset_descriptor(self, dataset_id):
+        """Create dictionary serialization for dataset descriptor.
 
         Parameters
         ----------
@@ -1060,8 +1199,14 @@ class VizierWebService(object):
         -------
         dict
         """
+        dataset = self.get_dataset_handle(dataset_id)
         return {
-            'name' : dataset_name,
+            'id': dataset_id,
+            'columns' : [
+                {'id': col.identifier, 'name': col.name}
+                    for col in dataset.columns
+            ],
+            'rows': dataset.row_count,
             JSON_REFERENCES : [
                 self_reference(self.urls.dataset_url(dataset_id)),
                 reference(
@@ -1072,7 +1217,7 @@ class VizierWebService(object):
                     REL_DOWNLOAD,
                     self.urls.dataset_download_url(dataset_id)
                 )
-            ]
+            ] + self.dataset_pagination_urls(dataset)
         }
 
     def serialize_module_handle(self, viztrail, branch, version, module):
@@ -1107,9 +1252,10 @@ class VizierWebService(object):
             },
             'stdout': module.stdout,
             'stderr': module.stderr,
-            'datasets': [
-                self.serialize_dataset_instance(module.datasets[d], d)
-                    for d in sorted(module.datasets.keys())
+            'datasets': [{
+                    'id': module.datasets[d],
+                    'name' : d
+                } for d in sorted(module.datasets.keys())
             ],
             JSON_REFERENCES: [
                 reference(REL_DELETE, module_url),
@@ -1197,6 +1343,14 @@ class VizierWebService(object):
             self.serialize_module_handle(viztrail, branch, version, m)
                 for m in workflow.modules
         ]
+        datasets = dict()
+        for module in workflow.modules:
+            for dataset_id in module.datasets.values():
+                if not dataset_id in datasets:
+                    datasets[dataset_id] = self.serialize_dataset_descriptor(
+                        dataset_id
+                    )
+        obj['datasets'] = datasets.values()
         return obj
 
     def update_branch(self, project_id, branch_id, properties):

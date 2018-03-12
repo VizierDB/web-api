@@ -1,7 +1,7 @@
 """Classes to manipulate vizier datasets from within the Python workflow cell.
 """
 
-from vizier.datastore.base import DatasetColumn, DatasetRow
+from vizier.datastore.base import DatasetColumn, DatasetRow, get_column_index
 from vizier.datastore.metadata import DatasetMetadata
 
 
@@ -73,39 +73,7 @@ class DatasetClient(object):
         -------
         int
         """
-        if isinstance(column_id, int):
-            # Return column if it is a column index and withing the range of
-            # dataset columns
-            if column_id >= 0 and column_id < len(self.columns):
-                return column_id
-            raise ValueError('invalid column index \'' + str(column_id) + '\'')
-        elif isinstance(column_id, basestring):
-            # Get index for column that has a name that matches column_id. If
-            # multiple matches are detected column_id will be interpreted as a
-            # column label
-            name_index = -1
-            for i in range(len(self.columns)):
-                col_name = self.columns[i].name
-                if col_name.lower() == column_id.lower():
-                    if name_index == -1:
-                        name_index = i
-                    else:
-                        # Multiple columns with the same name exist. SIgnal that
-                        # no unique column was found.
-                        name_index = -1
-                        break
-            if name_index == -1:
-                # Check whether column_id is a column label that is within the
-                # range of the dataset schema
-                label_index = collabel_2_index(column_id)
-                if label_index > 0:
-                    if label_index <= len(self.columns):
-                        name_index = label_index - 1
-            # Return index of column with matching name or label if there exists
-            # a unique solution. Otherwise raise exception.
-            if name_index != -1:
-                return name_index
-            raise ValueError('unknown column \'' + str(column_id) + '\'')
+        return get_column_index(self.columns, column_id)
 
     def delete_column(self, name):
         """Delete column from the dataset.
@@ -179,7 +147,7 @@ class DatasetClient(object):
             )
         else:
             # All values in the new row are set to the empty string by default.
-            row = DatasetRow(
+            row = MutableDatasetRow(
                 values = [None] * len(self.columns),
                 dataset=self
             )

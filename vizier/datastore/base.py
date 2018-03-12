@@ -32,12 +32,14 @@ class DatasetHandle(object):
         List of dataset columns
     column_counter: int
         Counter to generate unique column identifier
+    row_count: int
+        Number of rows in the dataset
     row_counter: int
         Counter to generate unique row identifier
     identifier: string
         Unique dataset identifier
     """
-    def __init__(self, identifier, columns, column_counter=0, row_counter=0, annotations=None):
+    def __init__(self, identifier, columns, row_count=0, column_counter=0, row_counter=0, annotations=None):
         """Initialize the dataset.
 
         Raises ValueError if dataset columns or rows do not have unique
@@ -50,6 +52,8 @@ class DatasetHandle(object):
         columns: list(DatasetColumn), optional
             List of columns. It is expected that each column has a unique
             identifier.
+        rows: int, optional
+            Number of rows in the dataset
         column_counter: int, optional
             Counter to generate unique column identifier
         row_counter: int, optional
@@ -67,6 +71,8 @@ class DatasetHandle(object):
                 raise ValueError('invalid column identifier \'' + str(col.identifier) + '\'')
             ids.add(col.identifier)
         self.columns = columns
+        # Row count
+        self.row_count = row_count
         # Column and row counter
         self.column_counter = column_counter
         self.row_counter = row_counter
@@ -95,39 +101,7 @@ class DatasetHandle(object):
         -------
         int
         """
-        if isinstance(column_id, int):
-            # Return column if it is a column index and withing the range of
-            # dataset columns
-            if column_id >= 0 and column_id < len(self.columns):
-                return column_id
-            raise ValueError('invalid column index \'' + str(column_id) + '\'')
-        elif isinstance(column_id, basestring):
-            # Get index for column that has a name that matches column_id. If
-            # multiple matches are detected column_id will be interpreted as a
-            # column label
-            name_index = -1
-            for i in range(len(self.columns)):
-                col_name = self.columns[i].name
-                if col_name.lower() == column_id.lower():
-                    if name_index == -1:
-                        name_index = i
-                    else:
-                        # Multiple columns with the same name exist. SIgnal that
-                        # no unique column was found.
-                        name_index = -1
-                        break
-            if name_index == -1:
-                # Check whether column_id is a column label that is within the
-                # range of the dataset schema
-                label_index = collabel_2_index(column_id)
-                if label_index > 0:
-                    if label_index <= len(self.columns):
-                        name_index = label_index - 1
-            # Return index of column with matching name or label if there exists
-            # a unique solution. Otherwise raise exception.
-            if name_index != -1:
-                return name_index
-            raise ValueError('unknown column \'' + str(column_id) + '\'')
+        return get_column_index(self.columns, column_id)
 
     def fetch_rows(self, offset=0, limit=-1):
         """Get list of dataset rows. The offset and limit parameters are
@@ -326,7 +300,7 @@ class DataStore(VizierSystemComponent):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle, int
+        vizier.datastore.base.DatasetHandle
         """
         raise NotImplementedError
 
@@ -375,7 +349,7 @@ class DataStore(VizierSystemComponent):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle, int
+        vizier.datastore.base.DatasetHandle
         """
         raise NotImplementedError
 
@@ -434,6 +408,64 @@ def collabel_2_index(label):
         else:
             return -1
     return num
+
+
+def get_column_index(columns, column_id):
+    """Get position of a column in a given column list. The column identifier
+    can either be of type int (i.e., the index position of the column in the
+    given list), or a string (either the column name or column label). If
+    column_id is of type string it is first assumed to be a column name.
+    Only if no column matches the column name or if multiple columns with
+    the given name exist will the value of column_id be interpreted as a
+    label.
+
+    Raises ValueError if column_id does not reference an existing column in
+    the dataset schema.
+
+    Parameters
+    ----------
+    columns: list(vizier.datastore.base.DatasetColumn)
+        List of columns in a dataset schema
+    column_id : int or string
+        Column index, name, or label
+
+    Returns
+    -------
+    int
+    """
+    if isinstance(column_id, int):
+        # Return column if it is a column index and withing the range of
+        # dataset columns
+        if column_id >= 0 and column_id < len(columns):
+            return column_id
+        raise ValueError('invalid column index \'' + str(column_id) + '\'')
+    elif isinstance(column_id, basestring):
+        # Get index for column that has a name that matches column_id. If
+        # multiple matches are detected column_id will be interpreted as a
+        # column label
+        name_index = -1
+        for i in range(len(columns)):
+            col_name = columns[i].name
+            if col_name.lower() == column_id.lower():
+                if name_index == -1:
+                    name_index = i
+                else:
+                    # Multiple columns with the same name exist. SIgnal that
+                    # no unique column was found.
+                    name_index = -1
+                    break
+        if name_index == -1:
+            # Check whether column_id is a column label that is within the
+            # range of the dataset schema
+            label_index = collabel_2_index(column_id)
+            if label_index > 0:
+                if label_index <= len(columns):
+                    name_index = label_index - 1
+        # Return index of column with matching name or label if there exists
+        # a unique solution. Otherwise raise exception.
+        if name_index != -1:
+            return name_index
+        raise ValueError('unknown column \'' + str(column_id) + '\'')
 
 
 def max_column_id(columns):

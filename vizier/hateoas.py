@@ -10,6 +10,11 @@ references for resources that are accessible via the Vizier Web API.
 """
 
 
+"""Pagination query parameter."""
+PAGE_LIMIT = 'limit'
+PAGE_OFFSET = 'offset'
+
+
 class UrlFactory:
     """Factory for API resource Urls. Contains the definitions of Url's for any
     resource that is accessible through the Web API in a single class.
@@ -133,6 +138,33 @@ class UrlFactory:
         string
         """
         return self.datasets_url()
+
+    def dataset_pagination_url(self, dataset_id, offset=0, limit=None, include_annotations=False):
+        """Get Url for dataset row pagination.
+
+        Parameters
+        ----------
+        dataset_id : string
+            Unique dataset identifier
+        offset: int, optional
+            Pagination offset. The returned Url always includes an offset
+            parameter
+        limit: int, optional
+            Dataset row limit. Only included if not None
+        include_annotations: boolean, optional
+            Extend Url to include annotations
+
+        Returns
+        -------
+        string
+        """
+        query = PAGE_OFFSET + '=' + str(offset)
+        if not limit is None:
+            query += '&' + PAGE_LIMIT + '=' + str(limit)
+        if include_annotations:
+            return self.dataset_with_annotations_url(dataset_id) + '&' + query
+        else:
+            return self.dataset_url(dataset_id) + '?' + query
 
     def dataset_url(self, dataset_id):
         """Url to retrieve dataset state in Json format.

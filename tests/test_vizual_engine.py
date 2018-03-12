@@ -82,7 +82,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to delete a column."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
@@ -133,7 +133,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to delete a row."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
@@ -179,7 +179,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to insert a columns."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
@@ -247,7 +247,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to insert a row."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
@@ -309,7 +309,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to load a dataset."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         self.assertEquals(len(ds.columns), 3)
         self.assertEquals(len(ds_rows), 2)
@@ -322,7 +322,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to move a column."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
@@ -391,7 +391,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to move a row."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
@@ -475,7 +475,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to rename a column."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
@@ -512,7 +512,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test sequence of calls that modify a dataset."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         count, ds_id = self.vizual.insert_row(ds.identifier, 1)
         count, ds_id = self.vizual.insert_column(ds_id, 3, 'HDate')
         count, ds_id = self.vizual.update_cell(ds_id, 'HDate', 0, '180')
@@ -544,7 +544,7 @@ class TestVizualEngine(unittest.TestCase):
         """Test functionality to update a dataset cell."""
         self.set_up(engine)
         # Create a new dataset
-        ds, row_count = self.vizual.load_dataset(self.file.identifier)
+        ds = self.vizual.load_dataset(self.file.identifier)
         ds_rows = ds.fetch_rows()
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]

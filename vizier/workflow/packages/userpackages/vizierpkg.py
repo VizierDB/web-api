@@ -186,7 +186,7 @@ class MimirLens(Module):
                     COL_PREFIX + str(col_id)
                 ))
             #ds = vizierdb.datastore.create_dataset(table_name, columns)
-            ds, _ = vizierdb.datastore.register_dataset(
+            ds = vizierdb.datastore.register_dataset(
                 table_name=lens_name,
                 columns=columns,
                 row_ids=dataset.row_ids,
@@ -195,7 +195,7 @@ class MimirLens(Module):
             )
             ds_name = store_as_dataset
         else:
-            ds, _ = vizierdb.datastore.register_dataset(
+            ds = vizierdb.datastore.register_dataset(
                 table_name=lens_name,
                 columns=dataset.columns,
                 row_ids=dataset.row_ids,
@@ -204,7 +204,7 @@ class MimirLens(Module):
                 annotations=dataset.annotations,
                 update_rows=update_rows
             )
-        print_dataset_schema(outputs, store_as_dataset, ds.columns)
+        print_dataset_schema(outputs, ds_name, ds.columns)
         vizierdb.set_dataset_identifier(ds_name, ds.identifier)
         # Propagate potential changes to the dataset mappings
         propagate_changes(module_id, vizierdb.datasets, context)
@@ -358,10 +358,10 @@ class VizualCell(NotCacheable, Module):
                 raise ValueError('invalid dataset name \'' + ds_name + '\'')
             # Execute VizUAL creat dataset command. Add new dataset to
             # dictionary and add dataset schema and row count to output
-            ds, rows = v_eng.load_dataset(ds_file)
+            ds = v_eng.load_dataset(ds_file)
             vizierdb.set_dataset_identifier(ds_name, ds.identifier)
             print_dataset_schema(outputs, ds_name, ds.columns)
-            outputs[TXT_NORMAL].append(str(rows) + ' row(s)')
+            outputs[TXT_NORMAL].append(str(ds.row_count) + ' row(s)')
         elif name == cmd.VIZUAL_MOV_COL:
             # Get dataset name, column name, and target position. Raise
             # exception if the specified dataset does not exist or the

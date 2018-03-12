@@ -98,7 +98,7 @@ class VizierDBClient(object):
                 row.identifier = row_counter
                 row_counter += 1
         # Write dataset to datastore and add new dataset to context
-        ds, rows = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=columns,
             rows=rows,
             column_counter=column_counter,
@@ -283,7 +283,7 @@ class VizierDBClient(object):
                 row.identifier = row_counter
                 row_counter += 1
         # Write dataset to datastore and add new dataset to context
-        ds, rows = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=columns,
             rows=rows,
             column_counter=column_counter,

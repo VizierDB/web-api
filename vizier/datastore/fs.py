@@ -40,8 +40,8 @@ class FileSystemDatasetHandle(DatasetHandle):
         }
     """
     def __init__(
-        self, identifier, columns, datafile, column_counter=0, row_counter=0,
-        annotations=None
+        self, identifier, columns, datafile, row_count=0, column_counter=0,
+        row_counter=0, annotations=None
     ):
         """Initialize the dataset handle.
 
@@ -57,6 +57,8 @@ class FileSystemDatasetHandle(DatasetHandle):
             in Json format.
         column_counter: int, optional
             Counter to generate unique column identifier
+        rows: int, optional
+            Number of rows in the dataset
         row_counter: int, optional
             Counter to generate unique row identifier
         annotations: vizier.datastore.metadata.DatasetMetadata, optional
@@ -65,6 +67,7 @@ class FileSystemDatasetHandle(DatasetHandle):
         super(FileSystemDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
+            row_count=row_count,
             column_counter=column_counter,
             row_counter=row_counter,
             annotations=annotations
@@ -97,6 +100,7 @@ class FileSystemDatasetHandle(DatasetHandle):
                 DatasetColumn.from_dict(col) for col in doc['columns']
             ],
             datafile=datafile,
+            row_count=doc['rows'],
             column_counter=doc['columnCounter'],
             row_counter=doc['rowCounter'],
             annotations=annotations
@@ -124,6 +128,7 @@ class FileSystemDatasetHandle(DatasetHandle):
         doc = {
             'id': self.identifier,
             'columns': [col.to_dict() for col in self.columns],
+            'rows': self.row_count,
             'columnCounter': self.column_counter,
             'rowCounter': self.row_counter
         }
@@ -229,6 +234,7 @@ class FileSystemDataStore(DataStore):
         dataset = FileSystemDatasetHandle(
             identifier=identifier,
             columns=columns,
+            row_count=len(rows),
             datafile=datafile,
             column_counter=column_counter,
             row_counter=row_counter,
@@ -238,7 +244,7 @@ class FileSystemDataStore(DataStore):
         # Write metadata file
         dataset.annotations.to_file(os.path.join(dataset_dir, METADATA_FILE))
         # Return handle for new dataset
-        return dataset, len(rows)
+        return dataset
 
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
@@ -312,7 +318,7 @@ class FileSystemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle, int
+        vizier.datastore.base.DatasetHandle
         """
         dataset = InMemDatasetHandle.from_file(f_handle)
         return self.create_dataset(

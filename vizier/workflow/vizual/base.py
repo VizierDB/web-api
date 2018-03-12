@@ -304,7 +304,7 @@ class DefaultVizualEngine(VizualEngine):
         for row in rows:
             del row.values[col_index]
         # Store updated dataset to get new identifier
-        ds, rows = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=columns,
             rows=rows,
             column_counter=dataset.column_counter,
@@ -343,7 +343,7 @@ class DefaultVizualEngine(VizualEngine):
         # Delete the row at the given position
         del rows[row]
         # Store updated dataset to get new identifier
-        ds, rows = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=dataset.columns,
             rows=rows,
             column_counter=dataset.column_counter,
@@ -392,7 +392,7 @@ class DefaultVizualEngine(VizualEngine):
         for row in rows:
             row.values.insert(position, None)
         # Store updated dataset to get new identifier
-        ds, rows = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=columns,
             rows=rows,
             column_counter=dataset.column_counter + 1,
@@ -432,7 +432,7 @@ class DefaultVizualEngine(VizualEngine):
         row = DatasetRow(dataset.row_counter, [None] * len(dataset.columns))
         rows.insert(position, row)
         # Store updated dataset to get new identifier
-        ds, rows = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=dataset.columns,
             rows=rows,
             column_counter=dataset.column_counter,
@@ -457,7 +457,7 @@ class DefaultVizualEngine(VizualEngine):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle, int
+        vizier.datastore.base.DatasetHandle
         """
         # Ensure that file name references a previously uploaded file.
         f_handle = self.fileserver.get_file(file_id)
@@ -504,7 +504,7 @@ class DefaultVizualEngine(VizualEngine):
             for row in rows:
                 row.values.insert(position, row.values.pop(source_idx))
             # Store updated dataset to get new identifier
-            ds, rows = self.datastore.create_dataset(
+            ds = self.datastore.create_dataset(
                 columns=columns,
                 rows=rows,
                 column_counter=dataset.column_counter,
@@ -551,7 +551,7 @@ class DefaultVizualEngine(VizualEngine):
         if row != position:
             rows.insert(position, rows.pop(row))
             # Store updated dataset to get new identifier
-            ds, rows = self.datastore.create_dataset(
+            ds = self.datastore.create_dataset(
                 columns=dataset.columns,
                 rows=rows,
                 column_counter=dataset.column_counter,
@@ -601,7 +601,7 @@ class DefaultVizualEngine(VizualEngine):
                 name
             )
             # Store updated dataset to get new identifier
-            ds, rows = self.datastore.create_dataset(
+            ds = self.datastore.create_dataset(
                 columns=columns,
                 rows=dataset.fetch_rows(),
                 column_counter=dataset.column_counter,
@@ -651,7 +651,7 @@ class DefaultVizualEngine(VizualEngine):
         values[col_idx] = value
         rows[row] = DatasetRow(r.identifier, values)
         # Store updated dataset to get new identifier
-        ds, rows = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=dataset.columns,
             rows=rows,
             column_counter=dataset.column_counter,

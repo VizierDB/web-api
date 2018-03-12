@@ -89,7 +89,7 @@ class TestVizierClient(unittest.TestCase):
         ds = client.get_dataset('SomeDataset')
         client.update_dataset('SomeDataset', ds)
         # Move columns around
-        ds, rows = self.ds.load_dataset(self.fs.upload_file(CSV_FILE))
+        ds = self.ds.load_dataset(self.fs.upload_file(CSV_FILE))
         ds = client.create_dataset('people', DatasetClient(ds))
         col_1 = [row.get_value(1) for row in ds.rows]
         ds.insert_column('empty', 2)
@@ -108,6 +108,15 @@ class TestVizierClient(unittest.TestCase):
             row = ds.rows[i]
             self.assertEquals(row.get_value('allnone'), col_2[i])
             self.assertEquals(row.values[2], col_1[i])
+        # Insert row
+        row = ds.insert_row()
+        row.set_value('Name', 'Zoe')
+        ds = client.create_dataset('upd', ds)
+        self.assertEquals(len(ds.rows), 3)
+        r2 = ds.rows[2]
+        self.assertEquals(r2.identifier, 2)
+        self.assertEquals(r2.values, ['Zoe', None, None, None])
+            
 
 if __name__ == '__main__':
     unittest.main()

@@ -75,11 +75,11 @@ class DefaultViztrailsEngine(WorkflowEngine):
         vizier.workflow.module.ModuleHandle
         """
         cmd = module.command
-        if cmd.is_type(cmdtype.MODTYPE_PYTHON):
+        if cmd.is_type(cmdtype.PACKAGE_PYTHON):
             cell = create_python_cell(module.identifier, cmd, context)
-        elif cmd.is_type(cmdtype.MODTYPE_MIMIR):
+        elif cmd.is_type(cmdtype.PACKAGE_MIMIR):
             cell = create_mimir_cell(module.identifier, cmd, context)
-        elif cmd.is_type(cmdtype.MODTYPE_VIZUAL):
+        elif cmd.is_type(cmdtype.PACKAGE_VIZUAL):
             cell = create_vizual_cell(module.identifier, cmd, context)
         else:
             raise ValueError('unknown module type \'' + cmd.module_type + '\'')
@@ -166,7 +166,7 @@ class DefaultViztrailsEngine(WorkflowEngine):
                 )
             else:
                 if i < start_index:
-                    if module.command.is_type(cmdtype.MODTYPE_PYTHON):
+                    if module.command.is_type(cmdtype.PACKAGE_PYTHON):
                         # Save original module dataset mapping. This mapping
                         # should not change.
                         m_datasets = module.datasets

@@ -14,6 +14,7 @@ from vizier.datastore.client import DatasetClient
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
+from vizier.workflow.command import PACKAGE_VIZUAL, PACKAGE_PYTHON, PACKAGE_MIMIR
 from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 from vizier.workflow.vizual.base import DefaultVizualEngine
@@ -99,7 +100,8 @@ class TestWorkflows(unittest.TestCase):
     def set_up_default(self):
         """Setup configuration using default Vizual engine."""
         env = ExecEnv(
-                FileServerConfig().from_dict({'directory': FILESERVER_DIR})
+                FileServerConfig().from_dict({'directory': FILESERVER_DIR}),
+                packages=[PACKAGE_VIZUAL, PACKAGE_PYTHON]
             ).from_dict({'datastore': {'directory': DATASTORE_DIR}})
         self.ENGINE_ID = env.identifier
         self.set_up()
@@ -114,7 +116,8 @@ class TestWorkflows(unittest.TestCase):
         """Setup configuration using Mimir engine."""
         env = ExecEnv(
                 FileServerConfig().from_dict({'directory': FILESERVER_DIR}),
-                identifier=ENGINEENV_MIMIR
+                identifier=ENGINEENV_MIMIR,
+                packages=[PACKAGE_VIZUAL, PACKAGE_PYTHON, PACKAGE_MIMIR]
             ).from_dict({'datastore': {'directory': DATASTORE_DIR}})
         self.ENGINE_ID = env.identifier
         self.set_up()

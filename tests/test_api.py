@@ -11,7 +11,7 @@ from vizier.datastore.mem import InMemDatasetHandle
 from vizier.datastore.metadata import DatasetMetadata, UpdateColumnAnnotation
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
-from vizier.workflow.command import MODTYPE_PYTHON, PYTHON_SOURCE, python_cell
+from vizier.workflow.command import PACKAGE_PYTHON, PYTHON_SOURCE, python_cell
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 
 from vizier.api import VizierWebService
@@ -74,7 +74,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.assertEquals(desc['name'], self.config.name)
         self.assertFalse(len(desc['envs']) == 0)
         for env in desc['envs']:
-            self.validate_keys(env, ['id', 'name', 'description', 'default'])
+            self.validate_keys(env, ['id', 'name', 'description', 'default', 'packages'])
         # Expect five references in the link listing: self, build, upload, doc,
         # and projects
         self.validate_links(desc['links'], ['self', 'build', 'doc', 'upload', 'projects', 'files'])
@@ -127,7 +127,7 @@ class TestWebServiceAPI(unittest.TestCase):
         annotations.for_column(0).set_annotation('comment', 'Hello')
         annotations.for_row(1).set_annotation('comment', 'World')
         annotations.for_cell(1, 0).set_annotation('comment', '!')
-        ds, row_count = self.datastore.create_dataset(
+        ds = self.datastore.create_dataset(
             columns=ds.columns,
             rows=ds.fetch_rows(),
             annotations=annotations
@@ -300,12 +300,12 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_workflow_descriptor(wf)
 
     def validate_dataset_handle(self, ds):
-        self.validate_keys(ds, ['id', 'columns', 'rows', 'links'])
+        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'rowcount'])
         for col in ds['columns']:
             self.validate_keys(col, ['id', 'name'])
         for row in ds['rows']:
-            self.validate_keys(row, ['id', 'values'])
-        self.validate_links(ds['links'], ['self', 'download', 'annotations'])
+            self.validate_keys(row, ['id', 'index', 'values'])
+        self.validate_links(ds['links'], ['self', 'download', 'annotations', 'pagefirst', 'pagefirstanno'])
 
     def validate_dataset_annotations(self, annos, col_anno_count=1):
         self.validate_keys(annos, ['columns', 'rows', 'cells', 'links'])
@@ -356,6 +356,8 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_keys(module, ['id', 'command', 'stdout', 'stderr', 'datasets', 'links'])
         self.validate_keys(module['command'], ['type', 'id', 'arguments'])
         self.validate_links(module['links'], ['delete', 'insert', 'replace'])
+        for ds in module['datasets']:
+            self.validate_keys(ds, ['id', 'name'])
 
     def validate_project_descriptor(self, pd):
         self.validate_keys(pd, ['id', 'environment', 'createdAt', 'lastModifiedAt', 'properties', 'links'])
@@ -381,7 +383,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_links(wf['links'], ['self', 'branch', 'append'])
 
     def validate_workflow_handle(self, wf, number_of_modules=0):
-        self.validate_keys(wf,['project', 'branch', 'version', 'modules', 'createdAt', 'links'])
+        self.validate_keys(wf,['project', 'branch', 'version', 'modules', 'createdAt', 'links', 'datasets'])
         self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append'])
         self.validate_project_descriptor(wf['project'])
         self.assertEquals(len(wf['modules']), number_of_modules)

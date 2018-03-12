@@ -10,6 +10,7 @@ import vistrails.packages.mimir.init as mimir
 
 from vizier.config import ExecEnv, FileServerConfig
 from vizier.config import ENGINEENV_MIMIR
+from vizier.datastore.client import DatasetClient
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
@@ -87,14 +88,14 @@ class TestMimirLenses(unittest.TestCase):
         self.assertFalse(wf.has_error)
         # Get dataset
         ds2 = self.datastore.get_dataset(wf.modules[0].datasets[DS_NAME])
-        self.assertEquals(len(ds1.rows), len(ds2.rows))
+        self.assertEquals(ds1.row_count, ds2.row_count)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertEquals(len(ds.columns), 4)
-        self.assertEquals(len(ds.rows), 2)
+        self.assertEquals(ds.row_count, 2)
         names = set()
         empids = set()
         rowids = set()
-        for row in ds.rows:
+        for row in DatasetClient(dataset=ds).rows:
             rowids.add(row.identifier)
             empids.add(row.get_value('empid'))
             names.add(row.get_value('name'))
@@ -206,6 +207,7 @@ class TestMimirLenses(unittest.TestCase):
             ])
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        print wf.modules[-1].stderr
         self.assertFalse(wf.has_error)
         # Get dataset
         self.assertEquals(len(wf.modules[-1].datasets), 1)
@@ -272,7 +274,7 @@ class TestMimirLenses(unittest.TestCase):
         self.assertEquals(len(wf.modules[-1].datasets), 2)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets['new_' + DS_NAME])
         self.assertEquals(len(ds.columns), 2)
-        self.assertEquals(len(ds.rows), 2)
+        self.assertEquals(ds.row_count, 2)
         # Error if adding an existing dataset
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -311,7 +313,6 @@ class TestMimirLenses(unittest.TestCase):
         ds1 = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertFalse(wf.has_error)
         # Infer type
-        print 'LENSE'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_type_inference(DS_NAME, 0.6)
@@ -321,9 +322,11 @@ class TestMimirLenses(unittest.TestCase):
         # Get dataset
         ds2 = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertEquals(len(ds2.columns), 3)
-        self.assertEquals(len(ds2.rows), 4)
-        for i in range(len(ds2.rows)):
-            self.assertEquals(ds1.rows[i].values, ds2.rows[i].values)
+        self.assertEquals(ds2.row_count, 4)
+        ds1_rows = ds1.fetch_rows()
+        ds2_rows = ds2.fetch_rows()
+        for i in range(ds2.row_count):
+            self.assertEquals(ds1_rows[i].values, ds2_rows[i].values)
         mimir.finalize()
 
 

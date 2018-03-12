@@ -10,12 +10,14 @@ envs:
       description: 'Curation workflow with basic functionality'
       datastore:
           directory: '../.vizierdb/datastore/default'
+      packages: ['vizual', 'python']
     - id: 'MIMIR'
       name: 'Vizier (Mimir)'
       description: 'Curation workflow with advanced Mimir functionality'
       default: true
       datastore:
           directory: '../.vizierdb/datastore/mimir'
+      packages: ['vizual', 'python', 'mimir']
 viztrails:
     directory: '../.vizierdb/viztrails'
 fileserver:

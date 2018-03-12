@@ -5,7 +5,7 @@ import unittest
 from vizier.config import ExecEnv, FileServerConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
 from vizier.core.properties import FilePropertiesHandler
 from vizier.workflow.base import DEFAULT_BRANCH, ViztrailBranch
-from vizier.workflow.command import MODTYPE_MIMIR, MODTYPE_PYTHON
+from vizier.workflow.command import PACKAGE_MIMIR, PACKAGE_PYTHON, PACKAGE_VIZUAL
 from vizier.workflow.repository.fs import PROPERTIES_FILE, FileSystemViztrailHandle, FileSystemViztrailRepository
 
 
@@ -47,8 +47,9 @@ class TestFileSystemViztrails(unittest.TestCase):
         # Assert viztrail properties
         self.assertEquals(viztrail.identifier, 'ID')
         self.assertEquals(viztrail.properties['name'], 'My Viztrail')
-        self.assertTrue(MODTYPE_PYTHON in viztrail.command_repository)
-        self.assertFalse(MODTYPE_MIMIR in viztrail.command_repository)
+        self.assertTrue(PACKAGE_VIZUAL in viztrail.command_repository)
+        self.assertFalse(PACKAGE_PYTHON in viztrail.command_repository)
+        self.assertFalse(PACKAGE_MIMIR in viztrail.command_repository)
         self.assertEquals(viztrail.version_counter.value, 0)
         self.assertEquals(viztrail.module_counter.value, 0)
         # Read viztrail handle from file and assert that all properties are
@@ -56,8 +57,9 @@ class TestFileSystemViztrails(unittest.TestCase):
         viztrail = FileSystemViztrailHandle.from_file(VIZTRAIL_DIR, repos)
         self.assertEquals(viztrail.identifier, 'ID')
         self.assertEquals(viztrail.properties['name'], 'My Viztrail')
-        self.assertTrue(MODTYPE_PYTHON in viztrail.command_repository)
-        self.assertFalse(MODTYPE_MIMIR in viztrail.command_repository)
+        self.assertTrue(PACKAGE_VIZUAL in viztrail.command_repository)
+        self.assertFalse(PACKAGE_PYTHON in viztrail.command_repository)
+        self.assertFalse(PACKAGE_MIMIR in viztrail.command_repository)
         self.assertEquals(viztrail.version_counter.value, 0)
         self.assertEquals(viztrail.module_counter.value, 0)
         # Updatecommand repository, version counter and module counter
@@ -111,24 +113,28 @@ class TestFileSystemViztrails(unittest.TestCase):
         # Create two viztrails
         vt1 = repo.create_viztrail(ENGINEENV_DEFAULT, {'name': 'Name A'})
         self.assertEquals(vt1.properties['name'], 'Name A')
-        self.assertTrue(MODTYPE_PYTHON in vt1.command_repository)
-        self.assertFalse(MODTYPE_MIMIR in vt1.command_repository)
+        self.assertTrue(PACKAGE_VIZUAL in vt1.command_repository)
+        self.assertFalse(PACKAGE_PYTHON in vt1.command_repository)
+        self.assertFalse(PACKAGE_MIMIR in vt1.command_repository)
         vt2 = repo.create_viztrail(ENGINEENV_MIMIR, {'name': 'Name B'})
         self.assertEquals(vt2.properties['name'], 'Name B')
-        self.assertTrue(MODTYPE_PYTHON in vt2.command_repository)
-        self.assertTrue(MODTYPE_MIMIR in vt2.command_repository)
+        self.assertTrue(PACKAGE_VIZUAL in vt2.command_repository)
+        self.assertFalse(PACKAGE_PYTHON in vt2.command_repository)
+        self.assertTrue(PACKAGE_MIMIR in vt2.command_repository)
         self.assertEquals(len(repo.list_viztrails()), 2)
         # Re-load the repository
         repo = FileSystemViztrailRepository(VIZTRAIL_DIR, repos)
         self.assertEquals(len(repo.list_viztrails()), 2)
         vt1 = repo.get_viztrail(vt1.identifier)
         self.assertEquals(vt1.properties['name'], 'Name A')
-        self.assertTrue(MODTYPE_PYTHON in vt1.command_repository)
-        self.assertFalse(MODTYPE_MIMIR in vt1.command_repository)
+        self.assertTrue(PACKAGE_VIZUAL in vt1.command_repository)
+        self.assertFalse(PACKAGE_PYTHON in vt1.command_repository)
+        self.assertFalse(PACKAGE_MIMIR in vt1.command_repository)
         vt2 = repo.get_viztrail(vt2.identifier)
         self.assertEquals(vt2.properties['name'], 'Name B')
-        self.assertTrue(MODTYPE_PYTHON in vt2.command_repository)
-        self.assertTrue(MODTYPE_MIMIR in vt2.command_repository)
+        self.assertTrue(PACKAGE_VIZUAL in vt2.command_repository)
+        self.assertFalse(PACKAGE_PYTHON in vt2.command_repository)
+        self.assertTrue(PACKAGE_MIMIR in vt2.command_repository)
         # Delete the first viztrail
         self.assertTrue(repo.delete_viztrail(vt1.identifier))
         # Re-load the repository
@@ -138,8 +144,9 @@ class TestFileSystemViztrails(unittest.TestCase):
         self.assertIsNotNone(repo.get_viztrail(vt2.identifier))
         vt2 = repo.list_viztrails()[0]
         self.assertEquals(vt2.properties['name'], 'Name B')
-        self.assertTrue(MODTYPE_PYTHON in vt2.command_repository)
-        self.assertTrue(MODTYPE_MIMIR in vt2.command_repository)
+        self.assertTrue(PACKAGE_VIZUAL in vt2.command_repository)
+        self.assertFalse(PACKAGE_PYTHON in vt2.command_repository)
+        self.assertTrue(PACKAGE_MIMIR in vt2.command_repository)
         self.assertFalse(repo.delete_viztrail(vt1.identifier))
 
     def test_viztrail_workflow(self):

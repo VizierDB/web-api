@@ -21,6 +21,7 @@ from vizier.datastore.metadata import UpdateColumnAnnotation as UpdCol
 from vizier.datastore.metadata import UpdateRowAnnotation as UpdRow
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
+from vizier.hateoas import PAGE_LIMIT, PAGE_OFFSET
 from vizier.workflow.module import ModuleSpecification
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 
@@ -237,29 +238,16 @@ def get_dataset(dataset_id):
     annotations = False
     if not request.args.get('includeAnnotations') is None:
         annotations = (request.args.get('includeAnnotations').lower() == 'true')
-    # Get offset and limit parameters
-    offset = request.args.get('offset')
-    if not offset is None:
-        try:
-            offset = int(offset)
-        except ValueError as ex:
-            raise InvalidRequest('invalid offset \'' + str(offset) + '\'')
-    else:
-        offset = 0
-    limit = request.args.get('limit')
-    if not limit is None:
-        try:
-            limit = int(limit)
-        except ValueError as ex:
-            raise InvalidRequest('invalid limit \'' + str(limit) + '\'')
-    else:
-        limit = config.defaults.rowlimit
-    dataset = api.get_dataset(
-        dataset_id,
-        offset=offset,
-        limit=limit,
-        include_annotations=annotations
-    )
+    # Get dataset rows with offset and limit parameters
+    try:
+        dataset = api.get_dataset(
+            dataset_id,
+            offset=request.args.get(PAGE_OFFSET),
+            limit=request.args.get(PAGE_LIMIT),
+            include_annotations=annotations
+        )
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
     if not dataset is None:
         return jsonify(dataset)
     raise ResourceNotFound('unknown dataset: ' + dataset_id)

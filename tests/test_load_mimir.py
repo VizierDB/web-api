@@ -54,16 +54,16 @@ class TestLoadMimirDataset(unittest.TestCase):
             print 'LOAD ' + filename
             filename = os.path.join(LOAD_DIR, filename)
             f_handle = self.fileserver.upload_file(filename)
-            ds, row_count = self.datastore.load_dataset(f_handle)
+            ds = self.datastore.load_dataset(f_handle)
             ds_load = self.datastore.get_dataset(ds.identifier)
             print [col.name_in_rdb + ' AS ' + col.name + '(' + col.data_type + ')' for col in ds_load.columns]
-            print str(row_count) + ' row(s)'
+            print str(ds.row_count) + ' row(s)'
             self.assertEquals(len(ds.columns), len(ds_load.columns))
             self.assertEquals(ds.column_counter, ds_load.column_counter)
             self.assertEquals(ds.row_counter, ds_load.row_counter)
             rows = ds.fetch_rows()
             self.assertEquals(ds.row_counter, len(rows))
-            self.assertEquals(row_count, len(rows))
+            self.assertEquals(ds.row_count, len(rows))
             for i in range(len(rows)):
                 row = rows[i]
                 self.assertEquals(row.identifier, i)

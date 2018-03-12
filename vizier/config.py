@@ -21,6 +21,7 @@ envs:
           directory: Base directory for datastore
       fileserver:
           directory: Base directory for fileserver (duplicated)
+      packages: [list of identifier for supported packages]
 viztrails:
   directory: Base directory for storing worktrail information and metadata
 name: Web Service name
@@ -35,6 +36,8 @@ or be located (as file config.yaml) in the current working directory.
 
 import os
 import yaml
+
+import vizier.workflow.command as cmd
 
 
 """Environment Variable containing path to config file."""
@@ -74,12 +77,12 @@ class AppConfig(object):
               default
               datastore:
                   directory
-              fileserver:
-                  directory
+              packages: []
         viztrails:
             directory
         defaults:
-            rowlimit
+            row_limit
+            max_row_limit
         name
         debug
         logs
@@ -219,7 +222,7 @@ class ExecEnv(object):
     user-readable description for the envirnment and configuration for the
     environment-specific data store.
     """
-    def __init__(self, fileserver, identifier=ENGINEENV_DEFAULT):
+    def __init__(self, fileserver, packages=None, identifier=ENGINEENV_DEFAULT):
         """Initialize the configuration parameters for the API execution
         environment with default values.
 
@@ -237,6 +240,12 @@ class ExecEnv(object):
         self.default = False
         self.datastore = FSObjectConfig(os.path.join(ENV_DIRECTORY, 'ds'))
         self.fileserver = fileserver
+        if not packages is None:
+            self.packages = packages
+        elif self.identifier == ENGINEENV_MIMIR:
+            self.packages = [cmd.PACKAGE_VIZUAL, cmd.PACKAGE_MIMIR]
+        else:
+            self.packages = [cmd.PACKAGE_VIZUAL]
 
     def from_dict(self, doc):
         """Read configuration parameters from the given dictionary.
@@ -264,6 +273,8 @@ class ExecEnv(object):
             self.default = doc['default']
         if 'datastore' in doc:
             self.datastore.from_dict(doc['datastore'])
+        if 'packages' in doc:
+            self.packages = doc['packages']
         return self
 
     @property
@@ -293,12 +304,15 @@ class APIDefaults(object):
     """Collection of default values for API."""
     def __init__(self):
         """Initialize default values."""
-        self.rowlimit = -1
+        self.row_limit = -1
+        self.max_row_limit = 100
 
     def from_dict(self, doc):
         """Initialize from dictionary."""
-        if 'rowlimit' in doc:
-            self.rowlimit = int(doc['rowlimit'])
+        if 'row_limit' in doc:
+            self.row_limit = int(doc['row_limit'])
+        if 'max_row_limit' in doc:
+            self.max_row_limit = int(doc['max_row_limit'])
 
 
 class FSObjectConfig(object):
@@ -365,13 +379,48 @@ class FileServerConfig(FSObjectConfig):
 # Helper Methods
 # ------------------------------------------------------------------------------
 
-def TestEnv():
+def TestEnv(packages=None):
     """Return execution environment for test workflow engine.
 
     Returns
     -------
     vizier.config.ExecEnv
     """
-    env = ExecEnv(FileServerConfig())
+    if packages is None:
+        packages = cmd.AVAILABLE_PACKAGES.keys()
+    env = ExecEnv(FileServerConfig(), packages=packages)
     env.identifier = ENGINEENV_TEST
     return env
+
+
+def env_commands(env_id, packages=None):
+    """Return dictionary of avaialable module specifications for a given
+    execution environment. The optional packages parameter allows to change the
+    default assignment of packages to environments.
+
+    Parameters
+    -----------
+    env_id: string
+        Unique identifier of the execution environment.
+    packages: list(string), optional
+        List of identifier for packages that are supported by he environment.
+
+    Returns
+    -------
+    dict
+    """
+    # By default all environments support Python module and VizUAL
+    if not packages is None:
+        commands = dict()
+        for package_id in cmd.AVAILABLE_PACKAGES:
+            if package_id in packages:
+                commands[package_id] = cmd.AVAILABLE_PACKAGES[package_id]
+    else:
+        commands = {
+            cmd.PACKAGE_PYTHON: cmd.PYTHON_COMMANDS,
+            cmd.PACKAGE_VIZUAL: cmd.VIZUAL_COMMANDS
+        }
+        # Add Mimir modules if environemt is MIMIR
+        if env_id == ENGINEENV_MIMIR:
+            commands[cmd.PACKAGE_MIMIR] = cmd.MIMIR_LENSES
+    return commands

@@ -8,7 +8,7 @@ import os
 import shutil
 import yaml
 
-from vizier.config import ENGINEENV_TEST
+from vizier.config import ENGINEENV_TEST, env_commands
 from vizier.core.properties import FilePropertiesHandler
 from vizier.core.system import build_info, component_descriptor
 from vizier.core.timestamp import get_current_time, to_datetime
@@ -16,7 +16,6 @@ from vizier.core.util import Sequence, get_unique_identifier
 from vizier.workflow.base import ViztrailBranch, ViztrailBranchProvenance
 from vizier.workflow.base import ViztrailHandle, WorkflowHandle
 from vizier.workflow.base import DEFAULT_BRANCH, DEFAULT_BRANCH_NAME
-from vizier.workflow.command import env_commands
 from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.module import ModuleHandle
 from vizier.workflow.repository.base import ViztrailRepository
@@ -92,7 +91,10 @@ class FileSystemViztrailHandle(ViztrailHandle):
     - <version-identifier>.yaml: For each workflow a separate file containing
       the workflow module specification and generated outputs is created.
     """
-    def __init__(self, identifier, branches, exec_env, properties, created_at=None, last_modified_at=None, version_counter=0, module_counter=0, fs_dir=None):
+    def __init__(
+        self, identifier, branches, exec_env, properties, created_at=None,
+        last_modified_at=None, version_counter=0, module_counter=0, fs_dir=None
+    ):
         """Initialize the viztrail handle. Raise a ValueError exception if no
         base directory is given.
 
@@ -122,7 +124,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
             identifier,
             branches,
             exec_env.identifier,
-            env_commands(exec_env.identifier),
+            env_commands(exec_env.identifier, packages=exec_env.packages),
             properties,
             created_at=created_at,
             last_modified_at=last_modified_at

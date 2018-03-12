@@ -9,6 +9,7 @@ from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, max_column_id, max_row_id
 from vizier.datastore.base import validate_schema
+from vizier.datastore.metadata import DatasetMetadata
 from vizier.datastore.reader import InMemDatasetReader
 
 
@@ -39,6 +40,7 @@ class InMemDatasetHandle(DatasetHandle):
         super(InMemDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
+            row_count=len(rows),
             column_counter=column_counter,
             row_counter=row_counter,
             annotations=annotations
@@ -128,7 +130,7 @@ class InMemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.mem.InMemDatasetHandle, int
+        vizier.datastore.mem.InMemDatasetHandle
         """
         # Set columns and rows if not given
         if columns is None:
@@ -146,6 +148,9 @@ class InMemDataStore(DataStore):
             column_counter = max_column_id(columns) + 1
         if row_counter is None:
             row_counter = max_row_id(rows)
+        # Make sure annotation sis not None
+        if annotations is None:
+            annotations = DatasetMetadata()
         self.datasets[identifier] = InMemDatasetHandle(
             identifier=identifier,
             columns=list(columns),
@@ -154,7 +159,7 @@ class InMemDataStore(DataStore):
             row_counter=row_counter,
             annotations=annotations.copy_metadata()
         )
-        return self.datasets[identifier], len(rows)
+        return self.datasets[identifier]
 
     def delete_dataset(self, identifier):
         """Delete dataset with given identifier. Returns True if dataset existed
@@ -217,7 +222,7 @@ class InMemDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.base.DatasetHandle, int
+        vizier.datastore.base.DatasetHandle
         """
         dataset = InMemDatasetHandle.from_file(f_handle)
         return self.create_dataset(

@@ -4,7 +4,7 @@ storage.
 
 import unittest
 
-from vizier.config import ENGINEENV_MIMIR
+from vizier.config import ENGINEENV_MIMIR, env_commands
 from vizier.workflow.module import ModuleSpecification
 
 import vizier.workflow.command as cmd
@@ -14,7 +14,7 @@ class TestValidateCommand(unittest.TestCase):
 
     def setUp(self):
         """Create an empty work trails repository."""
-        self.command_repository = cmd.env_commands(ENGINEENV_MIMIR)
+        self.command_repository = env_commands(ENGINEENV_MIMIR)
 
     def test_validate_mimir(self):
         """Test validation of Mimir cell command specifications."""
@@ -102,7 +102,7 @@ class TestValidateCommand(unittest.TestCase):
             cmd.validate_command(
                 self.command_repository,
                 ModuleSpecification(
-                    cmd.MODTYPE_PYTHON,
+                    cmd.PACKAGE_PYTHON,
                     cmd.PYTHON_CODE,
                     {'content' : 'abc'}
                 )
@@ -164,7 +164,7 @@ class TestValidateCommand(unittest.TestCase):
         with self.assertRaises(ValueError):
             cmd.validate_command(
                 self.command_repository,
-                ModuleSpecification(cmd.MODTYPE_VIZUAL, 'unknown', obj)
+                ModuleSpecification(cmd.PACKAGE_VIZUAL, 'unknown', obj)
             )
 
 

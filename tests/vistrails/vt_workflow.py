@@ -16,7 +16,7 @@ from vizier.config import TestEnv
 from vizier.datastore.mem import InMemDataStore
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.command import python_cell, load_dataset, mimir_missing_value
-from vizier.workflow.command import MODTYPE_PYTHON, MODTYPE_MIMIR, MODTYPE_VIZUAL
+from vizier.workflow.command import PACKAGE_PYTHON, PACKAGE_MIMIR, PACKAGE_VIZUAL
 from vizier.workflow.context import VZRENV_VARS_DBCLIENT, WorkflowContext
 from vizier.workflow.vizual.base import DefaultVizualEngine
 
@@ -26,7 +26,7 @@ from vizier.workflow.packages.userpackages.vizierpkg import PythonCell
 
 def create_module(command, controller):
     ops = list()
-    if command.is_type(MODTYPE_MIMIR):
+    if command.is_type(PACKAGE_MIMIR):
         # Create a new Mimir Lens
         module = controller.create_module(
             'org.vistrails.vistrails.vizier',
@@ -48,7 +48,7 @@ def create_module(command, controller):
                 [command.arguments]
             )
         )
-    elif command.is_type(MODTYPE_PYTHON):
+    elif command.is_type(PACKAGE_PYTHON):
         # Create a new Python Cell
         module = controller.create_module(
             'org.vistrails.vistrails.vizier',
@@ -63,7 +63,7 @@ def create_module(command, controller):
                 [command.arguments['source']]
             )
         )
-    elif command.is_type(MODTYPE_VIZUAL):
+    elif command.is_type(PACKAGE_VIZUAL):
         # Create a new Vizual Cell
         module = controller.create_module(
             'org.vistrails.vistrails.vizier',

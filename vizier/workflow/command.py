@@ -1,6 +1,5 @@
 """Specifications for supported workflow module types."""
 
-import vizier.config as config
 from vizier.workflow.module import ModuleSpecification
 
 
@@ -127,9 +126,9 @@ def parameter_specification(identifier, name, data_type, index, label=None, requ
 
 
 """Identifier for currently supported module types."""
-MODTYPE_MIMIR = 'mimir'
-MODTYPE_PYTHON = 'python'
-MODTYPE_VIZUAL = 'vizual'
+PACKAGE_MIMIR = 'mimir'
+PACKAGE_PYTHON = 'python'
+PACKAGE_VIZUAL = 'vizual'
 
 MODULE_NAME = 'name'
 MODULE_ARGUMENTS = 'arguments'
@@ -390,6 +389,14 @@ VIZUAL_COMMANDS = {
 }
 
 
+"""Dictionary of available packages."""
+AVAILABLE_PACKAGES = {
+    PACKAGE_PYTHON: PYTHON_COMMANDS,
+    PACKAGE_VIZUAL: VIZUAL_COMMANDS,
+    PACKAGE_MIMIR: MIMIR_LENSES
+}
+
+
 # ------------------------------------------------------------------------------
 # Mimir
 # ------------------------------------------------------------------------------
@@ -411,7 +418,7 @@ def mimir_key_repair(dataset_name, column, make_input_certain=False):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_MIMIR,
+        PACKAGE_MIMIR,
         MIMIR_KEY_REPAIR,
         {
             PARA_DATASET : dataset_name,
@@ -440,7 +447,7 @@ def mimir_missing_key(dataset_name, column, missing_only=None, make_input_certai
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_MIMIR,
+        PACKAGE_MIMIR,
         MIMIR_MISSING_KEY,
         {
             PARA_DATASET : dataset_name,
@@ -467,7 +474,7 @@ def mimir_missing_value(dataset_name, column, make_input_certain=False):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_MIMIR,
+        PACKAGE_MIMIR,
         MIMIR_MISSING_VALUE,
         {
             PARA_DATASET : dataset_name,
@@ -501,7 +508,7 @@ def mimir_picker(dataset_name,  schema, pick_as=None, make_input_certain=False):
     if not pick_as is None:
         args[PARA_PICKAS] = pick_as
     return ModuleSpecification(
-        MODTYPE_MIMIR,
+        PACKAGE_MIMIR,
         MIMIR_PICKER,
         args
     )
@@ -524,7 +531,7 @@ def mimir_schema_matching(dataset_name, schema, result_name, make_input_certain=
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_MIMIR,
+        PACKAGE_MIMIR,
         MIMIR_SCHEMA_MATCHING,
         {
             PARA_DATASET : dataset_name,
@@ -552,7 +559,7 @@ def mimir_type_inference(dataset_name, percent_conform, make_input_certain=False
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_MIMIR,
+        PACKAGE_MIMIR,
         MIMIR_TYPE_INFERENCE,
         {
             PARA_DATASET : dataset_name,
@@ -579,7 +586,7 @@ def python_cell(source):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_PYTHON,
+        PACKAGE_PYTHON,
         PYTHON_CODE,
         {PYTHON_SOURCE: source}
     )
@@ -604,7 +611,7 @@ def delete_column(dataset_name, column):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_DEL_COL,
         {
             PARA_DATASET : dataset_name,
@@ -628,7 +635,7 @@ def delete_row(dataset_name, row):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_DEL_ROW,
         {
             PARA_DATASET : dataset_name,
@@ -650,7 +657,7 @@ def drop_dataset(dataset_name):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_DROP_DS,
         {
             PARA_DATASET : dataset_name
@@ -675,7 +682,7 @@ def insert_column(dataset_name, position, name):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_INS_COL,
         {
             PARA_DATASET : dataset_name,
@@ -700,7 +707,7 @@ def insert_row(dataset_name, position):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_INS_ROW,
         {
             PARA_DATASET : dataset_name,
@@ -724,7 +731,7 @@ def load_dataset(file_id, dataset_name):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_LOAD,
         {
             PARA_FILE : file_id,
@@ -750,7 +757,7 @@ def move_column(dataset_name, column, position):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_MOV_COL,
         {
             PARA_DATASET : dataset_name,
@@ -777,7 +784,7 @@ def move_row(dataset_name, row, position):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_MOV_ROW,
         {
             PARA_DATASET : dataset_name,
@@ -804,7 +811,7 @@ def rename_column(dataset_name, column, name):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_REN_COL,
         {
             PARA_DATASET : dataset_name,
@@ -829,7 +836,7 @@ def rename_dataset(dataset_name, new_name):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_REN_DS,
         {
             PARA_DATASET : dataset_name,
@@ -857,7 +864,7 @@ def update_cell(dataset_name, column, row, value):
     vizier.workflow.module.ModuleSpecification
     """
     return ModuleSpecification(
-        MODTYPE_VIZUAL,
+        PACKAGE_VIZUAL,
         VIZUAL_UPD_CELL,
         {
             PARA_DATASET : dataset_name,
@@ -871,30 +878,6 @@ def update_cell(dataset_name, column, row, value):
 # ------------------------------------------------------------------------------
 # Helper Methods
 # ------------------------------------------------------------------------------
-
-
-def env_commands(env_id):
-    """Return dictionary of avaialable module specifications for a given
-    execution environment.
-
-    Parameters
-    -----------
-    env_id: string
-        Unique identifier of the execution environment.
-
-    Returns
-    -------
-    dict
-    """
-    # By default all environments support Python module and VizUAL
-    commands = {
-        MODTYPE_PYTHON: PYTHON_COMMANDS,
-        MODTYPE_VIZUAL: VIZUAL_COMMANDS
-    }
-    # Add Mimir modules if environemt is MIMIR
-    if env_id == config.ENGINEENV_MIMIR:
-        commands[MODTYPE_MIMIR] = MIMIR_LENSES
-    return commands
 
 
 def validate_arguments(spec, args):

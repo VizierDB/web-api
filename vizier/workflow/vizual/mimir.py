@@ -72,7 +72,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds, _ = self.datastore.register_dataset(
+        ds = self.datastore.register_dataset(
             table_name=view_name,
             columns=schema,
             row_ids=dataset.row_ids,
@@ -121,7 +121,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         sql += ' WHERE ' + ROW_ID + ' <> ' + dataset.rowid_column.to_sql_value(row_id)
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds, _ = self.datastore.register_dataset(
+        ds = self.datastore.register_dataset(
             table_name=view_name,
             columns=dataset.columns,
             row_ids=rows,
@@ -180,7 +180,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds, _ = self.datastore.register_dataset(
+        ds = self.datastore.register_dataset(
             table_name=view_name,
             columns=schema,
             row_ids=dataset.row_ids,
@@ -232,7 +232,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         sql = '(' + sql + ') UNION ALL (SELECT ' + ','.join(union_list) + ')'
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
-        ds, _ = self.datastore.register_dataset(
+        ds = self.datastore.register_dataset(
             table_name=view_name,
             columns=dataset.columns,
             row_ids=row_ids,
@@ -279,7 +279,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             schema = list(dataset.columns)
             schema.insert(position, schema.pop(source_idx))
             # Store updated dataset to get new identifier
-            ds, _ = self.datastore.register_dataset(
+            ds = self.datastore.register_dataset(
                 table_name=dataset.table_name,
                 columns=schema,
                 row_ids=dataset.row_ids,
@@ -327,7 +327,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         if row != position:
             dataset.row_ids.insert(position, dataset.row_ids.pop(row))
             # Store updated dataset to get new identifier
-            ds, _ = self.datastore.register_dataset(
+            ds = self.datastore.register_dataset(
                 table_name=dataset.table_name,
                 columns=dataset.columns,
                 row_ids=dataset.row_ids,
@@ -378,7 +378,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             # change the column information in the dataset schema.
             col.name = name
             # Store updated dataset to get new identifier
-            ds, _ = self.datastore.register_dataset(
+            ds = self.datastore.register_dataset(
                 table_name=dataset.table_name,
                 columns=schema,
                 row_ids=dataset.row_ids,
@@ -445,7 +445,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             row_id
         )
         # Store updated dataset information with new identifier
-        ds, _ = self.datastore.register_dataset(
+        ds = self.datastore.register_dataset(
             table_name=view_name,
             columns=dataset.columns,
             row_ids=dataset.row_ids,

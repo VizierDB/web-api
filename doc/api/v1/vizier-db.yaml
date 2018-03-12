@@ -976,9 +976,9 @@ definitions:
                 type: integer
             name:
                 type: string
-    DatasetHandle:
+    DatasetDescriptor:
         type: object
-        description: Columns and cell values in a dataset
+        description: Descriptor containing dataset metadata
         required:
             - id
             - columns
@@ -992,9 +992,38 @@ definitions:
                 items:
                     $ref: "#/definitions/DatasetColumn"
             rows:
+                type: integer
+            annotations:
+                $ref: '#/definitions/DatasetAnnotations'
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
+    DatasetHandle:
+        type: object
+        description: Columns and cell values in a dataset
+        required:
+            - id
+            - columns
+            - rows
+            - offset
+            - rowcount
+            - links
+        properties:
+            id:
+                type: string
+            columns:
+                type: array
+                items:
+                    $ref: "#/definitions/DatasetColumn"
+            rows:
                 type: array
                 items:
                     $ref: "#/definitions/DatasetRow"
+            offset:
+                type: integer
+            rowcount:
+                type: integer
             annotations:
                 $ref: '#/definitions/DatasetAnnotations'
             links:
@@ -1005,23 +1034,24 @@ definitions:
         type: object
         description: Named dataset associated with workflow state
         required:
+            - id
             - name
-            - links
         properties:
+            id:
+                type: string
             name:
                 type: string
-            links:
-                type: array
-                items:
-                    $ref: "#/definitions/Reference"
     DatasetRow:
         type: object
         description: Row in a dataset
         required:
             - id
+            - index
             - values
         properties:
             id:
+                type: integer
+            index:
                 type: integer
             values:
                 type: array
@@ -1406,6 +1436,7 @@ definitions:
                         - id
                         - name
                         - description
+                        - packages
                     properties:
                         id:
                             type: string
@@ -1415,6 +1446,10 @@ definitions:
                             type: string
                         default:
                             type: boolean
+                        packages:
+                            type: array
+                            items:
+                                string
             links:
                 type: array
                 items:
@@ -1458,6 +1493,7 @@ definitions:
             - version
             - createdAt
             - modules
+            - datasets
             - links
         properties:
             project:
@@ -1471,7 +1507,11 @@ definitions:
             modules:
                 type: array
                 items:
-                    $ref: "#/definitions/ModuleHandle"
+                    $ref: '#/definitions/ModuleHandle'
+            datasets:
+                type: array
+                items:
+                    $ref: '#/definitions/DatasetDescriptor'
             links:
                 type: array
                 items:

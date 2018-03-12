@@ -38,10 +38,10 @@ class TestDataStore(unittest.TestCase):
     def test_datastore(self):
         """Test functionality of the file server data store."""
         mimir.initialize()
-        ds, rows = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
+        ds = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
         self.assertEquals(ds.column_counter, 3)
         self.assertEquals(ds.row_counter, 2)
-        self.assertEquals(rows, 2)
+        self.assertEquals(ds.row_count, 2)
         cols = [
             ('NAME', COL_PREFIX + '0', 'varchar'),
             ('AGE', COL_PREFIX + '1', 'int'),
@@ -69,7 +69,7 @@ class TestDataStore(unittest.TestCase):
         rows = ds.fetch_rows()
         rows[0].values[0] = 'Jane'
         rows = [rows[1], rows[0]]
-        ds, rows = self.db.create_dataset(columns=ds.columns, rows=rows)
+        ds = self.db.create_dataset(columns=ds.columns, rows=rows)
         ds = self.db.get_dataset(ds.identifier)
         for i in range(3):
             col = ds.columns[i]

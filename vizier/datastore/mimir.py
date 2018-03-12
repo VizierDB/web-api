@@ -180,6 +180,7 @@ class MimirDatasetHandle(DatasetHandle):
         super(MimirDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
+            row_count=len(row_ids),
             column_counter=column_counter,
             row_counter=row_counter,
             annotations=annotations
@@ -224,16 +225,6 @@ class MimirDatasetHandle(DatasetHandle):
         vizier.datastore.reader.DatasetReader
         """
         return MimirDatasetReader(self.table_name, self.columns, self.row_ids)
-
-    @property
-    def row_count(self):
-        """Number of rows in the dataset.
-
-        Returns
-        -------
-        int
-        """
-        return len(self.row_ids)
 
     def to_file(self, filename):
         """Write dataset to file. The default serialization format is Yaml.
@@ -392,7 +383,7 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.mimit.MimirDatasetHandle, int
+        vizier.datastore.mimit.MimirDatasetHandle
         """
         # Get unique identifier for new dataset
         identifier = 'DS_' + get_unique_identifier()
@@ -553,7 +544,7 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.mimir.MimirDatasetHandle, int
+        vizier.datastore.mimir.MimirDatasetHandle
         """
         # Create a copy of the original file under a unique name. If the input
         # file is tab-delimited (and therefore has been successfully parsed on
@@ -672,7 +663,7 @@ class MimirDataStore(DataStore):
 
         Returns
         -------
-        vizier.datastore.mimir.MimirDatasetHandle, int
+        vizier.datastore.mimir.MimirDatasetHandle
         """
         # Query the database to get schema information and row ids if necessary
         sql = get_select_query(table_name, columns)
@@ -733,7 +724,7 @@ class MimirDataStore(DataStore):
         dataset.annotations.to_file(
             self.get_metadata_filename(dataset.identifier)
         )
-        return dataset, len(row_ids)
+        return dataset
 
     def update_annotation(self, identifier, upd_stmt):
         """Update the annotations for a component of the datasets with the given
