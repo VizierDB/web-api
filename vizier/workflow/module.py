@@ -96,7 +96,7 @@ class ModuleHandle(object):
         return len(self.stderr) > 0
 
     def to_dict(self):
-        """Get dictionary serialization of the module handle.
+        """Get dictionary serialization of th #TXT_NORMAL, TXT_ERRORe module handle.
 
         Returns
         -------
@@ -189,3 +189,73 @@ class ModuleSpecification(object):
             'identifier': self.command_identifier,
             'arguments': self.arguments
         }
+
+
+class ModuleOutputs(object):
+    """
+    """
+    def __init__(self):
+        """Initialize the standard output and error stream."""
+        self.std_out = list()
+        self.std_err = list()
+
+    def stderr(self, content=None):
+        """Add content to the error output stream for a workflow module. Use
+        to retrieve output stream when called without content parameter.
+
+        Will raise ValueError if an invalid content object is given.
+
+        Parameters
+        ----------
+        content: dict, optional
+            Content object. Expected to contain type and data field.
+
+        Returns
+        -------
+        list
+        """
+        # Validate content if given. Will raise ValueError if content is invalid
+        if not content is None:
+            self.validate_content(content)
+            self.std_err.append(content)
+        return self.std_err
+
+    def stdout(self, content=None):
+        """Add content to the regular output stream for a workflow module. Use
+        to retrieve output stream when called without content parameter.
+
+        Will raise ValueError if an invalid content object is given.
+
+        Parameters
+        ----------
+        content: dict, optional
+            Content object. Expected to contain type and data field.
+
+        Returns
+        -------
+        list
+        """
+        # Validate content if given. Will raise ValueError if content is invalid
+        if not content is None:
+            self.validate_content(content)
+            self.std_out.append(content)
+        return self.std_out
+
+    def validate_content(self, content):
+        """Validate content dictionary to ensure that it contains type and
+        data element.
+
+        Raises ValueError if content is invalid.
+
+        Parameters
+        ----------
+        content: dict, optional
+            Content object. Expected to contain type and data field.
+        """
+        for key in ['type', 'data']:
+            if not key in content:
+                raise ValueError('missing key \'' + key + '\'')
+        if len(content) > 2:
+            for key in content:
+                if not key in ['type', 'data']:
+                    raise ValueError('invalid key \'' + key + '\'')

@@ -5,7 +5,6 @@ Execute a workflow given as a sequence of workflow modules.
 from abc import abstractmethod
 
 from vizier.core.timestamp import  get_current_time
-from vizier.workflow.base import TXT_ERROR, TXT_NORMAL
 
 
 class WorkflowExecutionResult(object):

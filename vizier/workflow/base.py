@@ -16,10 +16,6 @@ DEFAULT_BRANCH = 'master'
 """Default name for the master branch."""
 DEFAULT_BRANCH_NAME = 'Default'
 
-"""Constants to identify the different module output streams."""
-TXT_ERROR = 'err'
-TXT_NORMAL = 'out'
-
 
 class WorkflowHandle(object):
     """Handle for a data curation workflow. Workflows are sequences of modules
@@ -229,3 +225,22 @@ class ViztrailHandle(object):
             Specification of the command that is to be evaluated
         """
         cmd.validate_command(self.command_repository, command)
+
+
+# ------------------------------------------------------------------------------
+# Helper Methods
+# ------------------------------------------------------------------------------
+
+def PLAIN_TEXT(text):
+    """Create a plain text output object.
+
+    Parameters
+    ----------
+    text: string
+        Plain output text
+
+    Returns
+    -------
+    dict
+    """
+    return {'type': 'text/plain', 'data': text}

@@ -17,8 +17,9 @@ from vizier.datastore.mimir import COL_PREFIX, ROW_ID
 from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import MimirDataStore, create_missing_key_view
 from vizier.filestore.base import DefaultFileServer
-from vizier.workflow.base import TXT_NORMAL, TXT_ERROR
+from vizier.workflow.base import PLAIN_TEXT
 from vizier.workflow.context import VizierDBClient
+from vizier.workflow.module import ModuleOutputs
 from vizier.workflow.vizual.base import DefaultVizualEngine
 from vizier.workflow.vizual.mimir import MimirVizualEngine
 
@@ -75,7 +76,7 @@ class MimirLens(Module):
         module_id = self.moduleInfo['moduleId']
         vizierdb = get_env(module_id, context)
         # Module outputs
-        outputs = dict({TXT_NORMAL: list(), TXT_ERROR: list()})
+        outputs = ModuleOutputs()
         store_as_dataset = None
         update_rows = False
         # Get dataset. Raise exception if dataset is unknown
@@ -253,10 +254,13 @@ class PythonCell(NotCacheable, Module):
         # Propagate potential changes to the dataset mappings
         propagate_changes(module_id, vizierdb.datasets, context)
         # Set module outputs
-        outputs = dict({TXT_NORMAL: list(), TXT_ERROR: list()})
+        outputs = ModuleOutputs()
         for tag, text in stream:
-            key = TXT_NORMAL if tag == 'out' else TXT_ERROR
-            outputs[key].append(''.join(text).strip())
+            text = ''.join(text).strip()
+            if tag == 'out':
+                outputs.stdout(content=PLAIN_TEXT(text))
+            else:
+                outputs.stderr(content=PLAIN_TEXT(text))
         self.set_output('context', context)
         self.set_output('output', outputs)
 
@@ -289,7 +293,7 @@ class VizualCell(NotCacheable, Module):
         vizierdb = get_env(module_id, context)
         # Set VizUAL engine (shortcut)
         v_eng = vizierdb.vizual
-        outputs = dict({TXT_NORMAL: list(), TXT_ERROR: list()})
+        outputs = ModuleOutputs()
         if name == cmd.VIZUAL_DEL_COL:
             # Get dataset name, and column specification. Raise exception if
             # the specified dataset does not exist.
@@ -300,7 +304,7 @@ class VizualCell(NotCacheable, Module):
             # columns in output
             col_count, ds_id = v_eng.delete_column(ds, c_col)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(col_count) + ' column deleted')
+            outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' column deleted'))
         elif name == cmd.VIZUAL_DEL_ROW:
             # Get dataset name, and row index. Raise exception if the
             # specified dataset does not exist.
@@ -311,14 +315,14 @@ class VizualCell(NotCacheable, Module):
             # output
             col_count, ds_id = v_eng.delete_row(ds, c_row)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(col_count) + ' row deleted')
+            outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' row deleted'))
         elif name == cmd.VIZUAL_DROP_DS:
             # Get dataset name and remove the associated entry from the
             # dictionary of datasets in the context. Will raise exception if the
             # specified dataset does not exist.
             ds_name = get_argument(cmd.PARA_DATASET, args).lower()
             vizierdb.remove_dataset_identifier(ds_name)
-            outputs[TXT_NORMAL].append('1 dataset dropped')
+            ooutputs.stdout(content=PLAIN_TEXT('1 dataset dropped'))
         elif name == cmd.VIZUAL_INS_COL:
             # Get dataset name, column index, and new column name. Raise
             # exception if the specified dataset does not exist or the
@@ -332,7 +336,7 @@ class VizualCell(NotCacheable, Module):
             # columns in output
             col_count, ds_id = v_eng.insert_column(ds, c_pos, c_name)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(col_count) + ' column inserted')
+            outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' column inserted'))
         elif name == cmd.VIZUAL_INS_ROW:
             # Get dataset name, and row index. Raise exception if the
             # specified dataset does not exist or row index is not an int.
@@ -344,7 +348,7 @@ class VizualCell(NotCacheable, Module):
             # rows in output
             col_count, ds_id = v_eng.insert_row(ds, c_row)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(col_count) + ' row inserted')
+            outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' row inserted'))
         elif name == cmd.VIZUAL_LOAD:
             # Get the name of the file and dataset name from command
             # arguments. Raise exception if a dataset with the specified
@@ -361,7 +365,7 @@ class VizualCell(NotCacheable, Module):
             ds = v_eng.load_dataset(ds_file)
             vizierdb.set_dataset_identifier(ds_name, ds.identifier)
             print_dataset_schema(outputs, ds_name, ds.columns)
-            outputs[TXT_NORMAL].append(str(ds.row_count) + ' row(s)')
+            outputs.stdout(content=PLAIN_TEXT(str(ds.row_count) + ' row(s)'))
         elif name == cmd.VIZUAL_MOV_COL:
             # Get dataset name, column name, and target position. Raise
             # exception if the specified dataset does not exist or the
@@ -375,7 +379,7 @@ class VizualCell(NotCacheable, Module):
             # columns in output
             col_count, ds_id = v_eng.move_column(ds, c_name, c_pos)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(col_count) + ' column moved')
+            outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' column moved'))
         elif name == cmd.VIZUAL_MOV_ROW:
             # Get dataset name, row index, and target index. Raise exception
             # if the specified dataset does not exist or if either of the
@@ -389,7 +393,7 @@ class VizualCell(NotCacheable, Module):
             # rows in output
             col_count, ds_id = v_eng.move_row(ds, c_row, c_pos)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(col_count) + ' row moved')
+            outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' row moved'))
         elif name == cmd.VIZUAL_REN_COL:
             # Get dataset name, column specification, and new column nmae.
             # Raise exception if the specified dataset does not exist.
@@ -402,7 +406,7 @@ class VizualCell(NotCacheable, Module):
             # columns in output.
             col_count, ds_id = v_eng.rename_column(ds, c_col, c_name)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(col_count) + ' column renamed')
+            outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' column renamed'))
         elif name == cmd.VIZUAL_REN_DS:
             # Get name of existing dataset and the new dataset name. Raise
             # exception if the specified dataset does not exist, a dataset with
@@ -417,7 +421,7 @@ class VizualCell(NotCacheable, Module):
             ds = vizierdb.get_dataset_identifier(ds_name)
             vizierdb.remove_dataset_identifier(ds_name)
             vizierdb.set_dataset_identifier(new_name, ds)
-            outputs[TXT_NORMAL].append('1 dataset renamed')
+            outputs.stdout(content=PLAIN_TEXT('1 dataset renamed'))
         elif name == cmd.VIZUAL_UPD_CELL:
             # Get dataset name, cell coordinates, and update value. Raise
             # exception if the specified dataset does not exist.
@@ -431,7 +435,7 @@ class VizualCell(NotCacheable, Module):
             # rows in output
             upd_count, ds_id = v_eng.update_cell(ds, c_col, c_row, c_val)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
-            outputs[TXT_NORMAL].append(str(upd_count) + ' row updated')
+            outputs.stdout(content=PLAIN_TEXT(str(upd_count) + ' row updated'))
         else:
             raise ValueError('unknown vizual command \'' + str(name) + '\'')
         # Propagate potential changes to the dataset mappings
@@ -535,20 +539,20 @@ def print_dataset_schema(outputs, name, columns):
 
     Parameters
     ----------
-    outputs: dict
-        Cell outputs dictionary
+    outputs: vizier.workflow.module.ModuleOutputs
+        Cell outputt streams
     name: string
         Dataset name
     columns: list(vizier.datasetore.base.DatasetColumn)
         Columns in the dataset schema
     """
-    outputs[TXT_NORMAL].append(name + ' (')
+    outputs.stdout(content=PLAIN_TEXT(name + ' ('))
     for i in range(len(columns)):
         text = '  ' + str(columns[i])
         if i != len(columns) - 1:
             text += ','
-        outputs[TXT_NORMAL].append(text)
-    outputs[TXT_NORMAL].append(')')
+        outputs.stdout(content=PLAIN_TEXT(text))
+    outputs.stdout(content=PLAIN_TEXT(')'))
 
 
 def propagate_changes(module_id, datasets, context):

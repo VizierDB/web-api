@@ -11,6 +11,7 @@ from vizier.workflow.module import ModuleSpecification
 PARA_COLUMN = 'column'
 PARA_DATASET = 'dataset'
 PARA_FILE = 'file'
+PARA_LABEL = 'label'
 PARA_MAKE_CERTAIN = 'makeInputCertain'
 PARA_NAME = 'name'
 PARA_PERCENT_CONFORM = 'percentConform'
@@ -20,8 +21,10 @@ PARA_POSITION = 'position'
 PARA_RESULT_DATASET = 'resultName'
 PARA_ROW = 'row'
 PARA_SCHEMA = 'schema'
+PARA_SERIES = 'series'
 PARA_TYPE = 'type'
 PARA_VALUE = 'value'
+PARA_XAXIS = 'xaxis'
 
 
 def para_column(index, parent=None):
@@ -127,14 +130,15 @@ def parameter_specification(identifier, name, data_type, index, label=None, requ
 
 """Identifier for currently supported module types."""
 PACKAGE_MIMIR = 'mimir'
+PACKAGE_PLOT = 'plot'
 PACKAGE_PYTHON = 'python'
 PACKAGE_VIZUAL = 'vizual'
 
 MODULE_NAME = 'name'
 MODULE_ARGUMENTS = 'arguments'
 
-"""Components for Python requests."""
-PYTHON_SOURCE = 'source'
+"""Identifier for plot commands."""
+PLOT_SIMPLE_CHART = 'chart'
 
 """Identifier for Mimir lenses."""
 MIMIR_DOMAIN = 'DOMAIN'
@@ -144,6 +148,9 @@ MIMIR_MISSING_VALUE = 'MISSING_VALUE'
 MIMIR_PICKER ='PICKER'
 MIMIR_SCHEMA_MATCHING ='SCHEMA_MATCHING'
 MIMIR_TYPE_INFERENCE ='TYPE_INFERENCE'
+
+"""Components for Python requests."""
+PYTHON_SOURCE = 'source'
 
 """Identifier for Python commands."""
 PYTHON_CODE = 'CODE'
@@ -271,6 +278,43 @@ MIMIR_LENSES = {
     }
 }
 
+"""Plot commands."""
+PLOT_COMMANDS = {
+    PLOT_SIMPLE_CHART: {
+        MODULE_NAME: 'Simple Chart',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            PARA_NAME: parameter_specification(PARA_NAME, 'Chart Name', 'string', 1),
+            PARA_SERIES: parameter_specification(
+                PARA_SERIES,
+                'Series',
+                'group',
+                2
+            ),
+            PARA_COLUMN: parameter_specification(
+                PARA_COLUMN,
+                'Column',
+                'string',
+                3,
+                parent=PARA_SERIES
+            ),
+            PARA_LABEL: parameter_specification(
+                PARA_LABEL,
+                'Label',
+                'string',
+                4,
+                parent=PARA_SERIES
+            ),
+            PARA_XAXIS: parameter_specification(
+                PARA_XAXIS,
+                'X-Axis',
+                'colindex',
+                5
+            )
+        }
+    }
+}
+
 """Python commands."""
 PYTHON_COMMANDS = {
     PYTHON_CODE: {
@@ -391,9 +435,10 @@ VIZUAL_COMMANDS = {
 
 """Dictionary of available packages."""
 AVAILABLE_PACKAGES = {
+    PACKAGE_MIMIR: MIMIR_LENSES,
+    PACKAGE_PLOT: PLOT_COMMANDS,
     PACKAGE_PYTHON: PYTHON_COMMANDS,
-    PACKAGE_VIZUAL: VIZUAL_COMMANDS,
-    PACKAGE_MIMIR: MIMIR_LENSES
+    PACKAGE_VIZUAL: VIZUAL_COMMANDS
 }
 
 

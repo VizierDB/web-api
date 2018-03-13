@@ -5,7 +5,8 @@ from vizier.workflow.module import ModuleHandle
 from vizier.workflow.packages.userpackages.vizierpkg import MimirLens, PythonCell, VizualCell
 from vizier.workflow.context import WorkflowContext
 from vizier.workflow.engine.base import WorkflowExecutionResult, WorkflowEngine
-from vizier.workflow.engine.base import TXT_NORMAL, TXT_ERROR
+from vizier.workflow.base import PLAIN_TEXT
+from vizier.workflow.module import ModuleOutputs
 
 import vizier.config as config
 import vizier.workflow.command as cmdtype
@@ -88,8 +89,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
             cell.compute()
             outputs = cell.get_output('output')
         except Exception as ex:
-            outputs = dict({TXT_NORMAL: list()})
-            outputs[TXT_ERROR] = [str(ex)]
+            outputs = ModuleOutputs()
+            outputs.stderr(content=PLAIN_TEXT(str(ex)))
         # Return new module. Copies current state of the datastore mapping.
         return ModuleHandle(
             module.identifier,
@@ -100,8 +101,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
                     module.identifier
                 )
             ),
-            stdout=outputs[TXT_NORMAL],
-            stderr=outputs[TXT_ERROR]
+            stdout=outputs.stdout(),
+            stderr=outputs.stderr()
         )
 
     def execute_workflow(self, version, modules, modified_index):
