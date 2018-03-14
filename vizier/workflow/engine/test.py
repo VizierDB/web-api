@@ -1,5 +1,6 @@
 """Simple implementation of the WorkflowEngine for testing purposes."""
 
+from vizier.workflow.base import PLAIN_TEXT
 from vizier.workflow.engine.base import WorkflowExecutionResult, WorkflowEngine
 
 
@@ -67,7 +68,7 @@ class TestWorkflowEngine(WorkflowEngine):
         for i in range(len(modules)):
             m = modules[i].copy()
             if i >= start_index:
-                m.stdout.append('SUCCESS ' + str(m.identifier))
+                m.stdout.append(PLAIN_TEXT('SUCCESS ' + str(m.identifier)))
             elif  m.identifier < 0:
                 raise ValueError('invalid module identifier \'' + str(m.identifier) + '\'')
             wf_modules.append(m)

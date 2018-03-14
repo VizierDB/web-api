@@ -353,7 +353,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_keys({l['rel'] : l['href'] for l in links}, keys)
 
     def validate_module_handle(self, module):
-        self.validate_keys(module, ['id', 'command', 'stdout', 'stderr', 'datasets', 'links'])
+        self.validate_keys(module, ['id', 'command', 'stdout', 'stderr', 'datasets', 'links', 'views'])
         self.validate_keys(module['command'], ['type', 'id', 'arguments'])
         self.validate_links(module['links'], ['delete', 'insert', 'replace'])
         for ds in module['datasets']:

@@ -9,6 +9,7 @@ import yaml
 
 from vizier.core.system import component_descriptor, VizierSystemComponent
 from vizier.datastore.metadata import DatasetMetadata
+from vizier.datastore.query import DataStreamConsumer
 
 
 # ------------------------------------------------------------------------------
@@ -352,6 +353,61 @@ class DataStore(VizierSystemComponent):
         vizier.datastore.base.DatasetHandle
         """
         raise NotImplementedError
+
+    def get_dataset_chart(self, identifier, data_series):
+        """Query a given dataset by selecting the columns in the given list.
+        Each row in the result is the result of projecting a tuple in the
+        dataset on the given columns.
+
+        Raises ValueError if any of the specified columns do not exist.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        data_series: list(vizier.plot.view.DataSeriesHandle)
+            List of column names
+
+        Returns
+        -------
+        list()
+        """
+        dataset = self.get_dataset(identifier)
+        # Create a list of data consumers, one for each data series
+        consumers = list()
+        for s in data_series:
+            c_idx = dataset.column_index(s.column)
+            series = list()
+            consumers.append(
+                DataStreamConsumer(
+                    column_index=c_idx,
+                    range_start=s.range_start,
+                    range_end=s.range_end
+                )
+            )
+        # Consume all dataset rows
+        rows = dataset.fetch_rows()
+        for row_index in range(len(rows)):
+            row = rows[row_index]
+            for c in consumers:
+                c.consume(row=row, row_index=row_index)
+        # the size of the result set is determined by the longest data series
+        max_values = -1
+        for c in consumers:
+            if len(c.values) > max_values:
+                max_values = len(c.values)
+        # Create result array
+        data = []
+        for idx_row in range(max_values):
+            row = list()
+            for idx_series in range(len(consumers)):
+                consumer = consumers[idx_series]
+                if idx_row < len(consumer.values):
+                    row.append(consumer.values[idx_row])
+                else:
+                    row.append(None)
+            data.append(row)
+        return data
 
     @abstractmethod
     def update_annotation(self, identifier, upd_stmt):

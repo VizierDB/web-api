@@ -586,6 +586,50 @@ def append_branch_head(project_id, branch_id):
         raise InvalidRequest(str(ex))
 
 
+@app.route('/projects/<string:project_id>/branches/<string:branch_id>/properties', methods=['POST'])
+def update_branch_properties(project_id, branch_id):
+    """Update properties for a given project workflow branch. Expects a set of
+    key,value-pairs in the request body. Properties with given key but missing
+    value will be deleted.
+
+    Request
+    -------
+    {
+      "properties": [
+        {
+          "key": "string",
+          "value": "string"
+        }
+      ]
+    }
+    """
+    # Abort with BAD REQUEST if request body is not in Json format or does not
+    # contain a properties key.
+    obj = validate_json_request(request, required=['properties'])
+    properties = dict()
+    for prop in obj['properties']:
+        if not 'key' in prop:
+            raise InvalidRequest('missing element \'key\' in request property')
+        if not 'value' in prop:
+            properties[prop['key']] = None
+        else:
+            properties[prop['key']] = prop['value']
+    # Extend and execute workflow. This will throw a ValueError if the command
+    # cannot be parsed.
+    try:
+        # Result is None if project or workflow version are not found.
+        wf = api. update_branch(
+            project_id,
+            branch_id,
+            properties
+        )
+        if not wf is None:
+            return jsonify(wf)
+        raise ResourceNotFound('unknown workflow \'' + project_id + ':' + branch_id + '\'')
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+
+
 @app.route('/projects/<string:project_id>/branches/<string:branch_id>/workflows/<int:version>')
 def get_workflow(project_id, branch_id, version):
     """Get handle for a workflow in a given project branch."""
@@ -712,53 +756,28 @@ def replace_module(project_id, branch_id, version, module_id):
         )
         if not wf is None:
             return jsonify(wf)
-        raise ResourceNotFound('unknown workflow module \'' + project_id + ':' + branch_id + '[' + str(module_id) + ']\'')
+        raise ResourceNotFound('unknown workflow module \'' + project_id + ':' + branch_id + ':' + str(module_id) + '\'')
     except ValueError as ex:
         raise InvalidRequest(str(ex))
 
 
-@app.route('/projects/<string:project_id>/branches/<string:branch_id>/properties', methods=['POST'])
-def update_branch_properties(project_id, branch_id):
-    """Update properties for a given project workflow branch. Expects a set of
-    key,value-pairs in the request body. Properties with given key but missing
-    value will be deleted.
-
-    Request
-    -------
-    {
-      "properties": [
-        {
-          "key": "string",
-          "value": "string"
-        }
-      ]
-    }
+@app.route('/projects/<string:project_id>/branches/<string:branch_id>/workflows/<int:version>/modules/<int:module_id>/views/<string:view_id>')
+def get_dataset_chart_view(project_id, branch_id, version, module_id, view_id):
+    """Get content of a dataset chart view for a given workflow module.
     """
-    # Abort with BAD REQUEST if request body is not in Json format or does not
-    # contain a properties key.
-    obj = validate_json_request(request, required=['properties'])
-    properties = dict()
-    for prop in obj['properties']:
-        if not 'key' in prop:
-            raise InvalidRequest('missing element \'key\' in request property')
-        if not 'value' in prop:
-            properties[prop['key']] = None
-        else:
-            properties[prop['key']] = prop['value']
-    # Extend and execute workflow. This will throw a ValueError if the command
-    # cannot be parsed.
     try:
-        # Result is None if project or workflow version are not found.
-        wf = api. update_branch(
+        view = api.get_dataset_chart_view(
             project_id,
             branch_id,
-            properties
+            version,
+            module_id,
+            view_id
         )
-        if not wf is None:
-            return jsonify(wf)
-        raise ResourceNotFound('unknown workflow \'' + project_id + ':' + branch_id + '\'')
     except ValueError as ex:
         raise InvalidRequest(str(ex))
+    if not view is None:
+        return jsonify(view)
+    raise ResourceNotFound('unknown dataset view \'' + project_id + ':' + branch_id + ':' + str(version) + ':' + str(module_id) + ':' + view_id + '\'')
 
 
 # ------------------------------------------------------------------------------

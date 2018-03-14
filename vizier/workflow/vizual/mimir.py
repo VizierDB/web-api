@@ -57,7 +57,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             dataset
         """
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Get the index of the specified column that is to be deleted.
@@ -102,7 +102,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             dataset
         """
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that row refers a valid row in the dataset
@@ -157,7 +157,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         if not is_valid_name(name):
             raise ValueError('invalid column name \'' + name + '\'')
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that position is a valid column index in the new dataset
@@ -210,7 +210,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             dataset
         """
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that position is a valid row index in the new dataset
@@ -264,7 +264,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             dataset
         """
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that position is a valid column index in the new dataset
@@ -314,7 +314,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             dataset
         """
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that row is within dataset bounds
@@ -365,7 +365,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         if not is_valid_name(name):
             raise ValueError('invalid column name \'' + name + '\'')
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Get the specified column that is to be renamed and set the column name
@@ -415,7 +415,7 @@ class MimirVizualEngine(DefaultVizualEngine):
             dataset
         """
         # Get dataset. Raise exception if dataset is unknown
-        dataset = self.datastore.get_dataset_descriptor(identifier)
+        dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Make sure that row refers a valid row in the dataset

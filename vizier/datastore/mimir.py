@@ -468,7 +468,7 @@ class MimirDataStore(DataStore):
         """
         return os.path.join(self.get_dataset_dir(identifier), 'dataset.yaml')
 
-    def get_dataset(self, identifier):
+    def get_dataset(self, identifier, include_annotations=True):
         """Read a full dataset from the data store. Returns None if no dataset
         with the given identifier exists.
 
@@ -476,29 +476,9 @@ class MimirDataStore(DataStore):
         ----------
         identifier : string
             Unique dataset identifier
-
-        Returns
-        -------
-        vizier.datastore.base.DatasetHandle
-        """
-        return self.get_dataset_descriptor(identifier)
-
-    def get_dataset_descriptor(self, identifier, include_annotations=True):
-        """Get the Mimir dataset descriptor for the dataset with tthe given
-        identifier. The result is None if no dataset with the given identifier
-        exists.
-
-        Dataset annotations are only returned if the include_annotations flag is
-        set to True
-
-        Parameters
-        ----------
-        identifier: string
-            Unique dataset identifier
         include_annotations: bool, optional
-            Optional flag indicating whether dataset annotations should be
-            included in the result or not
-
+            Flag indicating whether to include annotations
+            
         Returns
         -------
         vizier.datastore.mimir.MimirDatasetHandle

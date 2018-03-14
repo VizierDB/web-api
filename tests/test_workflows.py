@@ -337,7 +337,7 @@ class TestWorkflows(unittest.TestCase):
         self.assertTrue(DS_NAME in wf.modules[0].datasets)
         self.assertTrue(len(wf.modules[1].stdout) == 1)
         self.assertTrue(len(wf.modules[1].stderr) == 0)
-        self.assertEquals(wf.modules[1].stdout[0], 'Alice\nBob')
+        self.assertEquals(wf.modules[1].stdout[0]['data'], 'Alice\nBob')
         self.assertEquals(len(wf.modules[1].datasets), 1)
         self.assertTrue(DS_NAME in wf.modules[1].datasets)
         ds_id = wf.modules[1].datasets[DS_NAME]
@@ -366,7 +366,7 @@ class TestWorkflows(unittest.TestCase):
         self.assertEquals(wf.modules[0].datasets[DS_NAME], ds_id)
         self.assertTrue(len(wf.modules[1].stdout) == 1)
         self.assertTrue(len(wf.modules[1].stderr) == 0)
-        self.assertEquals(wf.modules[1].stdout[0], 'Alice\nBob')
+        self.assertEquals(wf.modules[1].stdout[0]['data'], 'Alice\nBob')
         self.assertEquals(len(wf.modules[1].datasets), 1)
         self.assertTrue(DS_NAME in wf.modules[1].datasets)
         self.assertEquals(wf.modules[1].datasets[DS_NAME], ds_id)
@@ -392,10 +392,10 @@ class TestWorkflows(unittest.TestCase):
             self.assertTrue(id in modules)
         self.assertEquals(wf.version, 3)
         self.assertEquals(len(wf.modules), 4)
-        self.assertEquals(wf.modules[1].stdout[0], 'Alice\nBob')
+        self.assertEquals(wf.modules[1].stdout[0]['data'], 'Alice\nBob')
         self.assertTrue(len(wf.modules[3].stdout) == 1)
         self.assertTrue(len(wf.modules[3].stderr) == 0)
-        self.assertEquals(wf.modules[3].stdout[0], 'NoName\nNoName')
+        self.assertEquals(wf.modules[3].stdout[0]['data'], 'NoName\nNoName')
         #print '(5) UPDATE DATASET WITH FILTER'
         self.db.replace_workflow_module(
             viztrail_id=vt.identifier,
@@ -424,7 +424,7 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
-        self.assertEquals(wf.modules[4].stdout[0], 'Alice\nBobby')
+        self.assertEquals(wf.modules[4].stdout[0]['data'], 'Alice\nBobby')
         #print '(7) INTRODUCE ERROR'
         self.db.replace_workflow_module(
             viztrail_id=vt.identifier,
@@ -472,7 +472,7 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
-        self.assertEquals(wf.modules[3].stdout[0], 'Alice\nBob')
+        self.assertEquals(wf.modules[3].stdout[0]['data'], 'Alice\nBob')
 
     def run_update_datasets(self):
         """Test dropping and renaming of datasets."""
@@ -529,7 +529,7 @@ for row in vizierdb.get_dataset('""" + new_name + """').rows:
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
-        self.assertEquals(wf.modules[-1].stdout[0], 'Alice\nBob')
+        self.assertEquals(wf.modules[-1].stdout[0]['data'], 'Alice\nBob')
         self.assertFalse(DS_NAME in wf.modules[-1].datasets)
         self.assertTrue(new_name in wf.modules[-1].datasets)
 

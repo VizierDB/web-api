@@ -3,8 +3,8 @@
 
 class ModuleHandle(object):
     """Handle for a module in a curation workflow. Each module has a unique
-    identifier, a specification of the executed command, list of generated
-    outputs to STDOUT and STDERR, and a dictionary of resulting datasets.
+    identifier, a specification of the executed command, a list of generated
+    outputs to STDOUT and STDERR, and dictionary of resulting datasets
 
     Attributes
     ----------
@@ -21,8 +21,8 @@ class ModuleHandle(object):
         Module output that was written to STDERR
     """
     def __init__(self, identifier, command, datasets=None, stdout=None, stderr=None):
-        """initialize module properties. For new modules, datasets and outputs
-        are initially empty
+        """Initialize the module handle. For new modules, datasets and outputs
+        are initially empty.
 
         Parameters
         ----------
@@ -76,11 +76,11 @@ class ModuleHandle(object):
         MongoDBModuleHandle
         """
         return ModuleHandle(
-            doc['id'],
-            ModuleSpecification.from_dict(doc['command']),
-            {ds['name'] : ds['id'] for ds in doc['datasets']},
-            doc['stdout'],
-            doc['stderr']
+            identifier=doc['id'],
+            command=ModuleSpecification.from_dict(doc['command']),
+            datasets={ds['name'] : ds['id'] for ds in doc['datasets']},
+            stdout=doc['stdout'],
+            stderr=doc['stderr']
         )
 
     @property
@@ -96,7 +96,7 @@ class ModuleHandle(object):
         return len(self.stderr) > 0
 
     def to_dict(self):
-        """Get dictionary serialization of th #TXT_NORMAL, TXT_ERRORe module handle.
+        """Get dictionary serialization of the module handle.
 
         Returns
         -------
@@ -255,7 +255,3 @@ class ModuleOutputs(object):
         for key in ['type', 'data']:
             if not key in content:
                 raise ValueError('missing key \'' + key + '\'')
-        if len(content) > 2:
-            for key in content:
-                if not key in ['type', 'data']:
-                    raise ValueError('invalid key \'' + key + '\'')

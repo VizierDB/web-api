@@ -55,6 +55,9 @@ ENGINEENV_TEST = 'TEST'
 DEFAULT_ENV_NAME = 'Vizier (Lite)'
 DEFAULT_ENV_DESC = 'Curation workflow with basic functionality'
 
+"""List of default packages."""
+DEFAULT_PACKAGES = [cmd.PACKAGE_VIZUAL, cmd.PACKAGE_PYTHON, cmd.PACKAGE_PLOT]
+
 
 class AppConfig(object):
     """Application configuration object. This object contains all configuration
@@ -243,9 +246,9 @@ class ExecEnv(object):
         if not packages is None:
             self.packages = packages
         elif self.identifier == ENGINEENV_MIMIR:
-            self.packages = [cmd.PACKAGE_VIZUAL, cmd.PACKAGE_MIMIR]
+            self.packages = DEFAULT_PACKAGES + [cmd.PACKAGE_MIMIR]
         else:
-            self.packages = [cmd.PACKAGE_VIZUAL]
+            self.packages = DEFAULT_PACKAGES
 
     def from_dict(self, doc):
         """Read configuration parameters from the given dictionary.

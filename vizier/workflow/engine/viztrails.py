@@ -2,7 +2,6 @@
 
 from vizier.datastore.mem import VolatileDataStore
 from vizier.workflow.module import ModuleHandle
-from vizier.workflow.packages.userpackages.vizierpkg import MimirLens, PythonCell, VizualCell
 from vizier.workflow.context import WorkflowContext
 from vizier.workflow.engine.base import WorkflowExecutionResult, WorkflowEngine
 from vizier.workflow.base import PLAIN_TEXT
@@ -11,7 +10,7 @@ from vizier.workflow.module import ModuleOutputs
 import vizier.config as config
 import vizier.workflow.command as cmdtype
 import vizier.workflow.context as ctx
-
+import vizier.workflow.packages.userpackages.vizierpkg as vizierpkg
 
 class DefaultViztrailsEngine(WorkflowEngine):
     """Implementation of the workflow engine using Vistrails modules but not
@@ -82,6 +81,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
             cell = create_mimir_cell(module.identifier, cmd, context)
         elif cmd.is_type(cmdtype.PACKAGE_VIZUAL):
             cell = create_vizual_cell(module.identifier, cmd, context)
+        elif cmd.is_type(cmdtype.PACKAGE_PLOT):
+            cell = create_plot_cell(module.identifier, cmd, context)
         else:
             raise ValueError('unknown module type \'' + cmd.module_type + '\'')
         # Execute cell and get output
@@ -232,7 +233,7 @@ def create_mimir_cell(module_id, command, context):
 
     Assumes that the validity of the command has been verified.
 
-    Expected arguments:
+    Expected elements in command arguments:
     - name: Lens name
     - args: Lens-specific arguments
     - dataset: Dataset name
@@ -248,10 +249,42 @@ def create_mimir_cell(module_id, command, context):
 
     Returns
     -------
-    vizier.packages.userpackages.vizierpkg.PythonCell
+    vizier.packages.userpackages.vizierpkg.MimirCell
     """
     # Create a new python cell and set the input ports
-    cell = MimirLens()
+    cell = vizierpkg.MimirLens()
+    cell.moduleInfo['moduleId'] = module_id
+    cell.set_input_port('name', InputPort(command.command_identifier))
+    cell.set_input_port('arguments', InputPort(command.arguments))
+    cell.set_input_port('context', InputPort(context))
+    return cell
+
+
+def create_plot_cell(module_id, command, context):
+    """Create a new Plot cell module from the given command specification.
+
+    Assumes that the validity of the command has been verified.
+
+    Expected elements in command arguments:
+    - name: Lens name
+    - args: Lens-specific arguments
+    - dataset: Dataset name
+
+    Parameters
+    ----------
+    module_id: int
+        Module identifier
+    command: vizier.worktrail.module.ModuleSpecification
+        Command specification
+    context: dict
+        Workflow execution context
+
+    Returns
+    -------
+    vizier.packages.userpackages.vizierpkg.PlotCell
+    """
+    # Create a new python cell and set the input ports
+    cell = vizierpkg.PlotCell()
     cell.moduleInfo['moduleId'] = module_id
     cell.set_input_port('name', InputPort(command.command_identifier))
     cell.set_input_port('arguments', InputPort(command.arguments))
@@ -264,7 +297,7 @@ def create_python_cell(module_id, command, context):
 
     Assumes that the validity of the command has been verified.
 
-    Expected arguments:
+    Expected elements in command arguments:
     - source: Python source code for cell
 
     Parameters
@@ -281,7 +314,7 @@ def create_python_cell(module_id, command, context):
     vizier.packages.userpackages.vizierpkg.PythonCell
     """
     # Create a new python cell and set the input ports
-    cell = PythonCell()
+    cell = vizierpkg.PythonCell()
     cell.moduleInfo['moduleId'] = module_id
     cell.set_input_port('source', InputPort(command.arguments['source']))
     cell.set_input_port('context', InputPort(context))
@@ -293,8 +326,7 @@ def create_vizual_cell(module_id, command, context):
 
     Assumes that the validity of the command has been verified.
 
-    Expected arguments:
-    - source: Python source code for cell
+    Expected elements in command arguments vary for different VizUAL commands.
 
     Parameters
     ----------
@@ -307,10 +339,10 @@ def create_vizual_cell(module_id, command, context):
 
     Returns
     -------
-    vizier.packages.userpackages.vizierpkg.PythonCell
+    vizier.packages.userpackages.vizierpkg.VizualCell
     """
     # Create a new python cell and set the input ports
-    cell = VizualCell()
+    cell = vizierpkg.VizualCell()
     cell.moduleInfo['moduleId'] = module_id
     cell.set_input_port('name', InputPort(command.command_identifier))
     cell.set_input_port('arguments', InputPort(command.arguments))

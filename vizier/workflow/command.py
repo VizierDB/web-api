@@ -18,6 +18,7 @@ PARA_PERCENT_CONFORM = 'percentConform'
 PARA_PICKAS = 'pickAs'
 PARA_PICKFROM = 'pickFrom'
 PARA_POSITION = 'position'
+PARA_RANGE = 'range'
 PARA_RESULT_DATASET = 'resultName'
 PARA_ROW = 'row'
 PARA_SCHEMA = 'schema'
@@ -138,7 +139,7 @@ MODULE_NAME = 'name'
 MODULE_ARGUMENTS = 'arguments'
 
 """Identifier for plot commands."""
-PLOT_SIMPLE_CHART = 'chart'
+PLOT_SIMPLE_CHART = 'CHART'
 
 """Identifier for Mimir lenses."""
 MIMIR_DOMAIN = 'DOMAIN'
@@ -303,13 +304,23 @@ PLOT_COMMANDS = {
                 'Label',
                 'string',
                 4,
-                parent=PARA_SERIES
+                parent=PARA_SERIES,
+                required=False
+            ),
+            PARA_RANGE: parameter_specification(
+                PARA_RANGE,
+                'Range',
+                'int',
+                5,
+                parent=PARA_SERIES,
+                required=False
             ),
             PARA_XAXIS: parameter_specification(
                 PARA_XAXIS,
                 'X-Axis',
-                'colindex',
-                5
+                'int',
+                6,
+                required=False
             )
         }
     }

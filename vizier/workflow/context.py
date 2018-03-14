@@ -302,7 +302,9 @@ def WorkflowContext(exec_env, context_type=CONTEXT_DEFAULT, datasets=None, varia
     """Helper method to create the Viztrail context dictionary. The context
     contains a dictionary for the relevant execution environment configuration
     parameters, a dictionary for mappings between dataset names and dataset
-    identifier for each module, and a dictionary for Python variables.
+    identifier for each module, a dictionary mapping dataset views from their
+    workflow name to their internal identifier, and a dictionary for Python
+    variables.
 
     Raises ValueError if an invalid context type identifier is given.
 
@@ -316,6 +318,8 @@ def WorkflowContext(exec_env, context_type=CONTEXT_DEFAULT, datasets=None, varia
         Initial mapping of datasets for each module
     variables: dict, optional
         Dictionary of global variables for Python cells.
+    datasets: list, optional
+        Initial mapping of datasets for each module
 
     Returns
     -------

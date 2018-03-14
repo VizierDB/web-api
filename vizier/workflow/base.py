@@ -16,6 +16,10 @@ DEFAULT_BRANCH = 'master'
 """Default name for the master branch."""
 DEFAULT_BRANCH_NAME = 'Default'
 
+"""Module output content types."""
+O_CHARTVIEW = 'chart/view'
+O_PLAINTEXT = 'text/plain'
+
 
 class WorkflowHandle(object):
     """Handle for a data curation workflow. Workflows are sequences of modules
@@ -231,6 +235,26 @@ class ViztrailHandle(object):
 # Helper Methods
 # ------------------------------------------------------------------------------
 
+def CHART_VIEW(view, rows=None):
+    """Create chart view output from a given handle.
+
+    Parameters
+    ----------
+    view: vizier.plot.view.ChartViewHandle
+        Handle defining the dataset chart view
+    rows: list(), optional
+        List of rows in the query result
+
+    Returns
+    -------
+    dict
+    """
+    obj = {'type': O_CHARTVIEW, 'data': view.to_dict()}
+    if not rows is None:
+        obj['result'] = {'rows': rows, 'schema': view.schema()}
+    return obj
+
+
 def PLAIN_TEXT(text):
     """Create a plain text output object.
 
@@ -243,4 +267,4 @@ def PLAIN_TEXT(text):
     -------
     dict
     """
-    return {'type': 'text/plain', 'data': text}
+    return {'type': O_PLAINTEXT, 'data': text}

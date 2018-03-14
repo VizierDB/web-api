@@ -17,7 +17,8 @@ from vizier.datastore.mimir import COL_PREFIX, ROW_ID
 from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import MimirDataStore, create_missing_key_view
 from vizier.filestore.base import DefaultFileServer
-from vizier.workflow.base import PLAIN_TEXT
+from vizier.plot.view import ChartViewHandle
+from vizier.workflow.base import CHART_VIEW, PLAIN_TEXT
 from vizier.workflow.context import VizierDBClient
 from vizier.workflow.module import ModuleOutputs
 from vizier.workflow.vizual.base import DefaultVizualEngine
@@ -82,7 +83,7 @@ class MimirLens(Module):
         # Get dataset. Raise exception if dataset is unknown
         ds_name = get_argument(cmd.PARA_DATASET, args).lower()
         dataset_id = vizierdb.get_dataset_identifier(ds_name)
-        dataset = vizierdb.datastore.get_dataset_descriptor(dataset_id)
+        dataset = vizierdb.datastore.get_dataset(dataset_id)
         if dataset is None:
             raise ValueError('unknown dataset \'' + ds_name + '\'')
         mimir_table_name = dataset.table_name
@@ -214,6 +215,108 @@ class MimirLens(Module):
         self.set_output('output', outputs)
 
 
+class PlotCell(NotCacheable, Module):
+    """Vistrails module to execute a plot command. Expects a command type (name)
+    and a dictionary of arguments that specify the dataset and data series
+    that go into in the generated plot.
+    """
+    _input_ports = [
+        ('name', 'basic:String'),
+        ('arguments', 'basic:Dictionary'),
+        ('context', 'basic:Dictionary')
+    ]
+    _output_ports = [
+        ('context', 'basic:Dictionary'),
+        ('output', 'basic:Dictionary')
+    ]
+
+    def compute(self):
+        """Excute the specified plot command on the current database state.
+        Will raise ValueError if the referenced datasets does not exist.
+        """
+        name = self.get_input('name')
+        args = self.get_input('arguments')
+        context = self.get_input('context')
+        # Get module identifier and VizierDB client for current workflow state
+        module_id = self.moduleInfo['moduleId']
+        vizierdb = get_env(module_id, context)
+        outputs = ModuleOutputs()
+        if name == cmd.PLOT_SIMPLE_CHART:
+            # Get dataset name and the associated dataset. This will raise an
+            # exception if the dataset name is unknown.
+            ds_name = get_argument(cmd.PARA_DATASET, args)
+            dataset_id = vizierdb.get_dataset_identifier(ds_name)
+            dataset = vizierdb.datastore.get_dataset(dataset_id)
+            # Get user-provided name for the new chart and verify that it is a
+            # valid name
+            chart_name = get_argument(cmd.PARA_NAME, args)
+            if not is_valid_name(chart_name):
+                raise ValueError('invalid chart name \'' + chart_name + '\'')
+            # The data series index for x-axis values is optional
+            if cmd.PARA_XAXIS in args:
+                x_axis = args[cmd.PARA_XAXIS]
+                if x_axis.strip() == '':
+                    x_axis = None
+                else:
+                    # Expects an integer
+                    x_axis = int(x_axis)
+            else:
+                x_axis = None
+            # Create a new chart view handle and add the series definitions
+            view = ChartViewHandle(
+                dataset_name=ds_name,
+                chart_name=chart_name,
+                x_axis=x_axis
+            )
+            # Definition of data series. Each series is a pair of column
+            # identifier and a printable label.
+            for data_series in get_argument(cmd.PARA_SERIES, args):
+                c_name = get_argument(cmd.PARA_COLUMN, data_series)
+                # Get column index to ensure that the column exists. Will raise
+                # an exception if c_name does not specify a valid column.
+                dataset.column_index(c_name)
+                if cmd.PARA_LABEL in data_series:
+                    s_label = data_series[cmd.PARA_LABEL]
+                else:
+                    s_label = c_name
+                # Check for range specifications. Expect string of format int or
+                # int:int with the second value being greater or equal than
+                # the first.
+                if cmd.PARA_RANGE in data_series:
+                    s_range = data_series[cmd.PARA_RANGE]
+                    pos = s_range.find(':')
+                    if pos > 0:
+                        range_start = int(s_range[:pos])
+                        range_end = int(s_range[pos+1:])
+                        if range_start > range_end:
+                            raise ValueError('invalid range \'' + s_range + '\'')
+                    else:
+                        range_start = int(s_range)
+                        range_end = range_start
+                    if range_start < 0 or range_end < 0:
+                        raise ValueError('invalid range \'' + s_range + '\'')
+                else:
+                    range_start = None
+                    range_end = None
+                view.add_series(
+                    column=c_name,
+                    label=s_label,
+                    range_start=range_start,
+                    range_end=range_end
+                )
+            # Execute the query and get the result
+            rows = vizierdb.datastore.get_dataset_chart(dataset_id, view.data)
+            # Add chart view handle as module output
+            outputs.stdout(content=CHART_VIEW(view, rows=rows))
+        else:
+            raise ValueError('unknown plot command \'' + str(name) + '\'')
+        # Propagate potential changes to the dataset mappings
+        propagate_changes(module_id, vizierdb.datasets, context)
+        # Set the module outputs
+        self.set_output('context', context)
+        self.set_output('output', outputs)
+
+
 class PythonCell(NotCacheable, Module):
     _input_ports = [
         ('source', 'basic:String'),
@@ -322,7 +425,7 @@ class VizualCell(NotCacheable, Module):
             # specified dataset does not exist.
             ds_name = get_argument(cmd.PARA_DATASET, args).lower()
             vizierdb.remove_dataset_identifier(ds_name)
-            ooutputs.stdout(content=PLAIN_TEXT('1 dataset dropped'))
+            outputs.stdout(content=PLAIN_TEXT('1 dataset dropped'))
         elif name == cmd.VIZUAL_INS_COL:
             # Get dataset name, column index, and new column name. Raise
             # exception if the specified dataset does not exist or the

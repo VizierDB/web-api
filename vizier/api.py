@@ -12,7 +12,8 @@ import os
 
 from vizier.core.properties import ObjectProperty
 from vizier.hateoas import UrlFactory, reference, self_reference
-from vizier.workflow.base import DEFAULT_BRANCH
+from vizier.plot.view import ChartViewHandle
+from vizier.workflow.base import DEFAULT_BRANCH, O_CHARTVIEW
 
 import vizier.workflow.command as cmd
 
@@ -1001,6 +1002,52 @@ class VizierWebService(object):
             viztrail.branches[branch_id]
         )
 
+    def get_dataset_chart_view(self, project_id, branch_id, version, module_id, view_id):
+        """
+        """
+        # Get viztrail to ensure that it exist.
+        viztrail = self.viztrails.get_viztrail(viztrail_id=project_id)
+        if viztrail is None:
+            return None
+        # Retrieve workflow from repository. The result is None if the branch
+        # does not exist.
+        workflow = self.viztrails.get_workflow(
+            viztrail_id=project_id,
+            branch_id=branch_id,
+            workflow_version=version
+        )
+        if workflow is None:
+            return None
+        # Find the workflow module and ensure that the referenced view is
+        # defined for the module.
+        datasets = None
+        v_handle = None
+        for module in workflow.modules:
+            for obj in module.stdout:
+                if obj['type'] == O_CHARTVIEW:
+                    view = ChartViewHandle.from_dict(obj['data'])
+                    if view.identifier == view_id:
+                        v_handle = view
+            if module.identifier == module_id:
+                datasets = module.datasets
+                break
+        if not datasets is None and not v_handle is None:
+            if not v_handle.dataset_name in datasets:
+                raise ValueError('unknown dataset \'' + v_handle.dataset_name + '\'')
+            dataset_id = datasets[v_handle.dataset_name]
+            rows = self.datastore.get_dataset_chart(dataset_id, v_handle.data)
+            return {
+                'name': v_handle.chart_name,
+                'rows': rows,
+                'schema': v_handle.schema(),
+                JSON_REFERENCES: [
+                    self_reference(self.urls.workflow_module_view_url(
+                        project_id, branch_id,  version, module_id,  view_id
+                    ))
+                ]
+            }
+        return None
+
     def get_workflow(self, project_id, branch_id, workflow_version=-1):
         """Retrieve a workflow from a given project.
 
@@ -1220,7 +1267,7 @@ class VizierWebService(object):
             ] + self.dataset_pagination_urls(dataset)
         }
 
-    def serialize_module_handle(self, viztrail, branch, version, module):
+    def serialize_module_handle(self, viztrail, branch, version, module, views):
         """Get dictionary representaion for a workflow module handle.
 
         Parameters
@@ -1231,6 +1278,8 @@ class VizierWebService(object):
             Workflow handle
         module : vizier.workflow.module.ModuleHandle
             Handle for workflow module
+        views: dict(vizier.plot.view.ChartViewHandle)
+            Dictionary of available views indexed by their name.
 
         Returns
         -------
@@ -1242,6 +1291,54 @@ class VizierWebService(object):
             version,
             module.identifier
         )
+
+        # Convert chart views in the module output to dictionaries that contain
+        # a self reference for data access. In the first step we replace the
+        # data value with the view name
+        stdout = list()
+        view_outputs = list()
+        for obj in module.stdout:
+            if obj['type'] == O_CHARTVIEW:
+                view = ChartViewHandle.from_dict(obj['data'])
+                if view.dataset_name in module.datasets:
+                    views[view.chart_name] = view
+                    # This is a bit tricky. Create a placeholder object and then
+                    # replace the data value with the serialized version of
+                    # the chart handle later on. Make sure to keep track of any
+                    # results that may be associated with the output
+
+                    placeholder = {'type': O_CHARTVIEW, 'data': view.chart_name}
+                    if 'result' in obj:
+                        placeholder['result'] = obj['result']
+                    obj = placeholder
+                    view_outputs.append(obj)
+                else:
+                    # Remove outputs that reference views accessing non-existent
+                    # datasets
+                    obj = None
+            if not obj is None:
+                stdout.append(obj)
+        # Create a list of serialized view handles
+        view_handles = dict()
+        for view in views.values():
+            if view.dataset_name in module.datasets:
+                view_url = self.urls.workflow_module_view_url(
+                    viztrail.identifier,
+                    branch.identifier,
+                    version,
+                    module.identifier,
+                    view.identifier
+                    )
+                v_serial = {
+                    'name': view.chart_name,
+                    JSON_REFERENCES: [
+                        self_reference(view_url)
+                    ]
+                }
+                view_handles[view.chart_name] = v_serial
+        # Replace data in view outputs
+        for obj in view_outputs:
+            obj['data'] = view_handles[obj['data']]
         args = module.command.arguments
         return {
             'id' : module.identifier,
@@ -1250,13 +1347,14 @@ class VizierWebService(object):
                 'id': module.command.command_identifier,
                 'arguments': [{'name': key, 'value': args[key]} for key in args]
             },
-            'stdout': module.stdout,
+            'stdout': stdout,
             'stderr': module.stderr,
             'datasets': [{
                     'id': module.datasets[d],
                     'name' : d
                 } for d in sorted(module.datasets.keys())
             ],
+            'views': view_handles.values(),
             JSON_REFERENCES: [
                 reference(REL_DELETE, module_url),
                 reference(REL_INSERT, module_url),
@@ -1338,11 +1436,15 @@ class VizierWebService(object):
         obj = self.serialize_workflow_descriptor(viztrail, branch, version)
         obj['createdAt'] = workflow.created_at.isoformat()
         obj['project'] = self.serialize_project_descriptor(viztrail)
-        # Add module listing
+        # Create listing of workflow modules. This will transform chart view
+        # outputs into web resources and keep track of views that are available
+        # to each module.
+        views = dict()
         obj['modules'] = [
-            self.serialize_module_handle(viztrail, branch, version, m)
+            self.serialize_module_handle(viztrail, branch, version, m, views)
                 for m in workflow.modules
         ]
+        # Create list of all datasets in the workflow.
         datasets = dict()
         for module in workflow.modules:
             for dataset_id in module.datasets.values():

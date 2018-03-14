@@ -71,9 +71,10 @@ class InMemDatasetHandle(DatasetHandle):
         with f_handle.open() as csvfile:
             reader = csv.reader(csvfile, delimiter=f_handle.delimiter)
             for col_name in reader.next():
-                columns.append(DatasetColumn(len(columns), col_name))
+                columns.append(DatasetColumn(len(columns), col_name.strip()))
             for row in reader:
-                rows.append(DatasetRow(len(rows), row))
+                values = [v.strip() for v in row]
+                rows.append(DatasetRow(len(rows), values))
         # Return InMemDatasetHandle
         return InMemDatasetHandle(
             identifier=get_unique_identifier(),

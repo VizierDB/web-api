@@ -396,6 +396,30 @@ class UrlFactory:
         workflow_url = self.workflow_url(project_id, branch_id, version)
         return workflow_url + '/modules/' + str(module_id)
 
+    def workflow_module_view_url(self, project_id, branch_id, version, module_id, view_id):
+        """Url to access the content of a dataset view that is associated with a
+        workflow module.
+
+        Parameters
+        ----------
+        project_id : string
+            Unique project identifier
+        branch_id: string
+            Workflow branch identifier
+        version: int
+            Workflow version identifier
+        module_id: int
+            Unique module identifier
+        view_id: string
+            Unique view identifier
+
+        Returns
+        -------
+        string
+        """
+        module_url = self.workflow_module_url(project_id, branch_id, version, module_id)
+        return module_url + '/views/' + view_id
+
 
 # ------------------------------------------------------------------------------
 #

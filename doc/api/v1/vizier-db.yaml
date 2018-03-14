@@ -86,7 +86,7 @@ paths:
                         $ref: "#/definitions/ProjectHandle"
                 400:
                     description: Invalid project properties
-    /projects/{projectIdentifier}:
+    /projects/{projectId}:
         delete:
             summary: Delete project
             description: Delete the project with the given identifier
@@ -94,7 +94,7 @@ paths:
             tags:
                 - project
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
@@ -113,7 +113,7 @@ paths:
             tags:
                 - project
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
@@ -125,7 +125,7 @@ paths:
                         $ref: "#/definitions/ProjectHandle"
                 404:
                     description: Unknown project
-    /projects/{projectIdentifier}/modulespecs:
+    /projects/{projectId}/modulespecs:
         get:
             summary: Executable modules
             description: List of module specifications for all supported modules of the execution environment
@@ -133,7 +133,7 @@ paths:
             tags:
                 - project
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
@@ -145,7 +145,7 @@ paths:
                     description: Module specification list
                     schema:
                         $ref: '#/definitions/ModuleSpecificationListing'
-    /projects/{projectIdentifier}/properties:
+    /projects/{projectId}/properties:
         post:
             summary: Update project properties
             description: Updates the set of user-defined properties for a given project
@@ -153,7 +153,7 @@ paths:
             tags:
                 - project
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
@@ -174,7 +174,7 @@ paths:
     #
     # Workflows
     #
-    /projects/{projectIdentifier}/branches:
+    /projects/{projectId}/branches:
         get:
             summary: Get project branches
             description: Get list of workflow branches that are associated with a project
@@ -182,7 +182,7 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
@@ -203,7 +203,7 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
@@ -225,7 +225,7 @@ paths:
                     description: Invalid branch properties
                 404:
                     description: Unknown project
-    /projects/{projectIdentifier}/branches/{branchIdentifier}:
+    /projects/{projectId}/branches/{branchId}:
         delete:
             summary: Delete project branch
             description: Delete workflow branch from a given project
@@ -233,12 +233,12 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
@@ -257,12 +257,12 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
@@ -276,7 +276,7 @@ paths:
                         $ref: '#/definitions/BranchHandle'
                 404:
                     description: Unknown project or branch
-    /projects/{projectIdentifier}/branches/{branchIdentifier}/head:
+    /projects/{projectId}/branches/{branchId}/head:
         get:
             summary: Get branch head
             description: Get workflow at HEAD of a project branch
@@ -284,12 +284,12 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
@@ -303,7 +303,7 @@ paths:
                         $ref: '#/definitions/WorkflowHandle'
                 404:
                     description: Unknown project, branch, or workflow
-    /projects/{projectIdentifier}/branches/{branchIdentifier}/head/modules:
+    /projects/{projectId}/branches/{branchId}/head/modules:
         post:
             summary: Append to branch head
             description: Append module to workflow at HEAD of given branch
@@ -311,12 +311,12 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
@@ -338,7 +338,7 @@ paths:
                     description: Invalid module statement
                 404:
                     description: Unknown project, branch, or workflow
-    /projects/{projectIdentifier}/branches/{branchIdentifier}/workflows/{workflowIdentifier}:
+    /projects/{projectId}/branches/{branchId}/workflows/{workflowId}:
         get:
             summary: Get workflow
             description: Get a workflow in a project branches history
@@ -346,17 +346,17 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
                   type: string
-                - name: workflowIdentifier
+                - name: workflowId
                   in: path
                   required: true
                   description: Unique workflow identifier
@@ -370,7 +370,7 @@ paths:
                         $ref: '#/definitions/WorkflowHandle'
                 404:
                     description: Unknown project, branch, or workflow
-    /projects/{projectIdentifier}/branches/{branchIdentifier}/workflows/{workflowIdentifier}/modules:
+    /projects/{projectId}/branches/{branchId}/workflows/{workflowId}/modules:
         post:
             summary: Append module
             description: Append module to workflow and execute the resulting workflow
@@ -378,17 +378,17 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
                   type: string
-                - name: workflowIdentifier
+                - name: workflowId
                   in: path
                   required: true
                   description: Unique workflow identifier
@@ -410,7 +410,7 @@ paths:
                     description: Invalid module statement
                 404:
                     description: Unknown project, branch, or workflow
-    /projects/{projectIdentifier}/branches/{branchIdentifier}/workflows/{workflowIdentifier}/modules/{moduleIdentifier}:
+    /projects/{projectId}/branches/{branchId}/workflows/{workflowId}/modules/{moduleId}:
         delete:
             summary: Delete module
             description: Delete an existing module in a workflow and execute the resulting workflow
@@ -418,22 +418,22 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
                   type: string
-                - name: workflowIdentifier
+                - name: workflowId
                   in: path
                   required: true
                   description: Unique workflow identifier
                   type: integer
-                - name: moduleIdentifier
+                - name: moduleId
                   in: path
                   required: true
                   description: Identifier of module before which the new module is inserted
@@ -454,22 +454,22 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
                   type: string
-                - name: workflowIdentifier
+                - name: workflowId
                   in: path
                   required: true
                   description: Unique workflow identifier
                   type: integer
-                - name: moduleIdentifier
+                - name: moduleId
                   in: path
                   required: true
                   description: Identifier of module before which the new module is inserted
@@ -498,22 +498,22 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
                   type: string
-                - name: workflowIdentifier
+                - name: workflowId
                   in: path
                   required: true
                   description: Unique workflow identifier
                   type: integer
-                - name: moduleIdentifier
+                - name: moduleId
                   in: path
                   required: true
                   description: Identifier of module that is being replaced
@@ -535,7 +535,50 @@ paths:
                     description: Invalid module statement
                 404:
                     description: Unknown project, branch, workflow, or module
-    /projects/{projectIdentifier}/branches/{branchIdentifier}/properties:
+    /projects/{projectId}/branches/{branchId}/workflows/{workflowId}/modules/{moduleId}/views/{viewId}:
+        get:
+            summary: Get dataset view
+            description: Access content of a dataset view for a given workflow module version
+            operationId: getDatasetChartView
+            tags:
+                - workflow
+                - chart
+            parameters:
+                - name: projectId
+                  in: path
+                  required: true
+                  description: The unique project identifier
+                  type: string
+                - name: branchId
+                  in: path
+                  required: true
+                  description: Unique identifier of the project branch
+                  type: string
+                - name: workflowId
+                  in: path
+                  required: true
+                  description: Unique workflow identifier
+                  type: integer
+                - name: moduleId
+                  in: path
+                  required: true
+                  description: Identifier of module
+                  type: integer
+                - name: viewId
+                  in: path
+                  required: true
+                  description: Identifier of chart view
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Dataset chart view content
+                    schema:
+                        $ref: '#/definitions/DatasetChartView'
+                404:
+                    description: Unknown project, branch, workflow, module, or view
+    /projects/{projectId}/branches/{branchId}/properties:
         post:
             summary: Update branch properties
             description: Updates the set of user-defined properties for a given project branch
@@ -543,12 +586,12 @@ paths:
             tags:
                 - workflow
             parameters:
-                - name: projectIdentifier
+                - name: projectId
                   in: path
                   required: true
                   description: The unique project identifier
                   type: string
-                - name: branchIdentifier
+                - name: branchId
                   in: path
                   required: true
                   description: Unique identifier of the project branch
@@ -583,7 +626,7 @@ paths:
                     description: List of file handles
                     schema:
                         $ref: '#/definitions/FileListing'
-    /files/{fileIdentifier}:
+    /files/{fileId}:
         delete:
             summary: Delete file
             description: Delete a file from the file server
@@ -591,7 +634,7 @@ paths:
             tags:
                 - file
             parameters:
-                - name: fileIdentifier
+                - name: fileId
                   in: path
                   required: true
                   description: Unique file identifier
@@ -610,7 +653,7 @@ paths:
             tags:
                 - file
             parameters:
-                - name: fileIdentifier
+                - name: fileId
                   in: path
                   required: true
                   description: Unique file identifier
@@ -631,7 +674,7 @@ paths:
             tags:
                 - file
             parameters:
-                - name: fileIdentifier
+                - name: fileId
                   in: path
                   required: true
                   description: Unique file identifier
@@ -653,7 +696,7 @@ paths:
                     description: Invalid request format or file name
                 404:
                     description: Unknown file
-    /files/{fileIdentifier}/download:
+    /files/{fileId}/download:
         get:
             summary: Download file
             description: Download file from file server
@@ -661,7 +704,7 @@ paths:
             tags:
                 - file
             parameters:
-                - name: fileIdentifier
+                - name: fileId
                   in: path
                   required: true
                   description: Unique file identifier
@@ -708,7 +751,7 @@ paths:
     #
     # Datasets
     #
-    /datasets/{datasetIdentifier}:
+    /datasets/{datasetId}:
         get:
             summary: Get dataset
             description: Get columns and cell values for dataset
@@ -716,7 +759,7 @@ paths:
             tags:
                 - dataset
             parameters:
-                - name: datasetIdentifier
+                - name: datasetId
                   in: path
                   required: true
                   description: The unique dataset identifier
@@ -745,7 +788,7 @@ paths:
                         $ref: '#/definitions/DatasetHandle'
                 404:
                     description: Unknown dataset
-    /datasets/{datasetIdentifier}/annotations:
+    /datasets/{datasetId}/annotations:
         get:
             summary: Get dataset annotations
             description: Get all annotations that are associated with dataset components
@@ -753,7 +796,7 @@ paths:
             tags:
                 - dataset
             parameters:
-                - name: datasetIdentifier
+                - name: datasetId
                   in: path
                   required: true
                   description: The unique dataset identifier
@@ -774,7 +817,7 @@ paths:
             tags:
                 - dataset
             parameters:
-                - name: datasetIdentifier
+                - name: datasetId
                   in: path
                   required: true
                   description: The unique dataset identifier
@@ -965,6 +1008,44 @@ definitions:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
+    DatasetChartView:
+        type: object
+        description: Dataset chart view content
+        required:
+            - name
+            - rows
+            - schema
+            - links
+        properties:
+            name:
+                type: string
+            rows:
+                type: array
+                items:
+                    type: array
+            schema:
+                type: object
+                required:
+                    - series
+                properties:
+                    series:
+                        type: array
+                        items:
+                            type: object
+                            required:
+                                - label
+                                - index
+                            properties:
+                                label:
+                                    type: string
+                                index:
+                                    type: integer
+                    xAxis:
+                        type: integer
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
     DatasetColumn:
         type: object
         description: Column in a dataset
@@ -1142,7 +1223,17 @@ definitions:
             stdout:
                 type: array
                 items:
-                    type: string
+                    type: object
+                    required:
+                        - type
+                        - data
+                    properties:
+                        type:
+                            type: string
+                        data:
+                            type: string
+                        result:
+                            type: object
             stderr:
                 type: array
                 items:
@@ -1449,7 +1540,7 @@ definitions:
                         packages:
                             type: array
                             items:
-                                string
+                                type: string
             links:
                 type: array
                 items:
