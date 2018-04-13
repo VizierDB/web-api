@@ -179,11 +179,11 @@ class TestDataStore(unittest.TestCase):
         self.assertEquals(ds.column_index('Salary'), 2)
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Alice')
-        self.assertEquals(row.values[1], '23')
+        self.assertEquals(int(row.values[1]), 23)
         self.assertEquals(row.values[2], '35K')
         row = ds_rows[1]
         self.assertEquals(row.values[0], 'Bob')
-        self.assertEquals(row.values[1], '32')
+        self.assertEquals(int(row.values[1]), 32)
         self.assertEquals(row.values[2], '30K')
 
     def load_tsv(self):

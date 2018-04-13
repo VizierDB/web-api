@@ -9,7 +9,7 @@ from vizier.config import ExecEnv, TestEnv, ENGINEENV_DEFAULT
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
-from vizier.workflow.command import python_cell
+from vizier.workflow.command import python_cell, mimir_missing_value
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 
 from vizier.api import VizierWebService
@@ -66,7 +66,7 @@ class TestWebServiceAPI(unittest.TestCase):
         ph = self.api.create_project('blocked', {'name' : 'My Project'})
         wf = self.api.get_workflow(ph['id'], DEFAULT_BRANCH)
         with self.assertRaises(ValueError):
-            self.api.append_module(ph['id'], DEFAULT_BRANCH, -1, python_cell('2+2'))
+            self.api.append_module(ph['id'], DEFAULT_BRANCH, -1, mimir_missing_value('2+2', 3))
 
 
 if __name__ == '__main__':

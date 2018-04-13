@@ -1,6 +1,6 @@
 """Simple implementation of the WorkflowEngine for testing purposes."""
 
-from vizier.workflow.base import PLAIN_TEXT
+from vizier.serialize import PLAIN_TEXT
 from vizier.workflow.engine.base import WorkflowExecutionResult, WorkflowEngine
 
 

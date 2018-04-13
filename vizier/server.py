@@ -377,7 +377,11 @@ def get_project(project_id):
     """Retrieve information for project with given identifier."""
     # Retrieve project serialization. If project does not exist the result
     # will be none.
-    pj = api.get_project(project_id)
+    pj = api.get_project(
+        project_id,
+        branch_id=request.args.get('branch'),
+        version=request.args.get('version')
+    )
     if not pj is None:
         return jsonify(pj)
     raise ResourceNotFound('unknown project \'' + project_id + '\'')

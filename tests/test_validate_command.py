@@ -95,6 +95,28 @@ class TestValidateCommand(unittest.TestCase):
         with self.assertRaises(ValueError):
             cmd.validate_arguments(spec, args)
 
+    def test_validate_plot(self):
+        """Test validation of plot cell command specifications."""
+        plot = ModuleSpecification(
+            'plot',
+            'CHART',
+            {
+                u'series': [
+                    {u'series_column': u'A', u'series_label': 'Fatal', u'series_range':'0:20'},
+                    {u'series_column': u'B'}
+                ],
+                u'chart': {
+                    u'chartType': u'Bar Chart',
+                    u'chartGrouped': True
+                },
+                u'name': u'My Chart',
+                u'xaxis': {u'xaxis_column': u'Year'},
+                u'dataset': u'accidents'
+            }
+        )
+        cmd.validate_command(self.command_repository, plot)
+
+
     def test_validate_python(self):
         """Test validation of python cell command specifications."""
         cmd.validate_command(self.command_repository, cmd.python_cell('print 2'))

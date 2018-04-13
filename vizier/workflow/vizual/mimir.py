@@ -174,7 +174,10 @@ class MimirVizualEngine(DefaultVizualEngine):
         col_list = [ROW_ID]
         for col in schema:
             if col.identifier == new_column.identifier:
-                col_list.append('\'\' AS ' + col.name_in_rdb)
+                # Note: By no (April 2018) this requires Mimir to run with the
+                # XNULL option. Otherwise, in some scenarios setting the all
+                # values in the new column to NULL may cause an exception.
+                col_list.append('NULL ' + col.name_in_rdb)
             else:
                 col_list.append(col.name_in_rdb)
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
@@ -430,9 +433,14 @@ class MimirVizualEngine(DefaultVizualEngine):
         for i in range(len(dataset.columns)):
             col = dataset.columns[i]
             if i == col_index:
-                val_stmt = col.to_sql_value(value)
-                stmt = 'CASE WHEN ' + ROW_ID + ' = ' + dataset.rowid_column.to_sql_value(row_id) + ' THEN '
-                stmt += val_stmt + ' ELSE ' + col.name_in_rdb + ' END '
+                try:
+                    val_stmt = col.to_sql_value(value)
+                    col_sql = val_stmt + ' ELSE ' + col.name_in_rdb + ' END '
+                except ValueError:
+                    col_sql = '\'' + str(value) + '\' ELSE CAST({{input}}.' + col.name_in_rdb  + ' AS varchar) END '
+                rid_sql = dataset.rowid_column.to_sql_value(row_id)
+                stmt = 'CASE WHEN ' + ROW_ID + ' = ' + rid_sql + ' THEN '
+                stmt += col_sql
                 stmt += 'AS ' + col.name_in_rdb
                 col_list.append(stmt)
             else:

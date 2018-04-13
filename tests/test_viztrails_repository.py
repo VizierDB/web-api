@@ -44,9 +44,9 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         self.db.append_workflow_module(viztrail_id=vt.identifier, command=load_dataset('file', 'name'))
         # The default branch should have two versions. The first versions contains
         # one module and the second version contains two modules
-        self.assertEquals(len(vt.branches[DEFAULT_BRANCH].versions), 2)
-        v1 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].versions[0])
-        v2 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].versions[1])
+        self.assertEquals(len(vt.branches[DEFAULT_BRANCH].workflows), 2)
+        v1 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].workflows[0].version)
+        v2 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].workflows[1].version)
         head = self.db.get_workflow(viztrail_id=vt.identifier, branch_id=DEFAULT_BRANCH)
         self.assertEquals(len(v1.modules), 1)
         self.assertEquals(len(v2.modules), 2)
@@ -63,9 +63,9 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
             {ENV.identifier: ENV}
         )
         vt = self.db.get_viztrail(vt.identifier)
-        self.assertEquals(len(vt.branches[DEFAULT_BRANCH].versions), 2)
-        v1 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].versions[0])
-        v2 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].versions[1])
+        self.assertEquals(len(vt.branches[DEFAULT_BRANCH].workflows), 2)
+        v1 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].workflows[0].version)
+        v2 = self.db.get_workflow(viztrail_id=vt.identifier, workflow_version=vt.branches[DEFAULT_BRANCH].workflows[1].version)
         head = self.db.get_workflow(viztrail_id=vt.identifier, branch_id=DEFAULT_BRANCH)
         self.assertEquals(len(v1.modules), 1)
         self.assertEquals(len(v2.modules), 2)
@@ -82,7 +82,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         self.assertEquals(len(wf.modules), 3)
         for m in wf.modules:
             self.assertTrue(m.identifier >= 0)
-            self.assertEquals(m.stdout[0], 'SUCCESS ' + str(m.identifier))
+            self.assertEquals(m.stdout[0]['data'], 'SUCCESS ' + str(m.identifier))
         self.assertEquals(wf.modules[0].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.modules[1].command.module_type, PACKAGE_VIZUAL)
         self.assertEquals(wf.modules[2].command.module_type, PACKAGE_PYTHON)
@@ -99,7 +99,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         self.assertEquals(len(wf.modules), 2)
         for m in wf.modules:
             self.assertTrue(m.identifier >= 0)
-            self.assertEquals(m.stdout[0], 'SUCCESS ' + str(m.identifier))
+            self.assertEquals(m.stdout[0]['data'], 'SUCCESS ' + str(m.identifier))
         self.assertEquals(wf.modules[0].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.modules[1].command.module_type, PACKAGE_PYTHON)
         self.assertEquals(wf.version, 3)
@@ -117,8 +117,8 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         # Create a branch at the end of the default branch. The new branch
         # contains one workflow with two modules the version number is 2
         newbranch = self.db.create_branch(viztrail_id=vt.identifier, properties={'name': 'New Branch'})
-        self.assertEquals(len(newbranch.versions), 1)
-        self.assertEquals(newbranch.versions[-1], 2)
+        self.assertEquals(len(newbranch.workflows), 1)
+        self.assertEquals(newbranch.workflows[-1].version, 2)
         wf = vt.get_workflow(branch_id=newbranch.identifier)
         self.assertEquals(wf.version, 2)
         self.assertEquals(len(wf.modules), 2)
@@ -130,8 +130,8 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         )
         vt = self.db.get_viztrail(vt.identifier)
         newbranch = vt.branches[newbranch.identifier]
-        self.assertEquals(len(newbranch.versions), 1)
-        self.assertEquals(newbranch.versions[-1], 2)
+        self.assertEquals(len(newbranch.workflows), 1)
+        self.assertEquals(newbranch.workflows[-1].version, 2)
         wf = vt.get_workflow(branch_id=newbranch.identifier)
         self.assertEquals(wf.version, 2)
         self.assertEquals(len(wf.modules), 2)
@@ -259,12 +259,12 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
             before_id=0
         )
         # Ensure that all version files exist
-        self.check_files(vt.identifier, vt.branches[DEFAULT_BRANCH].versions, True)
-        new_versions = vt.branches[newbranch.identifier].versions
+        self.check_files(vt.identifier, vt.branches[DEFAULT_BRANCH].workflows, True)
+        new_versions = vt.branches[newbranch.identifier].workflows
         self.check_files(vt.identifier, new_versions, True)
         # Delete new branch. Ensure that only the master versions exist
         self.assertTrue(self.db.delete_branch(viztrail_id=vt.identifier, branch_id=newbranch.identifier))
-        self.check_files(vt.identifier, vt.branches[DEFAULT_BRANCH].versions, True)
+        self.check_files(vt.identifier, vt.branches[DEFAULT_BRANCH].workflows, True)
         self.check_files(vt.identifier, new_versions, False)
         # Deleting a non-existing branch should return False
         self.assertFalse(self.db.delete_branch(viztrail_id=vt.identifier, branch_id=newbranch.identifier))
@@ -292,8 +292,8 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
             self.db.create_viztrail('UNKNOWN', {'name' : 'My Project'})
 
     def check_files(self, viztrail_id, versions, check_exists):
-        for version in versions:
-            filename = os.path.join(VIZTRAILS_DIRECTORY, viztrail_id, str(version) + '.yaml')
+        for wf_desc in versions:
+            filename = os.path.join(VIZTRAILS_DIRECTORY, viztrail_id, str(wf_desc.version) + '.yaml')
             self.assertEquals(os.path.isfile(filename), check_exists)
 
 if __name__ == '__main__':

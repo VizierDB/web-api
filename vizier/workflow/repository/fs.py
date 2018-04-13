@@ -15,6 +15,7 @@ from vizier.core.timestamp import get_current_time, to_datetime
 from vizier.core.util import Sequence, get_unique_identifier
 from vizier.workflow.base import ViztrailBranch, ViztrailBranchProvenance
 from vizier.workflow.base import ViztrailHandle, WorkflowHandle
+from vizier.workflow.base import WorkflowVersionDescriptor
 from vizier.workflow.base import DEFAULT_BRANCH, DEFAULT_BRANCH_NAME
 from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.module import ModuleHandle
@@ -227,7 +228,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
                 b['id'],
                 FilePropertiesHandler(branch_file(fs_dir, b['id'])),
                 FileSystemBranchProvenance(branch_prov_file(fs_dir, b['id'])),
-                versions=b['versions']
+                workflows=[WorkflowVersionDescriptor.from_dict(v) for v in b['versions']]
             ) for b in doc['branches']},
             envs[doc['env']],
             FilePropertiesHandler(os.path.join(fs_dir, PROPERTIES_FILE)),
@@ -255,18 +256,23 @@ class FileSystemViztrailHandle(ViztrailHandle):
         if not branch_id in self.branches:
             return None
         branch = self.branches[branch_id]
-        if version < 0 and len(branch.versions) == 0:
+        if version < 0 and len(branch.workflows) == 0:
             # Returns an empty workflow if the branch does not contain any
             # executed workflows yet.
             return WorkflowHandle(branch_id, -1, get_current_time(), [])
-        elif version >= 0 and not version in branch.versions:
-            # Return None if version number is not in branch
-            return None
         # Get version number of branch HEAD if negative version is given
-        if version < 0:
-            wf_file = workflow_file(self.fs_dir, branch.versions[-1])
+        wf_file = None
+        if version < 0 and len(branch.workflows) > 0:
+            wf_file = workflow_file(self.fs_dir, branch.workflows[-1].version)
         else:
-            wf_file = workflow_file(self.fs_dir, version)
+            for wf_desc in branch.workflows:
+                if wf_desc.version == version:
+                    wf_file = workflow_file(self.fs_dir, version)
+                    break
+        # Return None if version number is not in branch (indicated by an non-
+        # existing workflow file)
+        if wf_file is None:
+            return None
         # Read workflow handle from file
         with open(wf_file, 'r') as f:
             doc = yaml.load(f.read())
@@ -288,7 +294,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
             'env': self.exec_env.identifier,
             'branches' : [{
                     'id': b,
-                    'versions': self.branches[b].versions
+                    'versions': [w.to_dict() for w in self.branches[b].workflows]
                 } for b in self.branches
             ],
             'timestamps' : {
@@ -309,17 +315,22 @@ class FileSystemViztrailHandle(ViztrailHandle):
         ----------
         exec_result: vizier.workflow.engine.base.WorkflowExecutionResult
             Resulting workflow state after execution
+
+        Returns
+        -------
+        datetime.datetime
         """
         # Create dictionary for workflow information
+        created_at = get_current_time()
         doc = {
             'version': exec_result.version,
-            'createdAt': get_current_time().isoformat(),
+            'createdAt': created_at.isoformat(),
             'modules': [m.to_dict() for m in exec_result.modules]
         }
         # Write handle to file
         with open(workflow_file(self.fs_dir, exec_result.version), 'w') as f:
             yaml.dump(doc, f, default_flow_style=False)
-
+        return created_at
 
 class FileSystemViztrailRepository(ViztrailRepository):
     """Default implementation of the abstract viztrails repository class. This
@@ -519,7 +530,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
             modules
         )
         # Create file for new workflow
-        viztrail.write_workflow(result)
+        created_at = viztrail.write_workflow(result)
         # Create new branch handle
         target_branch = get_unique_identifier()
         # Store provenance information for new branch in file
@@ -537,7 +548,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
                 properties
             ),
             FileSystemBranchProvenance(prov_file),
-            versions=[result.version]
+            workflows=[WorkflowVersionDescriptor(result.version, created_at)]
         )
         # Update the viztrail on disk
         viztrail.branches[target_branch] = branch
@@ -606,8 +617,8 @@ class FileSystemViztrailRepository(ViztrailRepository):
             return None
         branch = viztrail.branches[branch_id]
         # Delete workflow files associated with the branch
-        for version in branch.versions:
-            os.remove(workflow_file(viztrail.fs_dir, version))
+        for wf_desc in branch.workflows:
+            os.remove(workflow_file(viztrail.fs_dir, wf_desc.version))
         # Delete branch properties file
         os.remove(branch_file(viztrail.fs_dir, branch_id))
         # Update the viztrail information
@@ -865,8 +876,10 @@ def persist_workflow_result(viztrail, branch_id, result):
     -------
     vizier.workflow.repository.fs.FileSystemViztrailHandle
     """
-    viztrail.write_workflow(result)
-    viztrail.branches[branch_id].versions.append(result.version)
+    created_at = viztrail.write_workflow(result)
+    viztrail.branches[branch_id].workflows.append(
+        WorkflowVersionDescriptor(result.version, created_at)
+    )
     viztrail.to_file()
     return viztrail
 

@@ -1,10 +1,10 @@
 """Vistrails-type engine."""
 
 from vizier.datastore.mem import VolatileDataStore
+from vizier.serialize import PLAIN_TEXT
 from vizier.workflow.module import ModuleHandle
 from vizier.workflow.context import WorkflowContext
 from vizier.workflow.engine.base import WorkflowExecutionResult, WorkflowEngine
-from vizier.workflow.base import PLAIN_TEXT
 from vizier.workflow.module import ModuleOutputs
 
 import vizier.config as config

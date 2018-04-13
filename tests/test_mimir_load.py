@@ -8,7 +8,6 @@ import unittest
 
 import vistrails.packages.mimir.init as mimir
 
-from vizier.config import FileServerConfig
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
 
@@ -44,9 +43,10 @@ class TestLoadMimirDataset(unittest.TestCase):
         """Run workflow with default configuration."""
         # Create new work trail and retrieve the HEAD workflow of the default
         # branch
-        ignore_files = ['cureSource.csv', 'uneven.csv', 'JSONOUTPUTWIDE.csv', 'dataset_load_single.csv']
+        ignore_files = ['JSONOUTPUTWIDE.csv']
         # Error: new-line character seen in unquoted field - do you need to open the file in universal-newline mode?
         # UnicodeEncodeError: 'ascii' codec can't encode character u'\u2026' in position 222: ordinal not in range(128)
+        data_types = set()
         mimir.initialize()
         for filename in os.listdir(LOAD_DIR):
             if filename in ignore_files:
@@ -56,8 +56,14 @@ class TestLoadMimirDataset(unittest.TestCase):
             f_handle = self.fileserver.upload_file(filename)
             ds = self.datastore.load_dataset(f_handle)
             ds_load = self.datastore.get_dataset(ds.identifier)
-            print [col.name_in_rdb + ' AS ' + col.name + '(' + col.data_type + ')' for col in ds_load.columns]
-            print str(ds.row_count) + ' row(s)'
+            print_ds = False
+            for col in ds_load.columns:
+                data_types.add(col.data_type)
+                if col.data_type == 'bool':
+                    print_ds = True
+            if print_ds:
+                print [col.name_in_rdb + ' AS ' + col.name + '(' + col.data_type + ')' for col in ds_load.columns]
+                print str(ds.row_count) + ' row(s)'
             self.assertEquals(len(ds.columns), len(ds_load.columns))
             self.assertEquals(ds.column_counter, ds_load.column_counter)
             self.assertEquals(ds.row_counter, ds_load.row_counter)
@@ -69,7 +75,7 @@ class TestLoadMimirDataset(unittest.TestCase):
                 self.assertEquals(row.identifier, i)
                 self.assertEquals(len(row.values), len(ds.columns))
         mimir.finalize()
-
+        print data_types
 
 if __name__ == '__main__':
     unittest.main()

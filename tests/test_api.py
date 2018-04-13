@@ -145,7 +145,7 @@ class TestWebServiceAPI(unittest.TestCase):
         """Test API calls to create and manipulate projects."""
         # Create a new project
         ph = self.api.create_project(ENV.identifier, {'name' : 'My Project'})
-        self.validate_project_handle(ph)
+        self.validate_project_descriptor(ph)
         self.validate_project_handle(self.api.get_project(ph['id']))
         # Project listing
         self.validate_project_listing(self.api.list_projects(), 1)
@@ -156,7 +156,7 @@ class TestWebServiceAPI(unittest.TestCase):
         props = {p['key'] : p['value'] for p in ph['properties']}
         self.assertEquals(props['name'], 'A Project')
         ph = self.api.update_project_properties(ph['id'], {'name': 'New Name'})
-        self.validate_project_handle(ph)
+        self.validate_project_descriptor(ph)
         props = {p['key'] : p['value'] for p in ph['properties']}
         self.assertEquals(props['name'], 'New Name')
         # Module specifications
@@ -206,7 +206,7 @@ class TestWebServiceAPI(unittest.TestCase):
         # Create a new branch
         time.sleep(1)
         desc = self.api.create_branch(ph['id'], DEFAULT_BRANCH, -1, 0, {'name': 'My Branch'})
-        self.validate_branch_descriptor(desc)
+        self.validate_branch_handle(desc)
         branch_wf = self.api.get_workflow(ph['id'], desc['id'])
         self.assertNotEquals(last_modified, branch_wf['project']['lastModifiedAt'])
         last_modified = branch_wf['project']['lastModifiedAt']
@@ -227,7 +227,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_branch_listing(self.api.list_branches(ph['id']), 2)
         # Update new branch name
         branch_wf = self.api.update_branch(ph['id'], desc['id'], {'name':'Some Branch'})
-        self.validate_workflow_handle(branch_wf, number_of_modules=2)
+        self.validate_branch_handle(branch_wf)
         n1 = self.api.get_branch(ph['id'], DEFAULT_BRANCH)['properties'][0]['value']
         n2 = self.api.get_branch(ph['id'], desc['id'])['properties'][0]['value']
         self.assertEquals(n2, 'Some Branch')
@@ -345,9 +345,12 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_file_handle(fh)
 
     def validate_keys(self, obj, keys):
-        self.assertEquals(len(obj), len(keys))
-        for key in keys:
-            self.assertTrue(key in obj)
+        if len(obj) > len(keys):
+            for key in obj:
+                self.assertTrue(key in keys, msg='Invalid key ' + key)
+        else:
+            for key in keys:
+                self.assertTrue(key in obj, msg='Missing key ' + key)
 
     def validate_links(self, links, keys):
         self.validate_keys({l['rel'] : l['href'] for l in links}, keys)
@@ -367,6 +370,9 @@ class TestWebServiceAPI(unittest.TestCase):
     def validate_project_handle(self, ph, br_count=1):
         self.validate_keys(ph, ['id', 'environment', 'createdAt', 'lastModifiedAt', 'properties', 'branches', 'links'])
         self.validate_links(ph['links'], ['self', 'delete', 'home', 'update', 'branches', 'environment'])
+        self.validate_keys(ph['environment'], ['id', 'modules', 'files'])
+        for fh in ph['environment']['files']:
+            self.validate_keys(fh, ['id', 'name'])
         self.assertEquals(len(ph['branches']), br_count)
         for br in ph['branches']:
             self.validate_branch_descriptor(br)
@@ -379,11 +385,11 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_project_descriptor(pj)
 
     def validate_workflow_descriptor(self, wf):
-        self.validate_keys(wf, ['branch', 'version', 'links'])
-        self.validate_links(wf['links'], ['self', 'branch', 'append'])
+        self.validate_keys(wf, ['version', 'links', 'createdAt'])
+        self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append'])
 
     def validate_workflow_handle(self, wf, number_of_modules=0):
-        self.validate_keys(wf,['project', 'branch', 'version', 'modules', 'createdAt', 'links', 'datasets'])
+        self.validate_keys(wf,['project', 'branch', 'version', 'modules', 'createdAt', 'links', 'datasets', 'readOnly'])
         self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append'])
         self.validate_project_descriptor(wf['project'])
         self.assertEquals(len(wf['modules']), number_of_modules)

@@ -5,7 +5,7 @@ Viztrails are collections of workflows (branches). A viztrail maintains not
 only the different workflows but also the history for each of them.
 """
 
-from vizier.core.timestamp import get_current_time
+from vizier.core.timestamp import get_current_time, to_datetime
 
 import vizier.workflow.command as cmd
 
@@ -16,9 +16,55 @@ DEFAULT_BRANCH = 'master'
 """Default name for the master branch."""
 DEFAULT_BRANCH_NAME = 'Default'
 
-"""Module output content types."""
-O_CHARTVIEW = 'chart/view'
-O_PLAINTEXT = 'text/plain'
+
+class WorkflowVersionDescriptor(object):
+    """Simple workflow descriptor that contains the workflow version and the
+    time of creation.
+
+    Attributes
+    ----------
+    version: int
+        Workflow version identifier
+    create_at: datetime.datetime, optional
+        Timestamp of workflow creation (UTC)
+    """
+    def __init__(self, version, created_at=None):
+        """Initialize the descriptor.
+
+        Parameters
+        ----------
+        version: int
+            Workflow version identifier
+        create_at: datetime.datetime
+            Timestamp of workflow creation (UTC)
+        """
+        self.version = version
+        self.created_at = created_at
+
+    @staticmethod
+    def from_dict(obj):
+        """Create descriptor instance from dictionary serialization.
+
+        Returns
+        -------
+        vizier.workflow.base.WorkflowVersionDescriptor
+        """
+        return WorkflowVersionDescriptor(
+            obj['version'],
+            to_datetime(obj['createdAt'])
+        )
+
+    def to_dict(self):
+        """Create dictionary serialization for the object.
+
+        Returns
+        -------
+        dict
+        """
+        return {
+            'version': self.version,
+            'createdAt': self.created_at.isoformat()
+        }
 
 
 class WorkflowHandle(object):
@@ -89,11 +135,10 @@ class ViztrailBranch(object):
         viztrail branch
     provenance: vizier.workflow.base.ViztrailBranchProvenance
         Provenance information for this branch
-    versions: list(int)
-        List of identifier of workflow versions that define the history of this
-        branch
+    workflows: list(vizier.workflow.base.WorkflowVersionDescriptor)
+        List of workflow versions that define the history of this branch
     """
-    def __init__(self, identifier, properties, provenance, versions=None):
+    def __init__(self, identifier, properties, provenance, workflows=None):
         """Initialize the viztrail branch.
 
         identifier: string
@@ -111,7 +156,7 @@ class ViztrailBranch(object):
         self.identifier = identifier
         self.properties = properties
         self.provenance = provenance
-        self.versions = versions if not versions is None else list()
+        self.workflows = workflows if not workflows is None else list()
 
 
 class ViztrailBranchProvenance(object):
@@ -229,42 +274,3 @@ class ViztrailHandle(object):
             Specification of the command that is to be evaluated
         """
         cmd.validate_command(self.command_repository, command)
-
-
-# ------------------------------------------------------------------------------
-# Helper Methods
-# ------------------------------------------------------------------------------
-
-def CHART_VIEW(view, rows=None):
-    """Create chart view output from a given handle.
-
-    Parameters
-    ----------
-    view: vizier.plot.view.ChartViewHandle
-        Handle defining the dataset chart view
-    rows: list(), optional
-        List of rows in the query result
-
-    Returns
-    -------
-    dict
-    """
-    obj = {'type': O_CHARTVIEW, 'data': view.to_dict()}
-    if not rows is None:
-        obj['result'] = {'rows': rows, 'schema': view.schema()}
-    return obj
-
-
-def PLAIN_TEXT(text):
-    """Create a plain text output object.
-
-    Parameters
-    ----------
-    text: string
-        Plain output text
-
-    Returns
-    -------
-    dict
-    """
-    return {'type': O_PLAINTEXT, 'data': text}

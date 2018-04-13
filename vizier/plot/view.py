@@ -89,7 +89,10 @@ class ChartViewHandle(object):
     reference columns by their name. This may change in future to make the
     view more robust against renaming of columns.
     """
-    def __init__(self, dataset_name, identifier=None, chart_name=None, data=None, x_axis=None):
+    def __init__(
+        self, dataset_name, identifier=None, chart_name=None, data=None,
+        x_axis=None, chart_type=None, grouped_chart=True
+    ):
         """Initialize the view handle.
 
         Parameters
@@ -104,13 +107,19 @@ class ChartViewHandle(object):
         data: list(vizier.plot.view.DataSeriesHandle), optional
             List of data series handles defining the data series in the chart
         x_axis: int, optional
-            Optional index of the data series that is used for x-axis labels.
+            Optional index of the data series that is used for x-axis labels
+        chart_type: string, optional
+            Type of chart that is being displayed
+        grouped_chart: bool, optional
+            Flag indicating whether data series are grouped into single chart
         """
         self.dataset_name = dataset_name
         self.identifier = identifier if not identifier is None else get_unique_identifier()
         self.chart_name = chart_name if not chart_name is None else 'Chart'
         self.data = data if not data is None else list()
         self.x_axis = x_axis
+        self.chart_type = chart_type if not chart_type is None else 'Bar Chart'
+        self.grouped_chart = grouped_chart
 
     def add_series(self, column, label=None, range_start=None, range_end=None):
         """Append a data series to the chart view.
@@ -163,7 +172,9 @@ class ChartViewHandle(object):
             dataset_name=obj['dataset'],
             chart_name=obj['name'],
             data=[DataSeriesHandle.from_dict(s) for s in obj['data']],
-            x_axis=x_axis
+            x_axis=x_axis,
+            chart_type=obj['chartType'],
+            grouped_chart=obj['groupedChart']
         )
 
     def schema(self):
@@ -196,7 +207,9 @@ class ChartViewHandle(object):
             'id': self.identifier,
             'dataset': self.dataset_name,
             'name': self.chart_name,
-            'data': [s.to_dict() for s in self.data]
+            'data': [s.to_dict() for s in self.data],
+            'chartType': self.chart_type,
+            'groupedChart': self.grouped_chart
         }
         # X-Axis information is optional
         if not self.x_axis is None:

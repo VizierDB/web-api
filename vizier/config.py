@@ -421,7 +421,8 @@ def env_commands(env_id, packages=None):
     else:
         commands = {
             cmd.PACKAGE_PYTHON: cmd.PYTHON_COMMANDS,
-            cmd.PACKAGE_VIZUAL: cmd.VIZUAL_COMMANDS
+            cmd.PACKAGE_VIZUAL: cmd.VIZUAL_COMMANDS,
+            cmd.PACKAGE_PLOT: cmd.PLOT_COMMANDS
         }
         # Add Mimir modules if environemt is MIMIR
         if env_id == ENGINEENV_MIMIR:

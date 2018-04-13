@@ -8,7 +8,11 @@ from vizier.workflow.module import ModuleSpecification
 # ------------------------------------------------------------------------------
 
 """Definition of common module parameter names."""
+PARA_CHART = 'chart'
+PARA_CHART_TYPE = 'chartType'
+PARA_CHART_GROUPED = 'chartGrouped'
 PARA_COLUMN = 'column'
+PARA_CONSTRAINT = 'constraint'
 PARA_DATASET = 'dataset'
 PARA_FILE = 'file'
 PARA_LABEL = 'label'
@@ -87,7 +91,10 @@ def para_row(index):
     return parameter_specification(PARA_ROW, 'Row', 'rowindex', index)
 
 
-def parameter_specification(identifier, name, data_type, index, label=None, required=True, values=None, parent=None):
+def parameter_specification(
+        identifier, name, data_type, index, label=None, required=True,
+        values=None, parent=None
+    ):
     """Create a dictionary that contains a module parameter specification.
 
     Parameters
@@ -104,6 +111,8 @@ def parameter_specification(identifier, name, data_type, index, label=None, requ
         Required flag
     values: list, optional
         List of valid parameter values
+    parent: int, optional
+        Identifier of a grouping element
 
     Returns
     -------
@@ -192,7 +201,14 @@ MIMIR_LENSES = {
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
             PARA_COLUMN: para_column(1),
-            PARA_MAKE_CERTAIN: para_make_input_certain(2)
+            PARA_CONSTRAINT: parameter_specification(
+                PARA_CONSTRAINT,
+                'Constraint',
+                'string',
+                2,
+                required=False
+            ),
+            PARA_MAKE_CERTAIN: para_make_input_certain(3)
         }
     },
     MIMIR_MISSING_KEY: {
@@ -200,7 +216,7 @@ MIMIR_LENSES = {
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
             PARA_COLUMN: para_column(1),
-            PARA_MAKE_CERTAIN: para_make_input_certain(3)
+            PARA_MAKE_CERTAIN: para_make_input_certain(2)
         }
     },
     MIMIR_PICKER: {
@@ -288,29 +304,29 @@ PLOT_COMMANDS = {
             PARA_NAME: parameter_specification(PARA_NAME, 'Chart Name', 'string', 1),
             PARA_SERIES: parameter_specification(
                 PARA_SERIES,
-                'Series',
+                'Data Series',
                 'group',
                 2
             ),
-            PARA_COLUMN: parameter_specification(
-                PARA_COLUMN,
+            PARA_SERIES + '_' + PARA_COLUMN: parameter_specification(
+                PARA_SERIES + '_' + PARA_COLUMN,
                 'Column',
                 'string',
                 3,
                 parent=PARA_SERIES
             ),
-            PARA_LABEL: parameter_specification(
-                PARA_LABEL,
-                'Label',
-                'string',
+            PARA_SERIES + '_' + PARA_RANGE: parameter_specification(
+                PARA_SERIES + '_' + PARA_RANGE,
+                'Range',
+                'int',
                 4,
                 parent=PARA_SERIES,
                 required=False
             ),
-            PARA_RANGE: parameter_specification(
-                PARA_RANGE,
-                'Range',
-                'int',
+            PARA_SERIES + '_' + PARA_LABEL: parameter_specification(
+                PARA_SERIES + '_' + PARA_LABEL,
+                'Label',
+                'string',
                 5,
                 parent=PARA_SERIES,
                 required=False
@@ -318,9 +334,49 @@ PLOT_COMMANDS = {
             PARA_XAXIS: parameter_specification(
                 PARA_XAXIS,
                 'X-Axis',
+                'asRow',
+                6
+            ),
+            PARA_XAXIS + '_' + PARA_COLUMN: parameter_specification(
+                PARA_XAXIS + '_' + PARA_COLUMN,
+                'Column',
+                'string',
+                7,
+                parent=PARA_XAXIS
+            ),
+            PARA_XAXIS + '_' + PARA_RANGE: parameter_specification(
+                PARA_XAXIS + '_' + PARA_RANGE,
+                'Range',
                 'int',
-                6,
+                8,
+                parent=PARA_XAXIS,
                 required=False
+            ),
+            PARA_CHART: parameter_specification(
+                PARA_CHART,
+                'Chart',
+                'asRow',
+                9
+            ),
+            PARA_CHART_TYPE: parameter_specification(
+                PARA_CHART_TYPE,
+                'Type',
+                'string',
+                10,
+                values=[
+                    'Area Chart',
+                    {'value': 'Bar Chart', 'isDefault': True},
+                    'Line Chart',
+                    'Scatter Plot'
+                ],
+                parent=PARA_CHART
+            ),
+            PARA_CHART_GROUPED: parameter_specification(
+                PARA_CHART_GROUPED,
+                'Grouped',
+                'bool',
+                11,
+                parent=PARA_CHART
             )
         }
     }
@@ -456,6 +512,33 @@ AVAILABLE_PACKAGES = {
 # ------------------------------------------------------------------------------
 # Mimir
 # ------------------------------------------------------------------------------
+
+def mimir_domain(dataset_name, column, make_input_certain=False):
+    """Create a Mimir Missing Value Lens.
+
+    Parameters
+    ----------
+    dataset_name: string
+        Name of the dataset
+    column: string or int
+        Name or index for column
+    make_input_certain: bool, optional
+        Flag indicating whether input should be made certain
+
+    Returns
+    -------
+    vizier.workflow.module.ModuleSpecification
+    """
+    return ModuleSpecification(
+        PACKAGE_MIMIR,
+        MIMIR_DOMAIN,
+        {
+            PARA_DATASET : dataset_name,
+            PARA_COLUMN: column,
+            PARA_MAKE_CERTAIN: make_input_certain
+        }
+    )
+
 
 def mimir_key_repair(dataset_name, column, make_input_certain=False):
     """Create a Mimir Key Repair Lens.
@@ -1008,14 +1091,18 @@ def validate_nested_arguments(spec, args):
     ----------
     spec: list(dict)
         List of required elements for argument dictionary
-    args: dict()
+    args: list(dict) or dict()
         Argument dictionary.
     """
     roots = dict()
     for obj in spec:
         roots[obj['label']] = obj
     # Make sure that all given arguments are valid
-    for arg in args:
+    if isinstance(args, list):
+        nested_args = args
+    else:
+        nested_args = [args]
+    for arg in nested_args:
         for key in arg:
             if not key in roots:
                 raise ValueError('invalid argument \'' + key + '\'')

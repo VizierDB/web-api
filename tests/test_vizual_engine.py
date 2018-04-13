@@ -340,11 +340,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[1].name.upper(), 'Name'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds_rows[0]
-        self.assertEquals(row.values[0], '23')
+        self.assertEquals(int(row.values[0]), 23)
         self.assertEquals(row.values[1], 'Alice')
         self.assertEquals(row.values[2], '35K')
         row = ds_rows[1]
-        self.assertEquals(row.values[0], '32')
+        self.assertEquals(int(row.values[0]), 32)
         self.assertEquals(row.values[1], 'Bob')
         self.assertEquals(row.values[2], '30K')
         # Ensure that row ids haven't changed
@@ -364,11 +364,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[1].name.upper(), 'Salary'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Name'.upper())
         row = ds_rows[0]
-        self.assertEquals(row.values[0], '23')
+        self.assertEquals(int(row.values[0]), 23)
         self.assertEquals(row.values[1], '35K')
         self.assertEquals(row.values[2], 'Alice')
         row = ds_rows[1]
-        self.assertEquals(row.values[0], '32')
+        self.assertEquals(int(row.values[0]), 32)
         self.assertEquals(row.values[1], '30K')
         self.assertEquals(row.values[2], 'Bob')
         # Ensure that row ids haven't changed
@@ -408,11 +408,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Bob')
-        self.assertEquals(row.values[1], '32')
+        self.assertEquals(int(row.values[1]), 32)
         self.assertEquals(row.values[2], '30K')
         row = ds_rows[1]
         self.assertEquals(row.values[0], 'Alice')
-        self.assertEquals(row.values[1], '23')
+        self.assertEquals(int(row.values[1]), 23)
         self.assertEquals(row.values[2], '35K')
         # Ensure that row ids haven't changed
         for i in range(len(ds_rows)):
@@ -430,11 +430,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Alice')
-        self.assertEquals(row.values[1], '23')
+        self.assertEquals(int(row.values[1]), 23)
         self.assertEquals(row.values[2], '35K')
         row = ds_rows[1]
         self.assertEquals(row.values[0], 'Bob')
-        self.assertEquals(row.values[1], '32')
+        self.assertEquals(int(row.values[1]), 32)
         self.assertEquals(row.values[2], '30K')
         # Ensure that row ids haven't changed
         for i in range(len(ds_rows)):
@@ -449,11 +449,11 @@ class TestVizualEngine(unittest.TestCase):
         ds_rows = ds.fetch_rows()
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Bob')
-        self.assertEquals(row.values[1], '32')
+        self.assertEquals(int(row.values[1]), 32)
         self.assertEquals(row.values[2], '30K')
         row = ds_rows[1]
         self.assertEquals(row.values[0], 'Alice')
-        self.assertEquals(row.values[1], '23')
+        self.assertEquals(int(row.values[1]), 23)
         self.assertEquals(row.values[2], '35K')
         # Ensure that row ids haven't changed
         for i in range(len(ds_rows)):

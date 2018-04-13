@@ -178,8 +178,8 @@ class TestWorkflows(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
         ds = DatasetClient(self.datastore.get_dataset(wf.modules[-1].datasets['people']))
-        self.assertEquals(ds.rows[0].get_value('Age'), '28')
-        self.assertEquals(ds.rows[1].get_value('Age'), '42')
+        self.assertEquals(int(ds.rows[0].get_value('Age')), 28)
+        self.assertEquals(int(ds.rows[1].get_value('Age')), 42)
         # DELETE UPDATE CELL
         self.db.delete_workflow_module(
             viztrail_id=vt.identifier,
@@ -188,7 +188,7 @@ class TestWorkflows(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
         ds = DatasetClient(self.datastore.get_dataset(wf.modules[-1].datasets['people']))
-        self.assertEquals(ds.rows[0].get_value('Age'), '23')
+        self.assertEquals(int(ds.rows[0].get_value('Age')), 23)
         # DELETE LOAD (will introduce error)
         self.db.delete_workflow_module(
             viztrail_id=vt.identifier,
@@ -285,11 +285,11 @@ class TestWorkflows(unittest.TestCase):
         self.assertFalse(wf.has_error)
         # Ensure that all names are Bobby
         ds = DatasetClient(self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME]))
-        age = ['23', '28', '32']
+        age = [23, 28, 32]
         for i in range(len(ds.rows)):
             row = ds.rows[i]
             self.assertEquals(row.get_value('Name'), 'Bobby')
-            self.assertEquals(row.get_value('Age'), age[i])
+            self.assertEquals(int(row.get_value('Age')), age[i])
 
     def run_python_workflow(self):
         """Test functionality to execute a workflow module."""

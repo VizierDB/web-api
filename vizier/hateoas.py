@@ -14,6 +14,39 @@ references for resources that are accessible via the Vizier Web API.
 PAGE_LIMIT = 'limit'
 PAGE_OFFSET = 'offset'
 
+"""HATEOAS relation identifier."""
+REL_ANNOTATED = 'annotated'
+REL_ANNOTATIONS='annotations'
+REL_APIDOC = 'doc';
+REL_APPEND = 'append';
+REL_BRANCH = 'branch'
+REL_BRANCHES = 'branches'
+REL_CREATE = 'create'
+REL_CURRENT_VERSION = 'currentVersion'
+REL_DATASET = 'dataset'
+REL_DELETE = 'delete'
+REL_DOWNLOAD = 'download'
+REL_FILES = 'files'
+REL_HEAD = 'head'
+REL_INSERT = 'insert'
+REL_MODULES = 'modules'
+REL_MODULE_SPECS = 'environment'
+REL_NOTEBOOK = 'notebook'
+REL_PAGE = 'page'
+REL_PAGE_FIRST = REL_PAGE + 'first'
+REL_PAGE_LAST = REL_PAGE + 'last'
+REL_PAGE_NEXT = REL_PAGE + 'next'
+REL_PAGE_PREV = REL_PAGE + 'prev'
+REL_PROJECT = 'project'
+REL_PROJECTS = 'projects'
+REL_RENAME = 'rename'
+REL_REPLACE = 'replace'
+REL_SERVICE = 'home'
+REL_SYSTEM_BUILD = 'build'
+REL_UPDATE = 'update'
+REL_UPLOAD = 'upload'
+REL_WORKFLOW = 'workflow'
+
 
 class UrlFactory:
     """Factory for API resource Urls. Contains the definitions of Url's for any

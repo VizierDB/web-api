@@ -65,6 +65,42 @@ class TestMimirLenses(unittest.TestCase):
             if os.path.isdir(d):
                 shutil.rmtree(d)
 
+    def test_domain_lens(self):
+        """Test DOMAIN lens."""
+        # Create new work trail and retrieve the HEAD workflow of the default
+        # branch
+        mimir.initialize()
+        f_handle = self.fileserver.upload_file(INCOMPLETE_CSV_FILE)
+        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.load_dataset(f_handle.identifier, DS_NAME)
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        print [c.name for c in ds.columns]
+        for row in ds.fetch_rows():
+            print row.values
+        self.assertFalse(wf.has_error)
+        # Missing Value Lens
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.mimir_domain(DS_NAME, 'AGE')
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        if wf.has_error:
+            print wf.modules[-1].stderr[0]
+        self.assertEquals(len(wf.modules), 2)
+        self.assertFalse(wf.has_error)
+        # Get dataset
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        print [c.name for c in ds.columns]
+        rows = ds.fetch_rows()
+        for row in rows:
+            print row.values
+        self.assertNotEquals(rows[2].values[ds.column_index('Age')], '')
+        mimir.finalize()
+
     def test_key_repair_lens(self):
         """Test KEY REPAIR lens."""
         # Create new work trail and retrieve the HEAD workflow of the default
@@ -79,6 +115,9 @@ class TestMimirLenses(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
         ds1 = self.datastore.get_dataset(wf.modules[0].datasets[DS_NAME])
+        for row in ds1.fetch_rows():
+            print row.values
+        print '\n'
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -96,10 +135,11 @@ class TestMimirLenses(unittest.TestCase):
         empids = set()
         rowids = set()
         for row in DatasetClient(dataset=ds).rows:
+            print row.values
             rowids.add(row.identifier)
-            empids.add(row.get_value('empid'))
+            empids.add(int(row.get_value('empid')))
             names.add(row.get_value('name'))
-        self.assertTrue('1' in empids)
+        self.assertTrue(1 in empids)
         self.assertTrue(2 in rowids)
         mimir.finalize()
 
@@ -117,24 +157,26 @@ class TestMimirLenses(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         print [c.name for c in ds.columns]
-        for row in ds.rows:
+        for row in ds.fetch_rows():
             print row.values
         self.assertFalse(wf.has_error)
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_missing_value(DS_NAME, '\'AGE > 40\'')
+            command=cmd.mimir_missing_value(DS_NAME, 'AGE')
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        print wf.modules[-1].stderr[0]
+        if wf.has_error:
+            print wf.modules[-1].stderr[0]
         self.assertEquals(len(wf.modules), 2)
         self.assertFalse(wf.has_error)
         # Get dataset
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         print [c.name for c in ds.columns]
-        for row in ds.rows:
+        rows = ds.fetch_rows()
+        for row in rows:
             print row.values
-        self.assertNotEquals(ds.rows[2].get_value('Age'), '')
+        self.assertNotEquals(rows[2].values[ds.column_index('Age')], '')
         mimir.finalize()
 
     def test_missing_key_lens(self):
@@ -150,18 +192,26 @@ class TestMimirLenses(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        print [c.name_in_rdb + ' AS ' + c.name + '(' + c.data_type + ')' for c in ds.columns]
+        rows = ds.fetch_rows()
+        for i in range(len(rows)):
+            row = rows[i]
+            print row.values
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_missing_key(DS_NAME, 'Age', missing_only=True)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        print wf.modules[-1].stderr[0]
+        if wf.has_error:
+            print wf.modules[-1].stderr[0]
         self.assertFalse(wf.has_error)
         # Get dataset
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertEquals(len(ds.columns), 3)
-        self.assertEquals(len(ds.rows), 12)
+        rows = ds.fetch_rows()
+        self.assertEquals(len(rows), 12)
         #self.db.append_workflow_module(
         #    viztrail_id=vt.identifier,
         #    command=cmd.load_dataset(f_handle.identifier, DS_NAME + '2')
@@ -179,9 +229,10 @@ class TestMimirLenses(unittest.TestCase):
         # Get dataset
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME + '2'])
         self.assertEquals(len(ds.columns), 3)
-        self.assertEquals(len(ds.rows), 20)
+        rows = ds.fetch_rows()
+        self.assertEquals(len(rows), 20)
         print [c.name for c in ds.columns]
-        for row in ds.rows:
+        for row in rows:
             print str(row.identifier) + ' -> ' + str(row.values)
         mimir.finalize()
 

@@ -45,11 +45,11 @@ class TestDataStore(unittest.TestCase):
         cols = [
             ('NAME', COL_PREFIX + '0', 'varchar'),
             ('AGE', COL_PREFIX + '1', 'int'),
-            ('SALARY', COL_PREFIX + '2', 'tweight')
+            ('SALARY', COL_PREFIX + '2', 'varchar')
         ]
         control_rows = [
-            (0 ,['Alice', '23', '35K']),
-            (1, ['Bob', '32', '30K'])
+            (0 ,['Alice', 23, '35K']),
+            (1, ['Bob', 32, '30K'])
         ]
         for column in ds.columns:
             self.validate_column(column, cols[column.identifier])
@@ -85,7 +85,7 @@ class TestDataStore(unittest.TestCase):
 
     def validate_column(self, column, col_props):
         """Validate that column name and data type are as expected."""
-        name,name_in_rdb,data_type = col_props
+        name, name_in_rdb, data_type = col_props
         self.assertEquals(column.name, name)
         self.assertEquals(column.name_in_rdb, name_in_rdb)
         self.assertEquals(column.data_type, data_type)

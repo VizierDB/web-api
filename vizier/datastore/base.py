@@ -354,7 +354,7 @@ class DataStore(VizierSystemComponent):
         """
         raise NotImplementedError
 
-    def get_dataset_chart(self, identifier, data_series):
+    def get_dataset_chart(self, identifier, view):
         """Query a given dataset by selecting the columns in the given list.
         Each row in the result is the result of projecting a tuple in the
         dataset on the given columns.
@@ -365,24 +365,31 @@ class DataStore(VizierSystemComponent):
         ----------
         identifier: string
             Unique dataset identifier
-        data_series: list(vizier.plot.view.DataSeriesHandle)
-            List of column names
+        view: vizier.plot.view.ChartViewHandle
+            Chart view definition handle
 
         Returns
         -------
         list()
         """
         dataset = self.get_dataset(identifier)
+        # Get index position for x-axis. Set to negative value if none is given.
+        # the value is used to determine which data series are converted to
+        # numeric values and which are not.
+        x_axis = -1
+        if not view.x_axis is None:
+            x_axis = view.x_axis
         # Create a list of data consumers, one for each data series
         consumers = list()
-        for s in data_series:
+        for s_idx in range(len(view.data)):
+            s = view.data[s_idx]
             c_idx = dataset.column_index(s.column)
-            series = list()
             consumers.append(
                 DataStreamConsumer(
                     column_index=c_idx,
                     range_start=s.range_start,
-                    range_end=s.range_end
+                    range_end=s.range_end,
+                    cast_to_number=(s_idx != x_axis)
                 )
             )
         # Consume all dataset rows

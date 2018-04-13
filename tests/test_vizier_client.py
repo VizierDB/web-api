@@ -71,13 +71,13 @@ class TestVizierClient(unittest.TestCase):
         # Ensure the returned dataset contains the input data
         ds = client.get_dataset('MyDataset')
         self.assertEquals([c.name for c in ds.columns], ['Name', 'Age'])
-        self.assertEquals(ds.rows[0].values, ['Alice', '23'])
-        self.assertEquals(ds.rows[1].values, ['Bob', '25'])
+        self.assertEquals([str(v) for v in ds.rows[0].values], ['Alice', '23'])
+        self.assertEquals([str(v) for v in ds.rows[1].values], ['Bob', '25'])
         # Update dataset
         ds.rows[1].set_value('Age', '26')
         client.update_dataset('MyDataset', ds)
         ds = client.get_dataset('MyDataset')
-        self.assertEquals(ds.rows[1].values, ['Bob', '26'])
+        self.assertEquals([str(v) for v in ds.rows[1].values], ['Bob', '26'])
         # Value error when creating dataset with existing name
         with self.assertRaises(ValueError):
             client.create_dataset('MyDataset', ds)
@@ -116,7 +116,7 @@ class TestVizierClient(unittest.TestCase):
         r2 = ds.rows[2]
         self.assertEquals(r2.identifier, 2)
         self.assertEquals(r2.values, ['Zoe', None, None, None])
-            
+
 
 if __name__ == '__main__':
     unittest.main()

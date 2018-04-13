@@ -29,3 +29,10 @@
 
 * Add file upload size limit to service description
 * Enable upload of files that do not parse correctly as CSV/TSV files
+
+
+### 0.4.0 - 2018-04-??
+
+* Add support for dataset chart views
+* Fix issues with dataset upload and column data type awareness
+* Pagination for datasets

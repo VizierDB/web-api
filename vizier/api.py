@@ -7,58 +7,10 @@ between different components such as the notbook repository that manages
 noretbook metadata and the VizTrails module.
 """
 
-import gzip
-import os
-
-from vizier.core.properties import ObjectProperty
-from vizier.hateoas import UrlFactory, reference, self_reference
+from vizier.hateoas import UrlFactory
 from vizier.plot.view import ChartViewHandle
-from vizier.workflow.base import DEFAULT_BRANCH, O_CHARTVIEW
 
-import vizier.workflow.command as cmd
-
-
-"""Frequently used serialization element labels."""
-JSON_REFERENCES = 'links'
-
-
-"""Service properties"""
-# Fileserver - Max. upload file size
-PROP_FS_MAXFILESIZE = 'fileserver:maxFileSize'
-
-
-"""HATEOAS relation identifier."""
-REL_ANNOTATED = 'annotated'
-REL_ANNOTATIONS='annotations'
-REL_APIDOC = 'doc';
-REL_APPEND = 'append';
-REL_BRANCH = 'branch'
-REL_BRANCHES = 'branches'
-REL_CREATE = 'create'
-REL_CURRENT_VERSION = 'currentVersion'
-REL_DATASET = 'dataset'
-REL_DELETE = 'delete'
-REL_DOWNLOAD = 'download'
-REL_FILES = 'files'
-REL_HEAD = 'head'
-REL_INSERT = 'insert'
-REL_MODULES = 'modules'
-REL_MODULE_SPECS = 'environment'
-REL_NOTEBOOK = 'notebook'
-REL_PAGE = 'page'
-REL_PAGE_FIRST = REL_PAGE + 'first'
-REL_PAGE_LAST = REL_PAGE + 'last'
-REL_PAGE_NEXT = REL_PAGE + 'next'
-REL_PAGE_PREV = REL_PAGE + 'prev'
-REL_PROJECT = 'project'
-REL_PROJECTS = 'projects'
-REL_RENAME = 'rename'
-REL_REPLACE = 'replace'
-REL_SERVICE = 'home'
-REL_SYSTEM_BUILD = 'build'
-REL_UPDATE = 'update'
-REL_UPLOAD = 'upload'
-REL_WORKFLOW = 'workflow'
+import vizier.serialize as serialize
 
 
 class VizierWebService(object):
@@ -98,31 +50,7 @@ class VizierWebService(object):
         # Initialize the factory for API resource Urls
         self.urls = UrlFactory(config)
         # Initialize the service description dictionary
-        self.service_descriptor = {
-            'name' : config.name,
-            'properties': [
-                ObjectProperty(
-                    PROP_FS_MAXFILESIZE,
-                    config.fileserver.max_file_size
-                ).to_dict()
-                ],
-            'envs': [{
-                    'id': config.envs[key].identifier,
-                    'name': config.envs[key].name,
-                    'description': config.envs[key].description,
-                    'default': config.envs[key].default,
-                    'packages': config.envs[key].packages
-                } for key in config.envs
-            ],
-            JSON_REFERENCES : [
-                self_reference(self.urls.service_url()),
-                reference(REL_SYSTEM_BUILD, self.urls.system_build_url()),
-                reference(REL_PROJECTS, self.urls.projects_url()),
-                reference(REL_FILES, self.urls.files_url()),
-                reference(REL_UPLOAD, self.urls.files_upload_url()),
-                reference(REL_APIDOC, config.api.doc_url)
-            ]
-        }
+        self.service_descriptor = serialize.SERVICE_DESCRIPTOR(config, self.urls)
 
     # --------------------------------------------------------------------------
     # Service
@@ -150,13 +78,7 @@ class VizierWebService(object):
         components.extend(self.datastore.components())
         components.extend(self.fileserver.components())
         components.extend(self.viztrails.components())
-        return {
-            'components' : components,
-            JSON_REFERENCES : [
-                self_reference(self.urls.system_build_url()),
-                reference(REL_SERVICE, self.urls.service_url())
-            ]
-        }
+        return serialize.SERVICE_BUILD(components, self.urls)
 
     # --------------------------------------------------------------------------
     # Files
@@ -190,8 +112,7 @@ class VizierWebService(object):
         """
         f_handle = self.fileserver.get_file(file_id)
         if not f_handle is None:
-            return self.serialize_file_handle(f_handle)
-        return None
+            return serialize.FILE_HANDLE(f_handle, self.urls)
 
     def get_file_handle(self, file_id):
         """Get handle for the file with the given identifier. The result is None
@@ -215,19 +136,7 @@ class VizierWebService(object):
         -------
         dict
         """
-        return {
-            'files': [
-                self.serialize_file_handle(f)
-                    for f in self.fileserver.list_files()
-            ],
-            JSON_REFERENCES : [
-                self_reference(self.urls.files_url()),
-                reference(
-                    REL_UPLOAD,
-                    self.urls.files_upload_url()
-                )
-            ]
-        }
+        return serialize.FILE_LISTING(self.fileserver.list_files(), self.urls)
 
     def rename_file(self, file_id, name):
         """Rename file with given identifier. Raises ValueError if a file with
@@ -246,40 +155,7 @@ class VizierWebService(object):
         """
         f_handle = self.fileserver.rename_file(file_id, name)
         if not f_handle is None:
-            return self.serialize_file_handle(f_handle)
-        return None
-
-    def serialize_file_handle(self, f_handle):
-        """Create dictionary serialization for dataset instance.
-
-        Parameters
-        ----------
-        f_handle : database.fileserver.FileHandle
-            Handle for file server resource
-
-        Returns
-        -------
-        dict
-        """
-        self_ref = self.urls.file_url(f_handle.identifier)
-        return {
-            'id': f_handle.identifier,
-            'name' : f_handle.name,
-            'columns' : f_handle.columns,
-            'rows': f_handle.rows,
-            'filesize': f_handle.filesize,
-            'createdAt': f_handle.created_at.isoformat(),
-            'lastModifiedAt': f_handle.last_modified_at.isoformat(),
-            JSON_REFERENCES : [
-                self_reference(self_ref),
-                reference(REL_DELETE, self_ref),
-                reference(REL_RENAME, self_ref),
-                reference(
-                    REL_DOWNLOAD,
-                    self.urls.file_download_url(f_handle.identifier)
-                )
-            ]
-        }
+            return serialize.FILE_HANDLE(f_handle, self.urls)
 
     def upload_file(self, filename):
         """Upload a given file to the file server. Expects either a CSV or TSV
@@ -297,119 +173,12 @@ class VizierWebService(object):
         """
         # Parse file and add to datastore
         f_handle = self.fileserver.upload_file(filename)
-        return self.serialize_file_handle(f_handle)
+        return serialize.FILE_HANDLE(f_handle, self.urls)
 
 
     # --------------------------------------------------------------------------
     # Datasets
     # --------------------------------------------------------------------------
-    def dataset_page_urls(self, dataset, rel, offset, limit):
-        """Get a pair of Urls to access a specific page of a dataset. the result
-        contains one Url to access the data with annotations and one Url to
-        access the data without annotations.
-
-        Parameters
-        ----------
-        dataset: vizier.datastore.base.DatasetHandle
-            Handle for the dataset
-        rel: string
-            HATEOS reference relationship
-        offset: int
-            Current pagination offset
-        limit: int
-            Current paginatio limit
-
-        Returns
-        -------
-        list
-        """
-        # Shortcuts
-        d_id = dataset.identifier
-        url = self.urls.dataset_pagination_url
-        # Return list with two references
-        return [
-            reference(rel, url(d_id, offset=offset, limit=limit)),
-            reference(
-                rel + 'anno',
-                url(d_id, offset=offset, limit=limit, include_annotations=True)
-            )
-        ]
-
-    def dataset_pagination_urls(self, dataset, offset=0, limit=None):
-        """Get a list of dataset references to allow browsing the dataset rows.
-
-        Parameters
-        ----------
-        dataset: vizier.datastore.base.DatasetHandle
-            Handle for the dataset
-        offset: int, optional
-            Current pagination offset
-        limit: int, optional
-            Current paginatio limit
-
-        Returns
-        -------
-        list()
-        """
-        # Max. number of records shown
-        if not limit is None and limit >= 0:
-            max_rows_per_request = int(limit)
-        elif self.config.defaults.row_limit >= 0:
-            max_rows_per_request = self.config.defaults.row_limit
-        elif self.config.defaults.max_row_limit >= 0:
-            max_rows_per_request = self.config.defaults.max_row_limit
-        else:
-            max_rows_per_request = -1
-        # List of pagination Urls
-        urls = list()
-        # FIRST: Always include Url's to access the first page
-        urls.extend(
-            self.dataset_page_urls(
-                dataset,
-                rel=REL_PAGE_FIRST,
-                offset=0,
-                limit=limit
-            )
-        )
-        # PREV: If offset is greater than zero allow to fetch previous page
-        if not offset is None and offset > 0:
-            if max_rows_per_request >= 0:
-                prev_offset = offset - max_rows_per_request
-                if prev_offset >= 0:
-                    urls.extend(
-                        self.dataset_page_urls(
-                            dataset,
-                            rel=REL_PAGE_PREV,
-                            offset=prev_offset,
-                            limit=limit
-                        )
-                    )
-        # NEXT & LAST: If there are rows beyond the current offset+limit include
-        # Url's to fetch next page and last page.
-        if offset < dataset.row_count and max_rows_per_request >= 0:
-            next_offset = offset + max_rows_per_request
-            if next_offset < dataset.row_count:
-                urls.extend(
-                    self.dataset_page_urls(
-                        dataset,
-                        rel=REL_PAGE_NEXT,
-                        offset=next_offset,
-                        limit=limit
-                    )
-                )
-            last_offset = (dataset.row_count - max_rows_per_request)
-            if last_offset > offset:
-                urls.extend(
-                    self.dataset_page_urls(
-                        dataset,
-                        rel=REL_PAGE_LAST,
-                        offset=last_offset,
-                        limit=limit
-                    )
-                )
-        # Return pagination Url list
-        return urls
-
     def get_dataset(self, dataset_id, offset=None, limit=None, include_annotations=False):
         """Get dataset with given identifier. The result is None if no dataset
         with the given identifier exists.
@@ -455,33 +224,15 @@ class VizierWebService(object):
                 obj['index'] = len(rows) + offset
                 rows.append(obj)
             # Serialize the dataset schema and cells
-            obj = {
-                'id' : dataset.identifier,
-                'columns' : [col.to_dict() for col in dataset.columns],
-                'rows': rows,
-                'offset': offset,
-                'rowcount': dataset.row_count
-            }
-            if include_annotations:
-                obj['annotations'] = self.serialize_dataset_annotations(
-                    dataset_id,
-                    dataset.annotations
-                )
-            # Add references if dataset exists
-            obj[JSON_REFERENCES] = [
-                self_reference(self.urls.dataset_url(dataset_id)),
-                reference(
-                    REL_DOWNLOAD,
-                    self.urls.dataset_download_url(dataset_id)
-                ),
-                reference(
-                    REL_ANNOTATIONS,
-                    self.urls.dataset_annotations_url(dataset_id)
-                )
-            ] + self.dataset_pagination_urls(dataset, offset=offset, limit=limit)
-            return obj
-        else:
-            return None
+            return serialize.DATASET(
+                dataset=dataset,
+                rows=rows,
+                config=self.config,
+                urls=self.urls,
+                offset=offset,
+                limit=limit,
+                include_annotations=include_annotations
+            )
 
     def get_dataset_annotations(self, dataset_id):
         """Get annotations for dataset with given identifier. The result is None
@@ -501,9 +252,10 @@ class VizierWebService(object):
         # does not exist the result is None.
         dataset = self.get_dataset_handle(dataset_id)
         if not dataset is None:
-            return self.serialize_dataset_annotations(
+            return serialize.DATASET_ANNOTATIONS(
                 dataset_id,
-                dataset.annotations
+                dataset.annotations,
+                self.urls
             )
         else:
             return None
@@ -529,31 +281,6 @@ class VizierWebService(object):
                 self.datasets[dataset_id] = dataset
         return dataset
 
-    def serialize_dataset_annotations(self, dataset_id, annotations):
-        """Get dictionary serialization for dataset annotations.
-
-        Parameters
-        ----------
-        dataset_id : string
-            Unique dataset identifier
-        annotations: vizier.datastore.metadata.DatasetMetadata
-            Set of annotations for dataset components
-
-        Returns
-        -------
-        dict
-        """
-        obj = annotations.to_dict()
-        # Add references if dataset exists
-        obj[JSON_REFERENCES] = [
-            self_reference(self.urls.dataset_annotations_url(dataset_id)),
-            reference(
-                REL_DATASET,
-                self.urls.dataset_url(dataset_id)
-            )
-        ]
-        return obj
-
     def update_dataset_annotation(self, dataset_id, upd_statement):
         """Update the annotations for a component of the datasets with the given
         identifier. Returns the modified object annotations or None if the
@@ -574,10 +301,9 @@ class VizierWebService(object):
         # Get dataset with given identifier from data store. If the dataset
         # does not exist the result is None.
         annotations = self.datastore.update_annotation(dataset_id, upd_statement)
-        if not annotations is None:
-            return self.serialize_dataset_annotations(dataset_id, annotations)
-        else:
+        if annotations is None:
             return None
+        return serialize.DATASET_ANNOTATIONS(dataset_id, annotations, self.urls)
 
 
     # --------------------------------------------------------------------------
@@ -602,7 +328,7 @@ class VizierWebService(object):
         # Create a new viztrail.
         viztrail = self.viztrails.create_viztrail(env_id, properties)
         # Return a serialization of the new project.
-        return self.serialize_project_handle(viztrail)
+        return serialize.PROJECT_DESCRIPTOR(viztrail, self.urls)
 
     def delete_project(self, project_id):
         """Delete the project with given identifier. Deletes the Vistrails
@@ -623,16 +349,24 @@ class VizierWebService(object):
         # viztrail existed or not.
         return self.viztrails.delete_viztrail(viztrail_id=project_id)
 
-    def get_project(self, project_id):
+    def get_project(self, project_id, branch_id=None, version=None):
         """Get comprehensive information for the project with the given
         identifier.
 
         Returns None if no project with the given identifier exists.
 
+        If both branch_id and version are given the reference to the workflow
+        that is identified by these two values is included in the results link
+        list.
+
         Parameters
         ----------
         project_id : string
             Unique project identifier
+        branch_id: string
+            Unique branch identifier
+        version: int, optional
+            Workflow version identifier
 
         Returns
         -------
@@ -644,7 +378,13 @@ class VizierWebService(object):
         if viztrail is None:
             return None
         # Get serialization for project handle.
-        return self.serialize_project_handle(viztrail)
+        return serialize.PROJECT_HANDLE(
+            viztrail,
+            self.fileserver.list_files(),
+            self.urls,
+            branch_id=branch_id,
+            version=version
+        )
 
     def list_module_specifications_for_project(self, project_id):
         """Retrieve list of parameter specifications for all supported modules
@@ -662,28 +402,8 @@ class VizierWebService(object):
         """
         # Retrieve project viztrail from repository to ensure that it exists.
         viztrail = self.viztrails.get_viztrail(viztrail_id=project_id)
-        if viztrail is None:
-            return None
-        modules = []
-        for module_type in viztrail.command_repository:
-            type_commands = viztrail.command_repository[module_type]
-            for command_id in type_commands:
-                arguments = type_commands[command_id][cmd.MODULE_ARGUMENTS]
-                modules.append({
-                    'type': module_type,
-                    'id': command_id,
-                    'name': type_commands[command_id][cmd.MODULE_NAME],
-                    'arguments': [arguments[arg] for arg in arguments]
-                })
-        return {
-            'project': self.serialize_project_descriptor(viztrail),
-            'modules': modules,
-            JSON_REFERENCES : [
-                self_reference(
-                    self.urls.project_module_specs_url(viztrail.identifier)
-                ),
-            ]
-        }
+        if not viztrail is None:
+            return serialize.PROJECT_MODULE_SPECIFICATIONS(viztrail, self.urls)
 
     def list_projects(self):
         """Returns a list of descriptors for all projects that are currently
@@ -693,83 +413,7 @@ class VizierWebService(object):
         ------
         dict
         """
-        return {
-            'projects' : [
-                self.serialize_project_descriptor(wt)
-                    for wt in self.viztrails.list_viztrails()
-            ],
-            JSON_REFERENCES : [
-                self_reference(self.urls.projects_url()),
-                reference(REL_CREATE, self.urls.projects_url()),
-                reference(REL_SERVICE, self.urls.service_url())
-            ]
-        }
-
-    def serialize_project_descriptor(self, viztrail):
-        """Create dictionary serialization for project fundamental project
-        metadata.
-
-        Parameters
-        ----------
-        viztrail : vizier.workflow.base.ViztrailHandle
-            Viztrail handle
-
-        Returns
-        -------
-        dict
-        """
-        project_url = self.urls.project_url(viztrail.identifier)
-        properties = viztrail.properties.get_properties()
-        return {
-            'id': viztrail.identifier,
-            'environment': viztrail.env_id,
-            'createdAt': viztrail.created_at.isoformat(),
-            'lastModifiedAt': viztrail.last_modified_at.isoformat(),
-            'properties': [
-                {'key' : key, 'value' : properties[key]}
-                    for key in properties
-            ],
-            JSON_REFERENCES : [
-                self_reference(project_url),
-                reference(REL_DELETE, project_url),
-                reference(REL_SERVICE, self.urls.service_url()),
-                reference(
-                    REL_UPDATE,
-                    self.urls.update_project_properties_url(viztrail.identifier)
-                ),
-                reference(
-                    REL_BRANCHES,
-                    self.urls.branches_url(viztrail.identifier)
-                ),
-                reference(
-                    REL_MODULE_SPECS,
-                    self.urls.project_module_specs_url(viztrail.identifier)
-                )
-            ]
-        }
-
-    def serialize_project_handle(self, viztrail):
-        """Create dictionary serialization for project handle.
-
-        Parameters
-        ----------
-        viztrail : vizier.workflow.base.ViztrailHandle
-            Viztrail handle
-
-        Returns
-        -------
-        dict
-        """
-        # Get the fundamental project information (descriptor)
-        obj = self.serialize_project_descriptor(viztrail)
-        # Add workflow information
-        obj['branches'] = [
-            self.serialize_branch_descriptor(
-                viztrail,
-                viztrail.branches[b]
-            ) for b in viztrail.branches
-        ]
-        return obj
+        return serialize.PROJECT_LISTING(self.viztrails.list_viztrails(), self.urls)
 
     def update_project_properties(self, project_id, properties):
         """Update the set of user-defined properties for a project with given
@@ -802,7 +446,7 @@ class VizierWebService(object):
                     raise ValueError('not a valid project name')
         viztrail.properties.update_properties(properties)
         # Return serialization for project handle.
-        return self.serialize_project_handle(viztrail)
+        return serialize.PROJECT_DESCRIPTOR(viztrail, self.urls)
 
     # --------------------------------------------------------------------------
     # Workflows
@@ -854,9 +498,15 @@ class VizierWebService(object):
         workflow = self.viztrails.get_workflow(
             viztrail_id=project_id,
             branch_id=branch_id,
-            workflow_version=branch.versions[-1]
+            workflow_version=branch.workflows[-1].version
         )
-        return self.serialize_workflow_handle(viztrail, workflow)
+        return serialize.WORKFLOW_HANDLE(
+            viztrail,
+            workflow,
+            dataset_cache=self.get_dataset_handle,
+            config=self.config,
+            urls=self.urls
+        )
 
     def create_branch(self, project_id, branch_id, workflow_version, module_id, properties):
         """Create a new workflow branch for a given project. The version and
@@ -898,7 +548,7 @@ class VizierWebService(object):
         )
         if branch is None:
             return None
-        return self.serialize_branch_descriptor(viztrail, branch)
+        return serialize.BRANCH_HANDLE(viztrail, branch, self.urls)
 
     def delete_branch(self, project_id, branch_id):
         """Delete the branch with the given identifier from the given
@@ -969,9 +619,15 @@ class VizierWebService(object):
         workflow = self.viztrails.get_workflow(
             viztrail_id=project_id,
             branch_id=branch_id,
-            workflow_version=branch.versions[-1]
+            workflow_version=branch.workflows[-1].version
         )
-        return self.serialize_workflow_handle(viztrail, workflow)
+        return serialize.WORKFLOW_HANDLE(
+            viztrail,
+            workflow,
+            dataset_cache=self.get_dataset_handle,
+            config=self.config,
+            urls=self.urls
+        )
 
     def get_branch(self, project_id, branch_id):
         """Retrieve a branch from a given project.
@@ -994,13 +650,10 @@ class VizierWebService(object):
         viztrail = self.viztrails.get_viztrail(viztrail_id=project_id)
         if viztrail is None:
             return None
-        # Return None if branch does not exist
-        if not branch_id in viztrail.branches:
-            return None
-        return self.serialize_branch_handle(
-            viztrail,
-            viztrail.branches[branch_id]
-        )
+        # Return serialization if branch does exist, otherwise None
+        if branch_id in viztrail.branches:
+            branch = viztrail.branches[branch_id]
+            return serialize.BRANCH_HANDLE(viztrail, branch, self.urls)
 
     def get_dataset_chart_view(self, project_id, branch_id, version, module_id, view_id):
         """
@@ -1024,7 +677,7 @@ class VizierWebService(object):
         v_handle = None
         for module in workflow.modules:
             for obj in module.stdout:
-                if obj['type'] == O_CHARTVIEW:
+                if obj['type'] == serialize.O_CHARTVIEW:
                     view = ChartViewHandle.from_dict(obj['data'])
                     if view.identifier == view_id:
                         v_handle = view
@@ -1035,18 +688,19 @@ class VizierWebService(object):
             if not v_handle.dataset_name in datasets:
                 raise ValueError('unknown dataset \'' + v_handle.dataset_name + '\'')
             dataset_id = datasets[v_handle.dataset_name]
-            rows = self.datastore.get_dataset_chart(dataset_id, v_handle.data)
-            return {
-                'name': v_handle.chart_name,
-                'rows': rows,
-                'schema': v_handle.schema(),
-                JSON_REFERENCES: [
-                    self_reference(self.urls.workflow_module_view_url(
-                        project_id, branch_id,  version, module_id,  view_id
-                    ))
-                ]
-            }
-        return None
+            rows = self.datastore.get_dataset_chart(dataset_id, v_handle)
+            ref = self.urls.workflow_module_view_url(project_id, branch_id,  version, module_id,  view_id)
+            return serialize.DATASET_CHART_VIEW(
+                view=v_handle,
+                rows=rows,
+                self_ref=self.urls.workflow_module_view_url(
+                    project_id,
+                    branch_id,
+                    version,
+                    module_id,
+                    view_id
+                )
+            )
 
     def get_workflow(self, project_id, branch_id, workflow_version=-1):
         """Retrieve a workflow from a given project.
@@ -1081,7 +735,16 @@ class VizierWebService(object):
         )
         if workflow is None:
             return None
-        return self.serialize_workflow_handle(viztrail, workflow)
+        # If an explicit workflow version was requested the workflow will be
+        # marked as read only.
+        return serialize.WORKFLOW_HANDLE(
+            viztrail,
+            workflow,
+            dataset_cache=self.get_dataset_handle,
+            config=self.config,
+            urls=self.urls,
+            read_only=(workflow_version != -1)
+        )
 
     def list_branches(self, project_id):
         """Get a list of all branches for a given project. The result contains a
@@ -1099,22 +762,8 @@ class VizierWebService(object):
         """
         # Retrieve project viztrail from repository to ensure that it exists.
         viztrail = self.viztrails.get_viztrail(viztrail_id=project_id)
-        if viztrail is None:
-            return None
-        branches_url = self.urls.branches_url(project_id)
-        return {
-            'branches':  [
-                self.serialize_branch_descriptor(
-                    viztrail,
-                    viztrail.branches[b]
-                ) for b in viztrail.branches
-            ],
-            JSON_REFERENCES : [
-                self_reference(branches_url),
-                reference(REL_CREATE, branches_url),
-                reference(REL_PROJECT, self.urls.project_url(project_id))
-            ]
-        }
+        if not viztrail is None:
+            return serialize.BRANCH_LISTING(viztrail, self.urls)
 
     def replace_module(self, project_id, branch_id, workflow_version, module_id, module_spec):
         """Replace a module in a project workflow and execute the result.
@@ -1159,301 +808,15 @@ class VizierWebService(object):
         workflow = self.viztrails.get_workflow(
             viztrail_id=project_id,
             branch_id=branch_id,
-            workflow_version=branch.versions[-1]
+            workflow_version=branch.workflows[-1].version
         )
-        return self.serialize_workflow_handle(viztrail, workflow)
-
-    def serialize_branch_descriptor(self, viztrail, branch):
-        """Get dictionary representaion for a branch descriptor.
-
-        Parameters
-        ----------
-        viztrail : vizier.workflow.base.ViztrailHandle
-            Viztrail handle
-        branch : vizier.workflow.base.ViztrailBranch
-            Workflow handle
-
-        Returns
-        -------
-        dict
-        """
-        self_ref = self.urls.branch_url(
-            viztrail.identifier,
-            branch.identifier
+        return serialize.WORKFLOW_HANDLE(
+            viztrail,
+            workflow,
+            dataset_cache=self.get_dataset_handle,
+            config=self.config,
+            urls=self.urls
         )
-        head_ref = self.urls.branch_head_url(
-            viztrail.identifier,
-            branch.identifier
-        )
-        properties = branch.properties.get_properties()
-        return {
-            'id' : branch.identifier,
-            'properties' : [
-                {'key' : key, 'value' : properties[key]}
-                    for key in properties
-            ],
-            JSON_REFERENCES : [
-                self_reference(self_ref),
-                reference(REL_DELETE, self_ref),
-                reference(REL_HEAD, head_ref),
-                reference(
-                    REL_PROJECT,
-                    self.urls.project_url(viztrail.identifier)
-                ),
-                reference(
-                    REL_UPDATE,
-                    self.urls.branch_update_url(
-                        viztrail.identifier,
-                        branch.identifier
-                    )
-                )
-            ]
-        }
-
-    def serialize_branch_handle(self, viztrail, branch):
-        """Get dictionary representaion for a branch handle.
-
-        Parameters
-        ----------
-        viztrail : vizier.workflow.base.ViztrailHandle
-            Viztrail handle
-        branch : vizier.workflow.base.ViztrailBranch
-            Workflow handle
-
-        Returns
-        -------
-        dict
-        """
-        obj = self.serialize_branch_descriptor(viztrail, branch)
-        obj['project'] = self.serialize_project_descriptor(viztrail)
-        obj['workflows'] = [
-            self.serialize_workflow_descriptor(viztrail, branch, version)
-                for version in branch.versions
-        ]
-        return obj
-
-    def serialize_dataset_descriptor(self, dataset_id):
-        """Create dictionary serialization for dataset descriptor.
-
-        Parameters
-        ----------
-        dataset_id : string
-            Unique dataset identifier
-        dataset_name : string
-            Name used to identify dataset
-
-        Returns
-        -------
-        dict
-        """
-        dataset = self.get_dataset_handle(dataset_id)
-        return {
-            'id': dataset_id,
-            'columns' : [
-                {'id': col.identifier, 'name': col.name}
-                    for col in dataset.columns
-            ],
-            'rows': dataset.row_count,
-            JSON_REFERENCES : [
-                self_reference(self.urls.dataset_url(dataset_id)),
-                reference(
-                    REL_ANNOTATED,
-                    self.urls.dataset_with_annotations_url(dataset_id)
-                ),
-                reference(
-                    REL_DOWNLOAD,
-                    self.urls.dataset_download_url(dataset_id)
-                )
-            ] + self.dataset_pagination_urls(dataset)
-        }
-
-    def serialize_module_handle(self, viztrail, branch, version, module, views):
-        """Get dictionary representaion for a workflow module handle.
-
-        Parameters
-        ----------
-        viztrail : vizier.workflow.base.ViztrailHandle
-            Viztrail handle
-        branch : vizier.workflow.base.ViztrailBranch
-            Workflow handle
-        module : vizier.workflow.module.ModuleHandle
-            Handle for workflow module
-        views: dict(vizier.plot.view.ChartViewHandle)
-            Dictionary of available views indexed by their name.
-
-        Returns
-        -------
-        dict
-        """
-        module_url = self.urls.workflow_module_url(
-            viztrail.identifier,
-            branch.identifier,
-            version,
-            module.identifier
-        )
-
-        # Convert chart views in the module output to dictionaries that contain
-        # a self reference for data access. In the first step we replace the
-        # data value with the view name
-        stdout = list()
-        view_outputs = list()
-        for obj in module.stdout:
-            if obj['type'] == O_CHARTVIEW:
-                view = ChartViewHandle.from_dict(obj['data'])
-                if view.dataset_name in module.datasets:
-                    views[view.chart_name] = view
-                    # This is a bit tricky. Create a placeholder object and then
-                    # replace the data value with the serialized version of
-                    # the chart handle later on. Make sure to keep track of any
-                    # results that may be associated with the output
-
-                    placeholder = {'type': O_CHARTVIEW, 'data': view.chart_name}
-                    if 'result' in obj:
-                        placeholder['result'] = obj['result']
-                    obj = placeholder
-                    view_outputs.append(obj)
-                else:
-                    # Remove outputs that reference views accessing non-existent
-                    # datasets
-                    obj = None
-            if not obj is None:
-                stdout.append(obj)
-        # Create a list of serialized view handles
-        view_handles = dict()
-        for view in views.values():
-            if view.dataset_name in module.datasets:
-                view_url = self.urls.workflow_module_view_url(
-                    viztrail.identifier,
-                    branch.identifier,
-                    version,
-                    module.identifier,
-                    view.identifier
-                    )
-                v_serial = {
-                    'name': view.chart_name,
-                    JSON_REFERENCES: [
-                        self_reference(view_url)
-                    ]
-                }
-                view_handles[view.chart_name] = v_serial
-        # Replace data in view outputs
-        for obj in view_outputs:
-            obj['data'] = view_handles[obj['data']]
-        args = module.command.arguments
-        return {
-            'id' : module.identifier,
-            'command': {
-                'type': module.command.module_type,
-                'id': module.command.command_identifier,
-                'arguments': [{'name': key, 'value': args[key]} for key in args]
-            },
-            'stdout': stdout,
-            'stderr': module.stderr,
-            'datasets': [{
-                    'id': module.datasets[d],
-                    'name' : d
-                } for d in sorted(module.datasets.keys())
-            ],
-            'views': view_handles.values(),
-            JSON_REFERENCES: [
-                reference(REL_DELETE, module_url),
-                reference(REL_INSERT, module_url),
-                reference(REL_REPLACE, module_url)
-            ]
-        }
-
-    def serialize_workflow_descriptor(self, viztrail, branch, version):
-        """Get dictionary representaion for a workflow descriptor.
-
-        Parameters
-        ----------
-        viztrail : vizier.workflow.base.ViztrailHandle
-            Viztrail handle
-        branch : vizier.workflow.base.ViztrailBranch
-            Workflow handle
-
-        Returns
-        -------
-        dict
-        """
-        # The workflow version may be negative for the HEAD of an empty master
-        # branch (i.e., a newly created viztrail). In this cas we use a
-        # different Url
-        if version < 0:
-            self_ref = self.urls.branch_head_url(
-                viztrail.identifier,
-                branch.identifier
-            )
-            append_url = self.urls.branch_head_append_url(
-                viztrail.identifier,
-                branch.identifier
-            )
-        else:
-            self_ref = self.urls.workflow_url(
-                viztrail.identifier,
-                branch.identifier,
-                version
-            )
-            append_url = self.urls.workflow_append_url(
-                viztrail.identifier,
-                branch.identifier,
-                version
-            )
-
-        return {
-            'branch' : branch.identifier,
-            'version' : version,
-            JSON_REFERENCES : [
-                self_reference(self_ref),
-                reference(
-                    REL_BRANCH,
-                    self.urls.branch_url(viztrail.identifier, branch.identifier)
-                ),
-                reference(
-                    REL_BRANCHES,
-                    self.urls.branches_url(viztrail.identifier)
-                ),
-                reference(REL_APPEND, append_url)
-            ]
-        }
-
-    def serialize_workflow_handle(self, viztrail, workflow):
-        """Get dictionary representaion for a workflow handle.
-
-        Parameters
-        ----------
-        viztrail : vizier.workflow.base.ViztrailHandle
-            Viztrail handle
-        workflow : vizier.workflow.base.WorkflowHandle
-            Workflow handle
-
-        Returns
-        -------
-        dict
-        """
-        branch = viztrail.branches[workflow.branch_id]
-        version = workflow.version
-        obj = self.serialize_workflow_descriptor(viztrail, branch, version)
-        obj['createdAt'] = workflow.created_at.isoformat()
-        obj['project'] = self.serialize_project_descriptor(viztrail)
-        # Create listing of workflow modules. This will transform chart view
-        # outputs into web resources and keep track of views that are available
-        # to each module.
-        views = dict()
-        obj['modules'] = [
-            self.serialize_module_handle(viztrail, branch, version, m, views)
-                for m in workflow.modules
-        ]
-        # Create list of all datasets in the workflow.
-        datasets = dict()
-        for module in workflow.modules:
-            for dataset_id in module.datasets.values():
-                if not dataset_id in datasets:
-                    datasets[dataset_id] = self.serialize_dataset_descriptor(
-                        dataset_id
-                    )
-        obj['datasets'] = datasets.values()
-        return obj
 
     def update_branch(self, project_id, branch_id, properties):
         """Update properties for a given project workflow branch. Returns the
@@ -1483,7 +846,8 @@ class VizierWebService(object):
             return None
         # Update properties that are associated with the workflow
         viztrail.branches[branch_id].properties.update_properties(properties)
-        return self.serialize_workflow_handle(
+        return serialize.BRANCH_HANDLE(
             viztrail,
-            viztrail.get_workflow(branch_id)
+            viztrail.branches[branch_id],
+            urls=self.urls
         )

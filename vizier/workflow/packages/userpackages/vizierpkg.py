@@ -18,7 +18,7 @@ from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import MimirDataStore, create_missing_key_view
 from vizier.filestore.base import DefaultFileServer
 from vizier.plot.view import ChartViewHandle
-from vizier.workflow.base import CHART_VIEW, PLAIN_TEXT
+from vizier.serialize import CHART_VIEW, PLAIN_TEXT
 from vizier.workflow.context import VizierDBClient
 from vizier.workflow.module import ModuleOutputs
 from vizier.workflow.vizual.base import DefaultVizualEngine
@@ -107,10 +107,19 @@ class MimirLens(Module):
                 get_argument(cmd.PARA_MAKE_CERTAIN, args),
                 False
             )
-        elif lens == cmd.MIMIR_MISSING_VALUE or lens == cmd.MIMIR_DOMAIN:
+            params = [ROW_ID, 'MISSING_ONLY(FALSE)']
+        elif lens == cmd.MIMIR_DOMAIN:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
             column = dataset.columns[dataset.column_index(c_col)]
             params = [column.name_in_rdb]
+        elif lens == cmd.MIMIR_MISSING_VALUE:
+            c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
+            column = dataset.columns[dataset.column_index(c_col)]
+            params = column.name_in_rdb
+            if cmd.PARA_CONSTRAINT in args:
+                params = params + ' ' + str(args[cmd.PARA_CONSTRAINT])
+                params = '\'' + params + '\''
+            params = [params]
         elif lens == cmd.MIMIR_PICKER:
             pick_from = list()
             column_names = list()
@@ -252,60 +261,35 @@ class PlotCell(NotCacheable, Module):
             chart_name = get_argument(cmd.PARA_NAME, args)
             if not is_valid_name(chart_name):
                 raise ValueError('invalid chart name \'' + chart_name + '\'')
-            # The data series index for x-axis values is optional
-            if cmd.PARA_XAXIS in args:
-                x_axis = args[cmd.PARA_XAXIS]
-                if x_axis.strip() == '':
-                    x_axis = None
-                else:
-                    # Expects an integer
-                    x_axis = int(x_axis)
-            else:
-                x_axis = None
+            chart_type = get_argument(cmd.PARA_CHART_TYPE, args[cmd.PARA_CHART])
+            grouped_chart = bool(get_argument(cmd.PARA_CHART_GROUPED, args[cmd.PARA_CHART]))
             # Create a new chart view handle and add the series definitions
             view = ChartViewHandle(
                 dataset_name=ds_name,
                 chart_name=chart_name,
-                x_axis=x_axis
+                chart_type=chart_type,
+                grouped_chart=grouped_chart
             )
+            # The data series index for x-axis values is optional
+            if cmd.PARA_XAXIS in args:
+                x_axis = args[cmd.PARA_XAXIS]
+                add_data_series(
+                    view=view,
+                    series_spec=x_axis,
+                    dataset=dataset,
+                    prefix=cmd.PARA_XAXIS
+                )
+                view.x_axis = 0
             # Definition of data series. Each series is a pair of column
             # identifier and a printable label.
             for data_series in get_argument(cmd.PARA_SERIES, args):
-                c_name = get_argument(cmd.PARA_COLUMN, data_series)
-                # Get column index to ensure that the column exists. Will raise
-                # an exception if c_name does not specify a valid column.
-                dataset.column_index(c_name)
-                if cmd.PARA_LABEL in data_series:
-                    s_label = data_series[cmd.PARA_LABEL]
-                else:
-                    s_label = c_name
-                # Check for range specifications. Expect string of format int or
-                # int:int with the second value being greater or equal than
-                # the first.
-                if cmd.PARA_RANGE in data_series:
-                    s_range = data_series[cmd.PARA_RANGE]
-                    pos = s_range.find(':')
-                    if pos > 0:
-                        range_start = int(s_range[:pos])
-                        range_end = int(s_range[pos+1:])
-                        if range_start > range_end:
-                            raise ValueError('invalid range \'' + s_range + '\'')
-                    else:
-                        range_start = int(s_range)
-                        range_end = range_start
-                    if range_start < 0 or range_end < 0:
-                        raise ValueError('invalid range \'' + s_range + '\'')
-                else:
-                    range_start = None
-                    range_end = None
-                view.add_series(
-                    column=c_name,
-                    label=s_label,
-                    range_start=range_start,
-                    range_end=range_end
+                add_data_series(
+                    view=view,
+                    series_spec=data_series,
+                    dataset=dataset
                 )
             # Execute the query and get the result
-            rows = vizierdb.datastore.get_dataset_chart(dataset_id, view.data)
+            rows = vizierdb.datastore.get_dataset_chart(dataset_id, view)
             # Add chart view handle as module output
             outputs.stdout(content=CHART_VIEW(view, rows=rows))
         else:
@@ -553,6 +537,56 @@ class VizualCell(NotCacheable, Module):
 # VizUAL Helper Methods
 #
 # ------------------------------------------------------------------------------
+
+def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES):
+    """Add a data series handle to a given chart view handle. Expects a data
+    series specification and a dataset descriptor.
+
+    Parameters
+    ----------
+    view: vizier.plot.view.ChartViewHandle
+        Chart view handle
+    series_spec: dict()
+        Data series specification
+    dataset: vizier.datastore.base.DatasetHandle
+        Dataset handle
+    prefix: string, optional
+        Prefix for all arguments in the data series specification.
+    """
+    c_name = get_argument(prefix + '_' + cmd.PARA_COLUMN, series_spec)
+    # Get column index to ensure that the column exists. Will raise
+    # an exception if c_name does not specify a valid column.
+    dataset.column_index(c_name)
+    if prefix + '_' + cmd.PARA_LABEL in series_spec:
+        s_label = series_spec[prefix + '_' + cmd.PARA_LABEL]
+    else:
+        s_label = c_name
+    # Check for range specifications. Expect string of format int or
+    # int:int with the second value being greater or equal than
+    # the first.
+    range_start = None
+    range_end = None
+    if prefix + '_' + cmd.PARA_RANGE in series_spec:
+        s_range = series_spec[prefix + '_' + cmd.PARA_RANGE].strip()
+        if s_range != '':
+            pos = s_range.find(':')
+            if pos > 0:
+                range_start = int(s_range[:pos])
+                range_end = int(s_range[pos+1:])
+                if range_start > range_end:
+                    raise ValueError('invalid range \'' + s_range + '\'')
+            else:
+                range_start = int(s_range)
+                range_end = range_start
+            if range_start < 0 or range_end < 0:
+                raise ValueError('invalid range \'' + s_range + '\'')
+    view.add_series(
+        column=c_name,
+        label=s_label,
+        range_start=range_start,
+        range_end=range_end
+    )
+
 
 def get_argument(key, args, as_int=False):
     """Retrieve command argument with given key. Will raise ValueError if no

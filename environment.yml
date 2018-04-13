@@ -54,6 +54,7 @@ dependencies:
 - six=1.10.0=py27_0
 - sqlite=3.13.0=0
 - tk=8.5.18=0
+- unicodecsv=0.14.1=py27h5062da9_0
 - werkzeug=0.12.2=py27_0
 - wheel=0.29.0=py27_0
 - zlib=1.2.8=3
