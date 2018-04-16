@@ -59,12 +59,12 @@ class TestValidateCommand(unittest.TestCase):
     def test_validate_nested(self):
         """Validate nested parameter specification."""
         spec = dict()
-        spec['dbname'] = cmd.parameter_specification('dbname', '', '', 0, label='name')
-        spec['tables'] = cmd.parameter_specification('tables', '', '', 1)
-        spec['tabname'] = cmd.parameter_specification('tabname', '', '', 2, label='name', parent='tables')
-        spec['schema'] = cmd.parameter_specification('schema', '', '', 3, parent='tables')
-        spec['column'] = cmd.parameter_specification('column', '', '', 4, parent='schema')
-        spec['type'] = cmd.parameter_specification('type', '', '', 5, parent='schema')
+        spec['dbname'] = cmd.parameter_specification('dbname', '', 'int', 0, label='name')
+        spec['tables'] = cmd.parameter_specification('tables', '', 'int', 1)
+        spec['tabname'] = cmd.parameter_specification('tabname', '', 'int', 2, label='name', parent='tables')
+        spec['schema'] = cmd.parameter_specification('schema', '', 'int', 3, parent='tables')
+        spec['column'] = cmd.parameter_specification('column', '', 'int', 4, parent='schema')
+        spec['type'] = cmd.parameter_specification('type', '', 'int', 5, parent='schema')
         args = {
             'name': 'My Name',
             'tables': [{

@@ -28,18 +28,24 @@ class WorkflowVersionDescriptor(object):
     create_at: datetime.datetime, optional
         Timestamp of workflow creation (UTC)
     """
-    def __init__(self, version, created_at=None):
+    def __init__(self, version, package_id=None, command_id=None, created_at=None):
         """Initialize the descriptor.
 
         Parameters
         ----------
         version: int
             Workflow version identifier
+        package_id: string
+            Identifier of the package the module command is from
+        command_id: string
+            Identifier of the module command
         create_at: datetime.datetime
             Timestamp of workflow creation (UTC)
         """
         self.version = version
-        self.created_at = created_at
+        self.package_id = package_id
+        self.command_id = command_id
+        self.created_at = created_at if not created_at is None else get_current_time()
 
     @staticmethod
     def from_dict(obj):
@@ -51,7 +57,9 @@ class WorkflowVersionDescriptor(object):
         """
         return WorkflowVersionDescriptor(
             obj['version'],
-            to_datetime(obj['createdAt'])
+            package_id=obj['packageId'] if 'packageId' in obj else None,
+            command_id=obj['commandId'] if 'commandId' in obj else None,
+            created_at=to_datetime(obj['createdAt'])
         )
 
     def to_dict(self):
@@ -63,6 +71,8 @@ class WorkflowVersionDescriptor(object):
         """
         return {
             'version': self.version,
+            'packageId': self.package_id,
+            'commandId': self.command_id,
             'createdAt': self.created_at.isoformat()
         }
 

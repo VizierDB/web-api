@@ -26,16 +26,17 @@ parent: Optional reference to parent object when having nested structure
 The following is a list of known data types for module arguments:
 
 ```
-int: Integer value
-decimal: Numeric float or double value
-string: Arbitrary character sequence
+asRow: List of components
 bool: Boolean value
-dataset: Name referencing a dataset
-colindex: Positive integer referencing a column in the dataset
-rowindex: Positive integer referencing a row in a dataset
-file: Reference to a file on the file server
-code: Multi-line text string
+colid: Positive integer referencing a column in the dataset
+datasetid: Name referencing a dataset
+decimal: Numeric float or double value
+fileid: Reference to a file on the file server
 group: Indicate nesting of components
+int: Integer value
+pyCode: Multi-line text string (Python Code)
+rowid: Positive integer referencing a row in a dataset
+string: Arbitrary character sequence
 ```
 
 When submitting a module specification as part of a HTTP request each element in **arguments** is expected to contain pairs of argument identifier and (primitive) values. If an argument definition contains a list of elements the request is expected to submit a list of Json objects that contain one identifier and value for each object in the argument specification.

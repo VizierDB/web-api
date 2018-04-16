@@ -1624,6 +1624,10 @@ definitions:
                 type: integer
             createdAt:
                 type: string
+            packageId:
+                type: string
+            commandId:
+                type: string
             links:
                 type: array
                 items:

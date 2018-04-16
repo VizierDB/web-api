@@ -79,10 +79,20 @@ def BRANCH_HANDLE(viztrail, branch, urls):
     """
     obj = BRANCH_DESCRIPTOR(viztrail, branch, urls)
     obj['project'] = PROJECT_DESCRIPTOR(viztrail, urls)
-    obj['workflows'] = [
-        WORKFLOW_DESCRIPTOR(viztrail, branch, wf.version, wf.created_at, urls)
-            for wf in branch.workflows
-    ]
+    obj['workflows'] = []
+    for wf in branch.workflows:
+        descriptor = WORKFLOW_DESCRIPTOR(
+            viztrail,
+            branch,
+            wf.version,
+            wf.created_at,
+            urls
+        )
+        if not wf.package_id is None:
+            descriptor['packageId'] = wf.package_id
+        if not wf.command_id is None:
+            descriptor['commandId'] = wf.command_id
+        obj['workflows'].append(descriptor)
     return obj
 
 
