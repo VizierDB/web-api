@@ -136,6 +136,28 @@ class DatasetHandle(object):
                         break
         return rows
 
+    def get_column_by_name(self, name, ignore_case=True):
+        """Returns the first column with a matching name. The result is None if
+        no matching column is found.
+
+        Parameters
+        ----------
+        name: string
+            Column name
+        ignore_case: bool, optional
+            Ignore case in name comparison if True
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetColumn
+        """
+        for col in self.columns:
+            if ignore_case:
+                if name.upper() == col.name.upper():
+                    return col
+            elif name == col.name:
+                return col
+
     @abstractmethod
     def reader(self):
         """Get reader for the dataset to access the dataset rows.
@@ -383,7 +405,7 @@ class DataStore(VizierSystemComponent):
         consumers = list()
         for s_idx in range(len(view.data)):
             s = view.data[s_idx]
-            c_idx = dataset.column_index(s.column)
+            c_idx = get_index_for_column(dataset, s.column)
             consumers.append(
                 DataStreamConsumer(
                     column_index=c_idx,
@@ -529,6 +551,29 @@ def get_column_index(columns, column_id):
         if name_index != -1:
             return name_index
         raise ValueError('unknown column \'' + str(column_id) + '\'')
+
+
+def get_index_for_column(dataset, col_id):
+    """Get index position for column with given id in dataset schema.
+
+    Raises ValueError if no column with col_id exists.
+
+    Parameters
+    ----------
+    dataset: vizier.datastore.base.DatasetHandle
+        Handle for dataset
+    col_id: int
+        Unique column identifier
+
+    Returns
+    -------
+    int
+    """
+    for i in range(len(dataset.columns)):
+        if dataset.columns[i].identifier == col_id:
+            return i
+    # Raise ValueError if no column was found
+    raise ValueError('unknown column identifier \'' + str(col_id) + '\'')
 
 
 def max_column_id(columns):

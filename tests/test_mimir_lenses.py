@@ -78,14 +78,14 @@ class TestMimirLenses(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        print [c.name for c in ds.columns]
+        col_age = ds.get_column_by_name('Age')
         for row in ds.fetch_rows():
             print row.values
         self.assertFalse(wf.has_error)
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_domain(DS_NAME, 'AGE')
+            command=cmd.mimir_domain(DS_NAME, col_age.identifier)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         if wf.has_error:
@@ -121,7 +121,7 @@ class TestMimirLenses(unittest.TestCase):
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_key_repair(DS_NAME, 'Empid')
+            command=cmd.mimir_key_repair(DS_NAME, ds1.get_column_by_name('Empid').identifier)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
@@ -163,7 +163,7 @@ class TestMimirLenses(unittest.TestCase):
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_missing_value(DS_NAME, 'AGE')
+            command=cmd.mimir_missing_value(DS_NAME, ds.get_column_by_name('AGE').identifier)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         if wf.has_error:
@@ -250,15 +250,17 @@ class TestMimirLenses(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
         # Missing Value Lens
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_picker(DS_NAME, [
-                {'pickFrom': 'Age'},
-                {'pickFrom': 'Salary'}
+                {'pickFrom': ds.get_column_by_name('Age').identifier},
+                {'pickFrom': ds.get_column_by_name('Salary').identifier}
             ])
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        print wf.modules[-1].stderr
+        if wf.modules[-1].has_error:
+            print wf.modules[-1].stderr
         self.assertFalse(wf.has_error)
         # Get dataset
         self.assertEquals(len(wf.modules[-1].datasets), 1)
@@ -270,8 +272,8 @@ class TestMimirLenses(unittest.TestCase):
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_picker(DS_NAME, [
-                {'pickFrom': 'Age'},
-                {'pickFrom': 'Salary'}
+                {'pickFrom': ds.get_column_by_name('Age').identifier},
+                {'pickFrom': ds.get_column_by_name('Salary').identifier}
             ],
             pick_as='MyColumn')
         )
@@ -288,12 +290,14 @@ class TestMimirLenses(unittest.TestCase):
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_picker(DS_NAME, [
-                {'pickFrom': 'Age'},
-                {'pickFrom': 'PICK_ONE_AGE_SALARY'}
+                {'pickFrom': ds.get_column_by_name('Age').identifier},
+                {'pickFrom': ds.get_column_by_name('PICK_ONE_AGE_SALARY').identifier}
             ],
             pick_as='MyColumn')
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        if wf.modules[-1].has_error:
+            print wf.modules[-1].stderr
         self.assertFalse(wf.has_error)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         mimir.finalize()
@@ -329,13 +333,21 @@ class TestMimirLenses(unittest.TestCase):
         # Error if adding an existing dataset
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_schema_matching(DS_NAME, [{'column': 'BDate', 'type': 'int'}], 'new_' + DS_NAME)
+            command=cmd.mimir_schema_matching(
+                DS_NAME,
+                [{'column': 'BDate', 'type': 'int'}],
+                'new_' + DS_NAME
+            )
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertTrue(wf.has_error)
         self.db.replace_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_schema_matching(DS_NAME, [{'column': 'BDate', 'type': 'int'}], 'a_new_' + DS_NAME),
+            command=cmd.mimir_schema_matching(
+                DS_NAME,
+                [{'column': 'BDate', 'type': 'int'}],
+                'a_new_' + DS_NAME
+            ),
             module_id=wf.modules[-1].identifier,
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
@@ -343,7 +355,11 @@ class TestMimirLenses(unittest.TestCase):
         # Error when adding a dataset with an invalid name
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_schema_matching(DS_NAME, [{'column': 'BDate', 'type': 'int'}], 'SOME NAME')
+            command=cmd.mimir_schema_matching(
+                DS_NAME,
+                [{'column': 'BDate', 'type': 'int'}],
+                'SOME NAME'
+            )
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertTrue(wf.has_error)

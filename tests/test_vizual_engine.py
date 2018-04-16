@@ -87,8 +87,9 @@ class TestVizualEngine(unittest.TestCase):
         # Keep track of column and row identifier
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
-        # Delete second column
-        col_count, id1 = self.vizual.delete_column(ds.identifier, 'Age')
+        # Delete Age column
+        col_id = ds.get_column_by_name('AGE').identifier
+        col_count, id1 = self.vizual.delete_column(ds.identifier, col_id)
         del col_ids[1]
         # Result should indicate that one column was deleted. The identifier of
         # the resulting dataset should differ from the identifier of the
@@ -126,7 +127,7 @@ class TestVizualEngine(unittest.TestCase):
             self.assertEquals(ds_rows[i].identifier, row_ids[i])
         # Ensure exception is thrown if dataset identifier is unknown
         with self.assertRaises(ValueError):
-            self.vizual.delete_column('unknown:uri', 'Age')
+            self.vizual.delete_column('unknown:uri', 0)
         self.tear_down(engine)
 
     def delete_row(self, engine):
@@ -331,7 +332,7 @@ class TestVizualEngine(unittest.TestCase):
         c = col_ids[0]
         del col_ids[0]
         col_ids.insert(1, c)
-        col_count, id1 = self.vizual.move_column(ds.identifier, 'Name', 1)
+        col_count, id1 = self.vizual.move_column(ds.identifier, ds.get_column_by_name('Name').identifier, 1)
         self.assertEquals(col_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
@@ -357,7 +358,7 @@ class TestVizualEngine(unittest.TestCase):
         c = col_ids[1]
         del col_ids[1]
         col_ids.append(c)
-        col_count, id2 = self.vizual.move_column(id1, 'Salary', 1)
+        col_count, id2 = self.vizual.move_column(id1, ds.get_column_by_name('Salary').identifier, 1)
         ds = self.datastore.get_dataset(id2)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Age'.upper())
@@ -379,12 +380,12 @@ class TestVizualEngine(unittest.TestCase):
             self.assertEquals(ds.columns[i].identifier, col_ids[i])
         # Raise error if source column is out of bounds
         with self.assertRaises(ValueError):
-            self.vizual.move_column(id2, 4, 1)
+            self.vizual.move_column(id2, 40, 1)
         # Raise error if target position is out of bounds
         with self.assertRaises(ValueError):
-            self.vizual.move_column(id2, 'Name', -1)
+            self.vizual.move_column(id2, ds.get_column_by_name('Name').identifier, -1)
         with self.assertRaises(ValueError):
-            self.vizual.move_column(id2, 'Name', 4)
+            self.vizual.move_column(id2, ds.get_column_by_name('Name').identifier, 4)
         self.tear_down(engine)
 
     def move_row(self, engine):
@@ -481,14 +482,14 @@ class TestVizualEngine(unittest.TestCase):
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
         # Rename first column to Firstname
-        col_count, id1 = self.vizual.rename_column(ds.identifier, 'Name', 'Firstname')
+        col_count, id1 = self.vizual.rename_column(ds.identifier, ds.get_column_by_name('Name').identifier, 'Firstname')
         self.assertEquals(col_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
         self.assertEquals(ds.columns[0].name.upper(), 'Firstname'.upper())
         self.assertEquals(ds.columns[1].name.upper(), 'Age'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
-        col_count, id2 = self.vizual.rename_column(id1, 1, 'BDate')
+        col_count, id2 = self.vizual.rename_column(id1, ds.get_column_by_name('Age').identifier, 'BDate')
         ds = self.datastore.get_dataset(id2)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Firstname'.upper())
@@ -502,10 +503,10 @@ class TestVizualEngine(unittest.TestCase):
             self.assertEquals(ds.columns[i].identifier, col_ids[i])
         # Ensure exception is thrown if dataset identifier is unknown
         with self.assertRaises(ValueError):
-            self.vizual.rename_column('unknown:uri', 'Name', 'Firstname')
-        # Ensure exception is thrown for invalid column name
+            self.vizual.rename_column('unknown:uri', 0, 'Firstname')
+        # Ensure exception is thrown for invalid column id
         with self.assertRaises(ValueError):
-            self.vizual.rename_column(id2, 'Age', 'BDate')
+            self.vizual.rename_column(id2, 500, 'BDate')
         self.tear_down(engine)
 
     def sequence_of_steps(self, engine):
@@ -514,18 +515,31 @@ class TestVizualEngine(unittest.TestCase):
         # Create a new dataset
         ds = self.vizual.load_dataset(self.file.identifier)
         count, ds_id = self.vizual.insert_row(ds.identifier, 1)
+        ds = self.datastore.get_dataset(ds_id)
         count, ds_id = self.vizual.insert_column(ds_id, 3, 'HDate')
-        count, ds_id = self.vizual.update_cell(ds_id, 'HDate', 0, '180')
-        count, ds_id = self.vizual.update_cell(ds_id, 'HDate', 1, '160')
-        count, ds_id = self.vizual.rename_column(ds_id, 'HDate', 'Height')
-        count, ds_id = self.vizual.update_cell(ds_id, 'Height', 2, '170')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('HDate').identifier, 0, '180')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('HDate').identifier, 1, '160')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.rename_column(ds_id, ds.get_column_by_name('HDate').identifier, 'Height')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Height').identifier, 2, '170')
+        ds = self.datastore.get_dataset(ds_id)
         count, ds_id = self.vizual.move_row(ds_id, 1, 2)
-        count, ds_id = self.vizual.update_cell(ds_id, 'Name', 2, 'Carla')
-        count, ds_id = self.vizual.update_cell(ds_id, 'Age', 2, '45')
-        count, ds_id = self.vizual.update_cell(ds_id, 'Salary', 2, '56K')
-        count, ds_id = self.vizual.move_column(ds_id, 'Salary', 4)
-        count, ds_id = self.vizual.delete_column(ds_id, 'Age')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Name').identifier, 2, 'Carla')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Age').identifier, 2, '45')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Salary').identifier, 2, '56K')
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.move_column(ds_id, ds.get_column_by_name('Salary').identifier, 4)
+        ds = self.datastore.get_dataset(ds_id)
+        count, ds_id = self.vizual.delete_column(ds_id, ds.get_column_by_name('Age').identifier)
+        ds = self.datastore.get_dataset(ds_id)
         count, ds_id = self.vizual.delete_row(ds_id, 0)
+        ds = self.datastore.get_dataset(ds_id)
         count, ds_id = self.vizual.delete_row(ds_id, 0)
         ds = self.datastore.get_dataset(ds_id)
         ds_rows = ds.fetch_rows()
@@ -558,7 +572,7 @@ class TestVizualEngine(unittest.TestCase):
         ds = self.datastore.get_dataset(id1)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds_rows[0].values[0], 'MyValue')
-        upd_rows, id2 = self.vizual.update_cell(id1, 'Name', 0, 'AValue')
+        upd_rows, id2 = self.vizual.update_cell(id1, ds.get_column_by_name('Name').identifier, 0, 'AValue')
         ds = self.datastore.get_dataset(id2)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds_rows[0].values[0], 'AValue')
@@ -571,7 +585,7 @@ class TestVizualEngine(unittest.TestCase):
             self.assertEquals(ds.columns[i].identifier, col_ids[i])
         # Ensure exception is thrown if column is unknown
         with self.assertRaises(ValueError):
-            self.vizual.update_cell(ds.identifier, 'Income', 0, 'MyValue')
+            self.vizual.update_cell(ds.identifier, 100, 0, 'MyValue')
         # Ensure exception is thrown if row index is out ouf bounds
         with self.assertRaises(ValueError):
             self.vizual.update_cell(ds.identifier, 0, 100, 'MyValue')

@@ -11,6 +11,8 @@ from vizier.core.util import is_valid_name
 from vizier.core.system import build_info, component_descriptor
 from vizier.core.system import VizierSystemComponent
 from vizier.datastore.base import DatasetColumn, DatasetRow
+from vizier.datastore.base import get_index_for_column
+
 
 class VizualEngine(VizierSystemComponent):
     """Abstract interface to Vizual engine that allows manipulation of datasets
@@ -50,8 +52,8 @@ class VizualEngine(VizierSystemComponent):
         ----------
         identifier: string
             Unique dataset identifier
-        column: int or string
-            Column index, name or label for column that is being deleted
+        column: int
+            Unique column identifier
 
         Returns
         -------
@@ -162,8 +164,8 @@ class VizualEngine(VizierSystemComponent):
         ----------
         identifier: string
             Unique dataset identifier
-        column: int or string
-            Column index, name or label for column that is being deleted
+        column: int
+            Unique column identifier
         position: int
             Target position for the column
 
@@ -210,8 +212,8 @@ class VizualEngine(VizierSystemComponent):
         ----------
         identifier: string
             Unique dataset identifier
-        column: int or string
-            Column index, name or label for renamed column
+        column: int
+            Unique column identifier
         name: string
             New column name
 
@@ -235,7 +237,7 @@ class VizualEngine(VizierSystemComponent):
         identifier : string
             Unique dataset identifier
         column: int
-            Column index for updated cell (starting at 0)
+            Unique column identifier for updated cell
         row: int
             Row index for updated cell (starting at 0)
         value: string
@@ -279,10 +281,10 @@ class DefaultVizualEngine(VizualEngine):
 
         Parameters
         ----------
-        identifier : string
+        identifier: string
             Unique dataset identifier
-        column : int or string
-            Column index, name or label for column that is being deleted
+        column: int
+            Unique column identifier
 
         Returns
         -------
@@ -295,7 +297,7 @@ class DefaultVizualEngine(VizualEngine):
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Get the index of the specified column that is to be deleted.
-        col_index = dataset.column_index(column)
+        col_index = get_index_for_column(dataset, column)
         # Delete column from schema
         columns = list(dataset.columns)
         del columns[col_index]
@@ -476,8 +478,8 @@ class DefaultVizualEngine(VizualEngine):
         ----------
         identifier: string
             Unique dataset identifier
-        column: int or string
-            Column index, name or label for column that is being deleted
+        column: int
+            Unique column identifier
         position: int
             Target position for the column
 
@@ -495,7 +497,7 @@ class DefaultVizualEngine(VizualEngine):
         if position < 0 or position > len(dataset.columns):
             raise ValueError('invalid target position \'' + str(position) + '\'')
         # Get index position of column that is being moved
-        source_idx = dataset.column_index(column)
+        source_idx = get_index_for_column(dataset, column)
         # No need to do anything if source position equals target position
         if source_idx != position:
             columns = list(dataset.columns)
@@ -570,11 +572,11 @@ class DefaultVizualEngine(VizualEngine):
 
         Parameters
         ----------
-        identifier : string
+        identifier: string
             Unique dataset identifier
-        column : int or string
-            Column index, name or label for renamed column
-        name : string
+        column: int
+            Unique column identifier
+        name: string
             New column name
 
         Returns
@@ -592,7 +594,7 @@ class DefaultVizualEngine(VizualEngine):
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Get the specified column that is to be renamed and set the column name
         # to the new name
-        col_idx = dataset.column_index(column)
+        col_idx = get_index_for_column(dataset, column)
         # Nothing needs to be changed if name does not differ from column name
         if dataset.columns[col_idx].name.lower() != name.lower():
             columns = list(dataset.columns)
@@ -622,8 +624,8 @@ class DefaultVizualEngine(VizualEngine):
         ----------
         identifier : string
             Unique dataset identifier
-        column : int or string
-            Column index, name or label for updated cell (starting at 0)
+        column : int
+            Unique column identifier
         row : int
             Row index for updated cell (starting at 0)
         value : string
@@ -640,7 +642,7 @@ class DefaultVizualEngine(VizualEngine):
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Get column index forst in case it raises an exception
-        col_idx = dataset.column_index(column)
+        col_idx = get_index_for_column(dataset, column)
         # Make sure that row refers a valid row in the dataset
         rows = dataset.fetch_rows()
         if row < 0 or row >= len(rows):

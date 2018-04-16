@@ -11,6 +11,7 @@ import vistrails.packages.mimir.init as mimir
 
 from vizier.core.system import build_info
 from vizier.core.util import is_valid_name
+from vizier.datastore.base import get_index_for_column
 from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import COL_PREFIX, ROW_ID
 from vizier.workflow.vizual.base import DefaultVizualEngine
@@ -26,7 +27,7 @@ class MimirVizualEngine(DefaultVizualEngine):
 
         Parameters
         ----------
-        datastore : vizier.datastore.mimir.MimirDataStore
+        datastore: vizier.datastore.mimir.MimirDataStore
             Datastore to retireve and update datasets.
         fileserver:  vizier.filestore.base.FileSever
             File server to access uploaded  CSV files
@@ -45,10 +46,10 @@ class MimirVizualEngine(DefaultVizualEngine):
 
         Parameters
         ----------
-        identifier : string
+        identifier: string
             Unique dataset identifier
-        column : int or string
-            Column index, name or label for column that is being deleted
+        column: int
+            Unique column identifier
 
         Returns
         -------
@@ -61,7 +62,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
         # Get the index of the specified column that is to be deleted.
-        col_index = dataset.column_index(column)
+        col_index = get_index_for_column(dataset, column)
         # Delete column from schema
         schema = list(dataset.columns)
         del schema[col_index]
@@ -255,8 +256,8 @@ class MimirVizualEngine(DefaultVizualEngine):
         ----------
         identifier: string
             Unique dataset identifier
-        column: int or string
-            Column index, name or label for column that is being deleted
+        column: int
+            Unique column identifier
         position: int
             Target position for the column
 
@@ -274,7 +275,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         if position < 0 or position > len(dataset.columns):
             raise ValueError('invalid target position \'' + str(position) + '\'')
         # Get index position of column that is being moved
-        source_idx = dataset.column_index(column)
+        source_idx = get_index_for_column(dataset, column)
         # No need to do anything if source position equals target position
         if source_idx != position:
             # There are no changes to the underlying database. We only need to
@@ -353,8 +354,8 @@ class MimirVizualEngine(DefaultVizualEngine):
         ----------
         identifier : string
             Unique dataset identifier
-        column : int or string
-            Column index, name or label for renamed column
+        column : int
+            Unique column identifier
         name : string
             New column name
 
@@ -374,7 +375,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         # Get the specified column that is to be renamed and set the column name
         # to the new name
         schema = list(dataset.columns)
-        col = schema[dataset.column_index(column)]
+        col = schema[get_index_for_column(dataset, column)]
         # No need to do anything if the name hasn't changed
         if col.name.lower() != name.lower():
             # There are no changes to the underlying database. We only need to
@@ -404,8 +405,8 @@ class MimirVizualEngine(DefaultVizualEngine):
         ----------
         identifier : string
             Unique dataset identifier
-        column : int or string
-            Column index, name or label for updated cell (starting at 0)
+        column : int
+            Unique column identifier for updated cell (starting at 0)
         row : int
             Row index for updated cell (starting at 0)
         value : string
@@ -425,7 +426,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         if row < 0 or row >= dataset.row_count:
             raise ValueError('invalid cell [' + str(column) + ', ' + str(row) + ']')
         # Get the index of the specified cell column
-        col_index = dataset.column_index(column)
+        col_index = get_index_for_column(dataset, column)
         # Get id of the cell row
         row_id = dataset.row_ids[row]
         # Create a view for the modified dataset

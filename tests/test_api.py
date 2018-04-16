@@ -385,7 +385,7 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_project_descriptor(pj)
 
     def validate_workflow_descriptor(self, wf):
-        self.validate_keys(wf, ['version', 'links', 'createdAt'])
+        self.validate_keys(wf, ['version', 'links', 'createdAt', 'packageId', 'commandId'])
         self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append'])
 
     def validate_workflow_handle(self, wf, number_of_modules=0):

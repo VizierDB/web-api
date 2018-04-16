@@ -11,13 +11,13 @@ from vizier.workflow.module import ModuleSpecification
 DT_AS_ROW = 'asRow'
 DT_BOOL = 'bool'
 DT_COLUMN_ID = 'colid'
-DT_DATASET_ID = 'datasetid'
+DT_DATASET_ID = 'dataset'
 DT_DECIMAL = 'decimal'
 DT_FILE_ID = 'fileid'
 DT_GROUP = 'group'
 DT_INT = 'int'
 DT_PYTHON_CODE = 'pyCode'
-DT_ROW_ID = 'rowid'
+DT_ROW_INDEX = 'rowidx'
 DT_STRING = 'string'
 
 DATA_TYPES = [
@@ -30,7 +30,7 @@ DATA_TYPES = [
     DT_GROUP,
     DT_INT,
     DT_PYTHON_CODE,
-    DT_ROW_ID,
+    DT_ROW_INDEX,
     DT_STRING
 ]
 
@@ -115,7 +115,7 @@ def para_row(index):
     -------
     dict
     """
-    return parameter_specification(PARA_ROW, 'Row', DT_ROW_ID, index)
+    return parameter_specification(PARA_ROW, 'Row', DT_ROW_INDEX, index)
 
 
 def parameter_specification(
@@ -345,7 +345,7 @@ PLOT_COMMANDS = {
             PARA_SERIES + '_' + PARA_COLUMN: parameter_specification(
                 PARA_SERIES + '_' + PARA_COLUMN,
                 'Column',
-                DT_DATASET_ID,
+                DT_COLUMN_ID,
                 3,
                 parent=PARA_SERIES
             ),
@@ -369,14 +369,16 @@ PLOT_COMMANDS = {
                 PARA_XAXIS,
                 'X-Axis',
                 DT_AS_ROW,
-                6
+                6,
+                required=False
             ),
             PARA_XAXIS + '_' + PARA_COLUMN: parameter_specification(
                 PARA_XAXIS + '_' + PARA_COLUMN,
                 'Column',
-                DT_DATASET_ID,
+                DT_COLUMN_ID,
                 7,
-                parent=PARA_XAXIS
+                parent=PARA_XAXIS,
+                required=False
             ),
             PARA_XAXIS + '_' + PARA_RANGE: parameter_specification(
                 PARA_XAXIS + '_' + PARA_RANGE,

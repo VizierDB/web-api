@@ -11,6 +11,7 @@ import vistrails.packages.mimir.init as mimir
 
 from vizier.core.util import is_valid_name, get_unique_identifier
 from vizier.datastore.fs import FileSystemDataStore
+from vizier.datastore.base import get_index_for_column
 from vizier.datastore.mem import VolatileDataStore
 from vizier.datastore.metadata import DatasetMetadata
 from vizier.datastore.mimir import COL_PREFIX, ROW_ID
@@ -89,12 +90,12 @@ class MimirLens(Module):
         mimir_table_name = dataset.table_name
         if lens == cmd.MIMIR_KEY_REPAIR:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[dataset.column_index(c_col)]
+            column = dataset.columns[get_index_for_column(dataset, c_col)]
             params = [column.name_in_rdb]
             update_rows = True
         elif lens == cmd.MIMIR_MISSING_KEY:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[dataset.column_index(c_col)]
+            column = dataset.columns[get_index_for_column(dataset, c_col)]
             params = [column.name_in_rdb]
             # Set MISSING ONLY to FALSE to ensure that all rows are returned
             params += ['MISSING_ONLY(FALSE)']
@@ -110,11 +111,11 @@ class MimirLens(Module):
             params = [ROW_ID, 'MISSING_ONLY(FALSE)']
         elif lens == cmd.MIMIR_DOMAIN:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[dataset.column_index(c_col)]
+            column = dataset.columns[get_index_for_column(dataset, c_col)]
             params = [column.name_in_rdb]
         elif lens == cmd.MIMIR_MISSING_VALUE:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[dataset.column_index(c_col)]
+            column = dataset.columns[get_index_for_column(dataset, c_col)]
             params = column.name_in_rdb
             if cmd.PARA_CONSTRAINT in args:
                 params = params + ' ' + str(args[cmd.PARA_CONSTRAINT])
@@ -124,7 +125,8 @@ class MimirLens(Module):
             pick_from = list()
             column_names = list()
             for col in get_argument(cmd.PARA_SCHEMA, args):
-                c_idx = dataset.column_index(get_argument(cmd.PARA_PICKFROM, col))
+                c_col = get_argument(cmd.PARA_PICKFROM, col, as_int=True)
+                c_idx = get_index_for_column(dataset, c_col)
                 column = dataset.columns[c_idx]
                 pick_from.append(column.name_in_rdb)
                 column_names.append(column.name.upper())
@@ -273,13 +275,21 @@ class PlotCell(NotCacheable, Module):
             # The data series index for x-axis values is optional
             if cmd.PARA_XAXIS in args:
                 x_axis = args[cmd.PARA_XAXIS]
-                add_data_series(
-                    view=view,
-                    series_spec=x_axis,
-                    dataset=dataset,
-                    prefix=cmd.PARA_XAXIS
+                # X-Axis column may be empty. In that case, we ignore the
+                # x-axis spec
+                col_id = get_argument(
+                    cmd.PARA_XAXIS + '_' + cmd.PARA_COLUMN,
+                    x_axis,
+                    as_int=True
                 )
-                view.x_axis = 0
+                if isinstance(col_id, int):
+                    add_data_series(
+                        view=view,
+                        series_spec=x_axis,
+                        dataset=dataset,
+                        prefix=cmd.PARA_XAXIS
+                    )
+                    view.x_axis = 0
             # Definition of data series. Each series is a pair of column
             # identifier and a printable label.
             for data_series in get_argument(cmd.PARA_SERIES, args):
@@ -553,12 +563,15 @@ def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES):
     prefix: string, optional
         Prefix for all arguments in the data series specification.
     """
-    c_name = get_argument(prefix + '_' + cmd.PARA_COLUMN, series_spec)
+    col_id = get_argument(prefix + '_' + cmd.PARA_COLUMN, series_spec, as_int=True)
     # Get column index to ensure that the column exists. Will raise
     # an exception if c_name does not specify a valid column.
-    dataset.column_index(c_name)
+    col_idx = get_index_for_column(dataset, col_id)
+    c_name = dataset.columns[col_idx].name
     if prefix + '_' + cmd.PARA_LABEL in series_spec:
-        s_label = series_spec[prefix + '_' + cmd.PARA_LABEL]
+        s_label = str(series_spec[prefix + '_' + cmd.PARA_LABEL])
+        if s_label.strip() == '':
+            s_label = c_name
     else:
         s_label = c_name
     # Check for range specifications. Expect string of format int or
@@ -581,7 +594,7 @@ def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES):
             if range_start < 0 or range_end < 0:
                 raise ValueError('invalid range \'' + s_range + '\'')
     view.add_series(
-        column=c_name,
+        column=col_id,
         label=s_label,
         range_start=range_start,
         range_end=range_end
