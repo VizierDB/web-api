@@ -1,3 +1,4 @@
+import json
 import os
 
 
@@ -27,30 +28,9 @@ lens_name = mimir._mimir.createLens(
 
 print lens_name
 sql = 'SELECT * FROM ' + lens_name
-#print sql
-csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, include_uncertainty, include_reasons)
-print csvStrDet.schema()
-print csvStrDet.csvStr()
-print 'COLS DET'
-print csvStrDet.colsDet()
-for c in csvStrDet.colsDet():
-    print c
-    print type(c)
-    for t in c:
-        print t
-print 'ROWS DET'
-print csvStrDet.rowsDet()
-for r in csvStrDet.rowsDet():
-    print r
-reasons = csvStrDet.celReasons()
-print 'NUMBER OF REASONS: ' + str(len(reasons))
-for p in reasons:
-    print 'REASON ' + str(p)
-    for s in p:
-        print '-> ' + s
-    print '-'
-#print csvStrDet.schema()
-#print csvStrDet.schema().get('NAME')
+rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, True))
+
+print json.dumps(rs['reasons'], indent=2, sort_keys=True)
 
 mimir.finalize()
 

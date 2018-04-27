@@ -1,0 +1,17 @@
+files:
+- active: true
+  createdAt: '2018-04-25T18:00:17.749107'
+  identifier: bad298cd2b9f484b95916865d778effa
+  lastModifiedAt: '2018-04-25T18:00:17.749107'
+  name: employee.csv
+  properties:
+  - key: delimiter
+    value: ','
+  - key: rows
+    value: 4
+  - key: uploadName
+    value: Employee.csv
+  - key: compressed
+    value: false
+  - key: columns
+    value: 5

@@ -36,3 +36,5 @@
 * Add support for dataset chart views
 * Fix issues with dataset upload and column data type awareness
 * Pagination for datasets
+* Switch to column ids in module arguments
+* Server-side command text for workflow modules

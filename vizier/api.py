@@ -9,6 +9,7 @@ noretbook metadata and the VizTrails module.
 
 from vizier.hateoas import UrlFactory
 from vizier.plot.view import ChartViewHandle
+from vizier.workflow.base import DEFAULT_BRANCH
 
 import vizier.serialize as serialize
 
@@ -451,7 +452,7 @@ class VizierWebService(object):
     # --------------------------------------------------------------------------
     # Workflows
     # --------------------------------------------------------------------------
-    def append_module(self, project_id, branch_id, workflow_version, module_spec, before_id=-1):
+    def append_module(self, project_id, branch_id, workflow_version, module_spec, before_id=-1, includeDataset=None):
         """Insert module to existing workflow and execute the resulting
         workflow. If before_id is equal or greater than zero the module will be
         inserted at the specified position in the workflow otherwise it is
@@ -476,6 +477,10 @@ class VizierWebService(object):
         before_id : int, optional
             Insert new module before module with given identifier. Append at end
             of the workflow if negative
+        includeDataset: dict, optional
+            If included the result will contain the modified dataset rows
+            starting at the given offset. Expects a dictionary containing name
+            and offset keys.
 
         Returns
         -------
@@ -500,12 +505,15 @@ class VizierWebService(object):
             branch_id=branch_id,
             workflow_version=branch.workflows[-1].version
         )
-        return serialize.WORKFLOW_HANDLE(
+        return serialize.WORKFLOW_UPDATE_RESULT(
             viztrail,
             workflow,
             dataset_cache=self.get_dataset_handle,
+            files=self.fileserver.list_files(),
             config=self.config,
-            urls=self.urls
+            urls=self.urls,
+            includeDataset=includeDataset,
+            dataset_serializer=self.get_dataset
         )
 
     def create_branch(self, project_id, branch_id, workflow_version, module_id, properties):
@@ -621,10 +629,11 @@ class VizierWebService(object):
             branch_id=branch_id,
             workflow_version=branch.workflows[-1].version
         )
-        return serialize.WORKFLOW_HANDLE(
+        return serialize.WORKFLOW_UPDATE_RESULT(
             viztrail,
             workflow,
             dataset_cache=self.get_dataset_handle,
+            files=self.fileserver.list_files(),
             config=self.config,
             urls=self.urls
         )
@@ -746,6 +755,50 @@ class VizierWebService(object):
             read_only=(workflow_version != -1)
         )
 
+    def get_workflow_modules(self, project_id, branch_id, workflow_version=-1):
+        """Get list of module handles for a workflow from a given project.
+
+        Returns None if no project, branch, or workflow with given identifiers
+        exists.
+
+        Parameters
+        ----------
+        project_id : string
+            Unique project identifier
+        branch_id: string
+            Unique workflow branch identifier
+        workflow_version: int, optional
+            Version number of the modified workflow
+
+        Returns
+        -------
+        dict
+            Serialization of the project workflow modules
+        """
+        # Get viztrail to ensure that it exist.
+        viztrail = self.viztrails.get_viztrail(viztrail_id=project_id)
+        if viztrail is None:
+            return None
+        # Retrieve workflow from repository. The result is None if the branch
+        # does not exist.
+        workflow = self.viztrails.get_workflow(
+            viztrail_id=project_id,
+            branch_id=branch_id,
+            workflow_version=workflow_version
+        )
+        if workflow is None:
+            return None
+        # If an explicit workflow version was requested the workflow will be
+        # marked as read only.
+        return serialize.WORKFLOW_MODULES(
+            viztrail,
+            workflow,
+            dataset_cache=self.get_dataset_handle,
+            config=self.config,
+            urls=self.urls,
+            read_only=(workflow_version != -1)
+        )
+
     def list_branches(self, project_id):
         """Get a list of all branches for a given project. The result contains a
         list of branch descriptors. The result is None, if the specified project
@@ -765,7 +818,7 @@ class VizierWebService(object):
         if not viztrail is None:
             return serialize.BRANCH_LISTING(viztrail, self.urls)
 
-    def replace_module(self, project_id, branch_id, workflow_version, module_id, module_spec):
+    def replace_module(self, project_id, branch_id, workflow_version, module_id, module_spec, includeDataset=None):
         """Replace a module in a project workflow and execute the result.
 
         Raise a ValueError if the given command does not specify a valid
@@ -786,6 +839,10 @@ class VizierWebService(object):
             Module identifier
         module_spec : vizier.workflow.module.ModuleSpecification
             Specification of the workflow module
+        includeDataset: dict, optional
+            If included the result will contain the modified dataset rows
+            starting at the given offset. Expects a dictionary containing name
+            and offset keys.
 
         Returns
         -------
@@ -810,12 +867,15 @@ class VizierWebService(object):
             branch_id=branch_id,
             workflow_version=branch.workflows[-1].version
         )
-        return serialize.WORKFLOW_HANDLE(
+        return serialize.WORKFLOW_UPDATE_RESULT(
             viztrail,
             workflow,
             dataset_cache=self.get_dataset_handle,
+            files=self.fileserver.list_files(),
             config=self.config,
-            urls=self.urls
+            urls=self.urls,
+            includeDataset=includeDataset,
+            dataset_serializer= self.get_dataset
         )
 
     def update_branch(self, project_id, branch_id, properties):
@@ -850,4 +910,54 @@ class VizierWebService(object):
             viztrail,
             viztrail.branches[branch_id],
             urls=self.urls
+        )
+
+    # --------------------------------------------------------------------------
+    # Notebook
+    # --------------------------------------------------------------------------
+    def get_notebook(self, project_id, branch_id=None, version=None):
+        """Retrieve a workflow notebook from a given project.
+
+        Returns None if no project, branch, or workflow with given identifiers
+        exists.
+
+        Parameters
+        ----------
+        project_id : string
+            Unique project identifier
+        branch_id: string, optional
+            Unique workflow branch identifier. Defaults to master
+        version: int, optional
+            Version number of the modified workflow. Defaults to head
+
+        Returns
+        -------
+        dict
+            Serialization of the project workflow
+        """
+        # Get viztrail to ensure that it exist.
+        viztrail = self.viztrails.get_viztrail(viztrail_id=project_id)
+        if viztrail is None:
+            return None
+        # Retrieve workflow from repository. The result is None if the branch
+        # does not exist.
+        if version is None:
+            version = -1
+        workflow = self.viztrails.get_workflow(
+            viztrail_id=project_id,
+            branch_id=branch_id if not branch_id is None else DEFAULT_BRANCH,
+            workflow_version=version
+        )
+        if workflow is None:
+            return None
+        # If an explicit workflow version was requested the workflow will be
+        # marked as read only.
+        return serialize.NOTEBOOK_HANDLE(
+            viztrail,
+            workflow,
+            dataset_cache=self.get_dataset_handle,
+            config=self.config,
+            files=self.fileserver.list_files(),
+            urls=self.urls,
+            read_only=(version != -1)
         )

@@ -32,6 +32,7 @@ REL_INSERT = 'insert'
 REL_MODULES = 'modules'
 REL_MODULE_SPECS = 'environment'
 REL_NOTEBOOK = 'notebook'
+REL_NOTEBOOKS = 'notebooks'
 REL_PAGE = 'page'
 REL_PAGE_FIRST = REL_PAGE + 'first'
 REL_PAGE_LAST = REL_PAGE + 'last'
@@ -301,6 +302,16 @@ class UrlFactory:
         """
         return self.file_url(name) + '/download'
 
+    def notebooks_url(self):
+        """Url to retrieve (GET) complete information for a workflow's
+        notebook.
+
+        Returns
+        -------
+        string
+        """
+        return self.service_url() + '/notebooks'
+
     def projects_url(self):
         """Url to retrieve project listing (GET) and to create new project
         (POST).
@@ -389,8 +400,7 @@ class UrlFactory:
         return branch_url + '/workflows/' + str(version)
 
     def workflow_append_url(self, project_id, branch_id, version):
-        """Url to retrieve (POST) to append a module at the end of a given
-        workflow.
+        """Url to to append (POST) a module at the end of a given workflow.
 
         Parameters
         ----------
@@ -405,7 +415,7 @@ class UrlFactory:
         -------
         string
         """
-        return self.workflow_url(project_id, branch_id, version) + '/modules'
+        return self.workflow_modules_url(project_id, branch_id, version)
 
     def workflow_module_url(self, project_id, branch_id, version, module_id):
         """Url for workflow module. Used to delete, insert, and replace a
@@ -452,6 +462,25 @@ class UrlFactory:
         """
         module_url = self.workflow_module_url(project_id, branch_id, version, module_id)
         return module_url + '/views/' + view_id
+
+    def workflow_modules_url(self, project_id, branch_id, version):
+        """Url to retrieve (GET) all modules of a given workflow.
+
+        Parameters
+        ----------
+        project_id : string
+            Unique project identifier
+        branch_id: string
+            Unique branch identifier
+        version: int
+            Workflow version identifier
+
+        Returns
+        -------
+        string
+        """
+        return self.workflow_url(project_id, branch_id, version) + '/modules'
+
 
 
 # ------------------------------------------------------------------------------

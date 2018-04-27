@@ -17,7 +17,8 @@ from vizier.workflow.base import ViztrailBranch, ViztrailBranchProvenance
 from vizier.workflow.base import ViztrailHandle, WorkflowHandle
 from vizier.workflow.base import WorkflowVersionDescriptor
 from vizier.workflow.base import DEFAULT_BRANCH, DEFAULT_BRANCH_NAME
-from vizier.workflow.command import PACKAGE_SYS, SYS_CREATE_BRANCH, SYS_DELETE_MODULE
+from vizier.workflow.base import ACTION_CREATE, ACTION_DELETE, ACTION_INSERT, ACTION_REPLACE
+from vizier.workflow.command import PACKAGE_SYS, SYS_CREATE_BRANCH
 from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
 from vizier.workflow.module import ModuleHandle
 from vizier.workflow.repository.base import ViztrailRepository
@@ -460,6 +461,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
             viztrail,
             branch_id,
             result=result,
+            action=ACTION_INSERT,
             package_id=command.module_type,
             command_id=command.command_identifier
         )
@@ -557,6 +559,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
             FileSystemBranchProvenance(prov_file),
             workflows=[WorkflowVersionDescriptor(
                 result.version,
+                action=ACTION_CREATE,
                 package_id=PACKAGE_SYS,
                 command_id=SYS_CREATE_BRANCH,
                 created_at=created_at
@@ -684,6 +687,9 @@ class FileSystemViztrailRepository(ViztrailRepository):
                 module_index = i
         if module_index == -1:
             return False
+        # Get command of the deleted module for workflow descriptor in branch
+        # history
+        command = workflow.modules[module_index].command
         # Execute the workflow and return the handle for the resulting workflow
         # state. Execution should persist the generated workflow state.
         result = viztrail.engine.execute_workflow(
@@ -696,8 +702,9 @@ class FileSystemViztrailRepository(ViztrailRepository):
             viztrail,
             branch_id,
             result=result,
-            package_id=PACKAGE_SYS,
-            command_id=SYS_DELETE_MODULE
+            action=ACTION_DELETE,
+            package_id=command.module_type,
+            command_id=command.command_identifier
         )
 
     def delete_viztrail(self, viztrail_id=None):
@@ -840,6 +847,7 @@ class FileSystemViztrailRepository(ViztrailRepository):
             viztrail,
             branch_id,
             result=result,
+            action=ACTION_REPLACE,
             package_id=command.module_type,
             command_id=command.command_identifier
         )
@@ -882,7 +890,7 @@ def branch_prov_file(fs_dir, branch_id):
     """
     return os.path.join(fs_dir, branch_id + '_' + PROVENANCE_FILE)
 
-def persist_workflow_result(viztrail, branch_id, result, package_id=None, command_id=None):
+def persist_workflow_result(viztrail, branch_id, result, action=None, package_id=None, command_id=None):
     """Persist the result of executing a viztrail workflow. Writes the new
     workflow file and the updated viztrail informaiton. Returns the modified
     viztrail.
@@ -895,6 +903,9 @@ def persist_workflow_result(viztrail, branch_id, result, package_id=None, comman
         Unique identifier of the updated viztrail branch
     result: vizier.workflow.engine.base.WorkflowExecutionResult
         Result of workflow execution
+    actions: string, optional
+        Identifier of the action that created the workflow version (create,
+        insert, delete, or replace)
     package_id: string, optional
         Identifier of the package the module command is from
     command_id: string, optional
@@ -908,6 +919,7 @@ def persist_workflow_result(viztrail, branch_id, result, package_id=None, comman
     viztrail.branches[branch_id].workflows.append(
         WorkflowVersionDescriptor(
             result.version,
+            action=action,
             package_id=package_id,
             command_id=command_id,
             created_at=created_at

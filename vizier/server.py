@@ -645,6 +645,17 @@ def get_workflow(project_id, branch_id, version):
     raise ResourceNotFound('unknown workflow \'' + project_id + ':' + branch_id + ':' + str(version) + '\'')
 
 
+@app.route('/projects/<string:project_id>/branches/<string:branch_id>/workflows/<int:version>/modules')
+def workflow_modules(project_id, branch_id, version):
+    """Get list of modules in a given workflow."""
+    # Get workflow modules. the result is None if the project, bramch, or
+    # workflow do not exist.
+    wf = api.get_workflow_modules(project_id, branch_id, version)
+    if not wf is None:
+        return jsonify(wf)
+    raise ResourceNotFound('unknown workflow \'' + project_id + ':' + branch_id + ':' + str(version) + '\'')
+
+
 @app.route('/projects/<string:project_id>/branches/<string:branch_id>/workflows/<int:version>/modules', methods=['POST'])
 def append_module(project_id, branch_id, version):
     """Append a module to a workflow branch and execute the resulting workflow.
@@ -661,8 +672,14 @@ def append_module(project_id, branch_id, version):
     # contain a command key.
     cmd = validate_json_request(
         request,
-        required=['type', 'id', 'arguments']
+        required=['type', 'id', 'arguments'],
+        optional=['includeDataset']
     )
+    # The optional offset argument is used to include the updated dataset in the
+    # response.
+    includeDataset = None
+    if 'includeDataset' in cmd:
+        includeDataset = cmd['includeDataset']
     # Extend and execute workflow. This will throw a ValueError if the command
     # cannot be parsed.
     try:
@@ -672,7 +689,8 @@ def append_module(project_id, branch_id, version):
             branch_id,
             version,
             ModuleSpecification(cmd['type'], cmd['id'], cmd['arguments']),
-            before_id=-1
+            before_id=-1,
+            includeDataset=includeDataset
         )
         if not wf is None:
             return jsonify(wf)
@@ -745,8 +763,14 @@ def replace_module(project_id, branch_id, version, module_id):
     # contain a command key.
     cmd = validate_json_request(
         request,
-        required=['type', 'id', 'arguments']
+        required=['type', 'id', 'arguments'],
+        optional=['includeDataset']
     )
+    # The optional include dataset argument is used to include the updated
+    # dataset in the response.
+    includeDataset = None
+    if 'includeDataset' in cmd:
+        includeDataset = cmd['includeDataset']
     # Extend and execute workflow. This will throw a ValueError if the command
     # cannot be parsed.
     try:
@@ -756,7 +780,8 @@ def replace_module(project_id, branch_id, version, module_id):
             branch_id,
             version,
             module_id,
-            ModuleSpecification(cmd['type'], cmd['id'], cmd['arguments'])
+            ModuleSpecification(cmd['type'], cmd['id'], cmd['arguments']),
+            includeDataset=includeDataset
         )
         if not wf is None:
             return jsonify(wf)
@@ -765,6 +790,33 @@ def replace_module(project_id, branch_id, version, module_id):
         raise InvalidRequest(str(ex))
 
 
+# ------------------------------------------------------------------------------
+# Notebooks
+# ------------------------------------------------------------------------------
+@app.route('/notebooks')
+def get_notebook():
+    """Get notebook handle for a given workflow. The workflow is specified using
+    arguments in the request query.
+    """
+    try:
+        version = request.args.get('version')
+        if not version is None:
+            version = int(version)
+        notebook = api.get_notebook(
+            project_id=request.args.get('project'),
+            branch_id=request.args.get('branch'),
+            version=version
+        )
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+    if not notebook is None:
+        return jsonify(notebook)
+    raise ResourceNotFound('could not find the requested project or workflow version')
+
+
+# ------------------------------------------------------------------------------
+# Views
+# ------------------------------------------------------------------------------
 @app.route('/projects/<string:project_id>/branches/<string:branch_id>/workflows/<int:version>/modules/<int:module_id>/views/<string:view_id>')
 def get_dataset_chart_view(project_id, branch_id, version, module_id, view_id):
     """Get content of a dataset chart view for a given workflow module.

@@ -1,7 +1,7 @@
 swagger: "2.0"
 
 info:
-  version: 0.3.0
+  version: 0.4.0
   title: Vizier DB - Web API
   description: API to query and manipulate data curation projects managed by the Vizier
     Database Web Server
@@ -343,7 +343,7 @@ paths:
                 200:
                     description: Modified workflow handle
                     schema:
-                        $ref: '#/definitions/WorkflowHandle'
+                        $ref: '#/definitions/WorkflowUpdateResult'
                 400:
                     description: Invalid module statement
                 404:
@@ -381,6 +381,37 @@ paths:
                 404:
                     description: Unknown project, branch, or workflow
     /projects/{projectId}/branches/{branchId}/workflows/{workflowId}/modules:
+        get:
+            summary: Get workflow modules
+            description: Get all modules in a given workflow
+            operationId: getWorkflowModules
+            tags:
+                - workflow
+            parameters:
+                - name: projectId
+                  in: path
+                  required: true
+                  description: The unique project identifier
+                  type: string
+                - name: branchId
+                  in: path
+                  required: true
+                  description: Unique identifier of the project branch
+                  type: string
+                - name: workflowId
+                  in: path
+                  required: true
+                  description: Unique workflow identifier
+                  type: integer
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Workflow modules
+                    schema:
+                        $ref: '#/definitions/WorkflowModules'
+                404:
+                    description: Unknown project, branch, or workflow
         post:
             summary: Append module
             description: Append module to workflow and execute the resulting workflow
@@ -415,7 +446,7 @@ paths:
                 200:
                     description: Modified workflow handle
                     schema:
-                        $ref: '#/definitions/WorkflowHandle'
+                        $ref: '#/definitions/WorkflowUpdateResult'
                 400:
                     description: Invalid module statement
                 404:
@@ -454,7 +485,7 @@ paths:
                 200:
                     description: Modified workflow handle
                     schema:
-                        $ref: '#/definitions/WorkflowHandle'
+                        $ref: '#/definitions/WorkflowUpdateResult'
                 404:
                     description: Unknown project, branch, workflow, or module
         post:
@@ -496,7 +527,7 @@ paths:
                 200:
                     description: Modified workflow handle
                     schema:
-                        $ref: '#/definitions/WorkflowHandle'
+                        $ref: '#/definitions/WorkflowUpdateResult'
                 400:
                     description: Invalid module statement
                 404:
@@ -540,7 +571,7 @@ paths:
                 200:
                     description: Modified workflow handle
                     schema:
-                        $ref: '#/definitions/WorkflowHandle'
+                        $ref: '#/definitions/WorkflowUpdateResult'
                 400:
                     description: Invalid module statement
                 404:
@@ -619,6 +650,43 @@ paths:
                     description: Successful update
                     schema:
                         $ref: "#/definitions/BranchHandle"
+    #
+    # Notebooks
+    #
+    /notebooks:
+        get:
+            summary: Get notebook
+            description: Shortcut to get a notebook handle for a given project workflow
+            operationId: getNotebook
+            tags:
+                - notebook
+                - workflow
+            parameters:
+                - name: project
+                  in: query
+                  required: true
+                  description: The unique project identifier
+                  type: string
+                - name: branch
+                  in: query
+                  required: false
+                  description: Unique identifier of the project branch (defaults to master)
+                  type: string
+                - name: workflow
+                  in: query
+                  required: false
+                  description: Unique workflow identifier (defaults to head)
+                  type: integer
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of file handles
+                    schema:
+                        $ref: '#/definitions/NotebookHandle'
+                404:
+                    description: Unknown project, branch, or workflow
+
     #
     # Files
     #
@@ -1226,6 +1294,7 @@ definitions:
         required:
             - id
             - command
+            - text
             - stdout
             - stderr
             - datasets
@@ -1256,6 +1325,8 @@ definitions:
                                     type: string
                                 value:
                                     type: string
+            text:
+                type: string
             stdout:
                 type: array
                 items:
@@ -1356,6 +1427,37 @@ definitions:
                 type: string
             arguments:
                 type: object
+            includeDataset:
+                type: object
+                required:
+                    - name
+                    - offset
+                properties:
+                    name:
+                        type: string
+                    offset:
+                        type: integer
+    NotebookHandle:
+        type: object
+        description: Full information about project and workflow modules
+        required:
+            - project
+            - workflow
+            - modules
+            - datasets
+        properties:
+            project:
+                $ref: '#/definitions/ProjectHandle'
+            workflow:
+                $ref: '#/definitions/WorkflowHandle'
+            modules:
+                type: array
+                items:
+                    $ref: '#/definitions/ModuleHandle'
+            datasets:
+                type: array
+                items:
+                    $ref: '#/definitions/DatasetDescriptor'
     ObjectProperty:
         type: object
         description: Key-value pair for user-defined object properties
@@ -1618,21 +1720,70 @@ definitions:
         required:
             - version
             - createdAt
+            - action
+            - packageId
+            - commandId
+            - statement
             - links
         properties:
             version:
                 type: integer
             createdAt:
                 type: string
+            action:
+                type: string
             packageId:
                 type: string
             commandId:
+                type: string
+            statement:
                 type: string
             links:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
     WorkflowHandle:
+        type: object
+        description: Comprehensive workflow version information
+        required:
+            - project
+            - branch
+            - version
+            - createdAt
+            - state
+            - links
+        properties:
+            project:
+                $ref: '#/definitions/ProjectDescriptor'
+            branch:
+                $ref: '#/definitions/BranchDescriptor'
+            version:
+                type: integer
+            createdAt:
+                type: string
+            state:
+                type: object
+                required:
+                    - charts
+                    - datasets
+                    - hasError
+                    - moduleCount
+                properties:
+                    charts:
+                        $ref: '#/definitions/WorkflowResourceList'
+                    datasets:
+                        $ref: '#/definitions/WorkflowResourceList'
+                    hasError:
+                        type: boolean
+                    moduleCount:
+                        type: integer
+            readOnly:
+                type: boolean
+            links:
+                type: array
+                items:
+                    $ref: '#/definitions/Reference'
+    WorkflowModules:
         type: object
         description: Comprehensive workflow version information
         required:
@@ -1666,3 +1817,40 @@ definitions:
                 type: array
                 items:
                     $ref: '#/definitions/Reference'
+    WorkflowResource:
+        type: object
+        description: Descriptor for resource in workflow state
+        required:
+            - name
+            - links
+        properties:
+            id:
+                type: string
+            name:
+                type: string
+            links:
+                type: array
+                items:
+                    $ref: '#/definitions/Reference'
+    WorkflowResourceList:
+        type: array
+        items:
+            $ref: '#/definitions/WorkflowResource'
+    WorkflowUpdateResult:
+        type: object
+        description: Result of workflow update. Contains handle and optional content (either notebook or dataset)
+        required:
+            - workflow
+        properties:
+            workflow:
+                $ref: '#/definitions/WorkflowHandle'
+            modules:
+                type: array
+                items:
+                    $ref: '#/definitions/ModuleHandle'
+            datasets:
+                type: array
+                items:
+                    $ref: '#/definitions/DatasetDescriptor'
+            dataset:
+                $ref: '#/definitions/DatasetHandle'

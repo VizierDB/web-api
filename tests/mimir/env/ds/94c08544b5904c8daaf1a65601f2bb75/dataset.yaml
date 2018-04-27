@@ -1,0 +1,35 @@
+columnCounter: 5
+columns:
+- dataType: !!python/unicode 'varchar'
+  id: 0
+  name: !!python/unicode 'NAME'
+  rdbName: COL0
+- dataType: !!python/unicode 'int'
+  id: 1
+  name: !!python/unicode 'AGE'
+  rdbName: COL1
+- dataType: !!python/unicode 'date'
+  id: 2
+  name: !!python/unicode 'JOINING_DATE'
+  rdbName: COL2
+- dataType: !!python/unicode 'real'
+  id: 3
+  name: !!python/unicode 'SALARY'
+  rdbName: COL3
+- dataType: !!python/unicode 'bool'
+  id: 4
+  name: !!python/unicode 'MARRIED'
+  rdbName: COL4
+id: 94c08544b5904c8daaf1a65601f2bb75
+rowCounter: 4
+rowIdColumn:
+  dataType: !!python/unicode 'int'
+  id: -1
+  name: RID
+  rdbName: RID
+rows:
+- 0
+- 1
+- 2
+- 3
+tableName: DS_F82BB54110294E83B9DF414C4FC7684CNMOFWP

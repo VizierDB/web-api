@@ -5,13 +5,14 @@ import sys
 import time
 import unittest
 
-from vizier.config import TestEnv
+from vizier.config import AppConfig, ExecEnv, FileServerConfig
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mem import InMemDatasetHandle
 from vizier.datastore.metadata import DatasetMetadata, UpdateColumnAnnotation
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
-from vizier.workflow.command import PACKAGE_PYTHON, PYTHON_SOURCE, python_cell
+from vizier.workflow.command import PACKAGE_PYTHON, PACKAGE_VIZUAL
+from vizier.workflow.command import python_cell, load_dataset, update_cell
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 
 from vizier.api import VizierWebService
@@ -21,10 +22,8 @@ CSV_FILE = './data/dataset.csv'
 CONFIG_FILE = './data/api-config.yaml'
 TSV_FILE = './data/dataset.tsv'
 FILESERVER_DIR = './env/fs'
-DATASTORE_DIRECTORY = './env/ds'
-WORKTRAILS_DIRECTORY = './env/wt'
-
-ENV = TestEnv()
+DATASTORE_DIR = './env/ds'
+WORKTRAILS_DIR = './env/wt'
 
 
 def list_modules_arguments_values(modules):
@@ -40,18 +39,25 @@ class TestWebServiceAPI(unittest.TestCase):
     def setUp(self):
         """Create an new Web Service API."""
         # Clear various directories
-        for d in [WORKTRAILS_DIRECTORY, DATASTORE_DIRECTORY, FILESERVER_DIR]:
+        for d in [WORKTRAILS_DIR, DATASTORE_DIR, FILESERVER_DIR]:
             if os.path.isdir(d):
                 shutil.rmtree(d)
             os.mkdir(d)
         # Setup datastore and API
-        self.config = AppConfig(configuration_file=CONFIG_FILE)
-        self.datastore = FileSystemDataStore(DATASTORE_DIRECTORY)
+        self.config = AppConfig()
+        self.ENV = ExecEnv(
+                FileServerConfig().from_dict({'directory': FILESERVER_DIR}),
+                packages=[PACKAGE_VIZUAL, PACKAGE_PYTHON]
+            ).from_dict({'datastore': {'directory': DATASTORE_DIR}})
+        self.ENGINE_ID = self.ENV.identifier
+        self.config.envs[self.ENGINE_ID] = self.ENV
+        self.config.fileserver = self.ENV.fileserver
+        self.datastore = FileSystemDataStore(DATASTORE_DIR)
         self.fileserver = DefaultFileServer(FILESERVER_DIR)
         self.api = VizierWebService(
             FileSystemViztrailRepository(
-                WORKTRAILS_DIRECTORY,
-                {ENV.identifier: ENV}
+                WORKTRAILS_DIR,
+                {self.ENV.identifier: self.ENV}
             ),
             self.datastore,
             self.fileserver,
@@ -61,7 +67,7 @@ class TestWebServiceAPI(unittest.TestCase):
     def tearDown(self):
         """Clean-up by deleting created directories.
         """
-        for d in [WORKTRAILS_DIRECTORY, DATASTORE_DIRECTORY, FILESERVER_DIR]:
+        for d in [WORKTRAILS_DIR, DATASTORE_DIR, FILESERVER_DIR]:
             if os.path.isdir(d):
                 shutil.rmtree(d)
 
@@ -77,7 +83,7 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_keys(env, ['id', 'name', 'description', 'default', 'packages'])
         # Expect five references in the link listing: self, build, upload, doc,
         # and projects
-        self.validate_links(desc['links'], ['self', 'build', 'doc', 'upload', 'projects', 'files'])
+        self.validate_links(desc['links'], ['self', 'build', 'doc', 'upload', 'projects', 'notebooks', 'files'])
         # The build information should have two elements: components and links
         build = self.api.system_build()
         self.assertEquals(len(build), 2)
@@ -144,12 +150,12 @@ class TestWebServiceAPI(unittest.TestCase):
     def test_projects(self):
         """Test API calls to create and manipulate projects."""
         # Create a new project
-        ph = self.api.create_project(ENV.identifier, {'name' : 'My Project'})
+        ph = self.api.create_project(self.ENV.identifier, {'name' : 'My Project'})
         self.validate_project_descriptor(ph)
         self.validate_project_handle(self.api.get_project(ph['id']))
         # Project listing
         self.validate_project_listing(self.api.list_projects(), 1)
-        ph = self.api.create_project(ENV.identifier, {'name' : 'A Project'})
+        ph = self.api.create_project(self.ENV.identifier, {'name' : 'A Project'})
         self.validate_project_handle(self.api.get_project(ph['id']))
         self.validate_project_listing(self.api.list_projects(), 2)
         # Update project properties
@@ -181,10 +187,33 @@ class TestWebServiceAPI(unittest.TestCase):
         # Updating a non exisiting project should return None
         self.assertIsNone(self.api.update_project_properties(ph['id'], {'name': 'New Name'}))
 
+    def test_spreadsheet(self):
+        """Ensure that the includeDataset option is working for spreadsheet
+        updates."""
+        # Upload file
+        fh = self.fileserver.upload_file(CSV_FILE)
+        # Create project
+        ph = self.api.create_project(self.ENV.identifier, {'name' : 'My Project'})
+        pid = ph['id']
+        # Load dataset
+        DS_NAME = 'myDS'
+        cmd = load_dataset(fh.identifier, DS_NAME)
+        result = self.api.append_module(pid, DEFAULT_BRANCH, -1, cmd)
+        self.validate_keys(result, ['workflow', 'modules', 'datasets'])
+        # Update cell and request to include dataset
+        cmd = update_cell(DS_NAME, 0, 0, 'A')
+        result = self.api.append_module(pid, DEFAULT_BRANCH, -1, cmd, includeDataset={'name': DS_NAME, 'offset': 0})
+        self.validate_keys(result, ['workflow', 'dataset'])
+        self.validate_dataset_handle(result['dataset'])
+        # In case of an error the result contains the modules
+        cmd = update_cell(DS_NAME, 100, 0, 'A')
+        result = self.api.append_module(pid, DEFAULT_BRANCH, -1, cmd, includeDataset={'name': DS_NAME, 'offset': 0})
+        self.validate_keys(result, ['workflow', 'modules', 'datasets'])
+
     def test_workflows(self):
         """Test API calls to retrieve and manipulate workflows."""
         # Create a new project
-        ph = self.api.create_project(ENV.identifier, {'name' : 'My Project'})
+        ph = self.api.create_project(self.ENV.identifier, {'name' : 'My Project'})
         self.validate_branch_listing(self.api.list_branches(ph['id']), 1)
         self.validate_branch_handle(self.api.get_branch(ph['id'], DEFAULT_BRANCH))
         wf = self.api.get_workflow(ph['id'], DEFAULT_BRANCH)
@@ -198,9 +227,11 @@ class TestWebServiceAPI(unittest.TestCase):
         # Execute a new command
         last_modified = ph['lastModifiedAt']
         result = self.api.append_module(ph['id'], DEFAULT_BRANCH, -1, python_cell('2+2'))
-        self.validate_workflow_handle(result, number_of_modules=1)
+        self.validate_workflow_update_result(result)
         wf = self.api.get_workflow(ph['id'], DEFAULT_BRANCH)
-        self.validate_workflow_handle(wf, number_of_modules=1)
+        self.validate_workflow_handle(wf)
+        modules = self.api.get_workflow_modules(ph['id'], DEFAULT_BRANCH, -1)
+        self.validate_workflow_modules(modules, number_of_modules=1)
         self.assertNotEquals(last_modified, wf['project']['lastModifiedAt'])
         last_modified =  wf['project']['lastModifiedAt']
         # Create a new branch
@@ -210,19 +241,25 @@ class TestWebServiceAPI(unittest.TestCase):
         branch_wf = self.api.get_workflow(ph['id'], desc['id'])
         self.assertNotEquals(last_modified, branch_wf['project']['lastModifiedAt'])
         last_modified = branch_wf['project']['lastModifiedAt']
-        self.validate_workflow_handle(branch_wf, number_of_modules=1)
+        self.validate_workflow_handle(branch_wf)
+        modules = self.api.get_workflow_modules(ph['id'], desc['id'], -1)
+        self.validate_workflow_modules(modules, number_of_modules=1)
         # Replace module in new branch
         time.sleep(1)
         result = self.api.replace_module(ph['id'], desc['id'], -1, 0, python_cell('3+3'))
-        self.validate_workflow_handle(result, number_of_modules=1)
+        self.validate_workflow_update_result(result)
+        modules = self.api.get_workflow_modules(ph['id'], desc['id'], -1)
+        self.validate_workflow_modules(modules, number_of_modules=1)
         branch_wf = self.api.get_workflow(ph['id'], desc['id'])
         # Ensure that the last modified date of the project has changed
         self.assertNotEquals(last_modified, branch_wf['project']['lastModifiedAt'])
         # Append module to new branch
-        self.validate_workflow_handle(self.api.append_module(ph['id'], desc['id'], -1, python_cell('4+4')), number_of_modules=2)
-        branch_wf = self.api.get_workflow(ph['id'], desc['id'])
+        self.validate_workflow_update_result(self.api.append_module(ph['id'], desc['id'], -1, python_cell('4+4')))
+        modules = self.api.get_workflow_modules(ph['id'], desc['id'], -1)
+        self.validate_workflow_modules(modules, number_of_modules=2)
+        branch_wf = self.api.get_workflow_modules(ph['id'], desc['id'])
         self.assertEquals(len(branch_wf['modules']), 2)
-        wf = self.api.get_workflow(ph['id'], DEFAULT_BRANCH)
+        wf = self.api.get_workflow_modules(ph['id'], DEFAULT_BRANCH)
         self.assertEquals(len(wf['modules']), 1)
         self.validate_branch_listing(self.api.list_branches(ph['id']), 2)
         # Update new branch name
@@ -244,29 +281,29 @@ class TestWebServiceAPI(unittest.TestCase):
     def test_workflow_commands(self):
         """Test API calls to execute workflow modules."""
         # Create a new project
-        pj = self.api.create_project(ENV.identifier, {'name' : 'My Project'})
+        pj = self.api.create_project(self.ENV.identifier, {'name' : 'My Project'})
         # Use Python load command to test module execution
         self.api.append_module(pj['id'], DEFAULT_BRANCH, -1, python_cell('2+2'))
         self.api.append_module(pj['id'], DEFAULT_BRANCH, -1, python_cell('3+3'))
-        wf_master = self.api.get_workflow(pj['id'], DEFAULT_BRANCH)
+        wf_master = self.api.get_workflow_modules(pj['id'], DEFAULT_BRANCH)
         content = list_modules_arguments_values(wf_master['modules'])
         self.assertEquals(len(content), 2)
         self.assertEquals(content[0], '2+2')
         self.assertEquals(content[1], '3+3')
         branch_id = self.api.create_branch(pj['id'], DEFAULT_BRANCH, -1, 0, {'name':'My Name'})['id']
-        wf_branch = self.api.get_workflow(pj['id'], branch_id)
+        wf_branch = self.api.get_workflow_modules(pj['id'], branch_id)
         content = list_modules_arguments_values(wf_branch['modules'])
         self.assertEquals(len(content), 1)
         self.assertEquals(content[0], '2+2')
         # Replace first module in master and append to second branch_id
         self.api.replace_module(pj['id'], DEFAULT_BRANCH, -1, 0, python_cell('4+4'))
         self.api.append_module(pj['id'], branch_id, -1, python_cell('5+5'))
-        wf_master = self.api.get_workflow(pj['id'], DEFAULT_BRANCH)
+        wf_master = self.api.get_workflow_modules(pj['id'], DEFAULT_BRANCH)
         content = list_modules_arguments_values(wf_master['modules'])
         self.assertEquals(len(content), 2)
         self.assertEquals(content[0], '4+4')
         self.assertEquals(content[1], '3+3')
-        wf_branch = self.api.get_workflow(pj['id'], branch_id)
+        wf_branch = self.api.get_workflow_modules(pj['id'], branch_id)
         content = list_modules_arguments_values(wf_branch['modules'])
         self.assertEquals(len(content), 2)
         self.assertEquals(content[0], '2+2')
@@ -275,7 +312,7 @@ class TestWebServiceAPI(unittest.TestCase):
         m_count = len(wf_branch['modules'])
         m_id = wf_branch['modules'][-1]['id']
         self.api.delete_module(pj['id'], branch_id, -1, m_id)
-        wf_branch = self.api.get_workflow(pj['id'], branch_id)
+        wf_branch = self.api.get_workflow_modules(pj['id'], branch_id)
         self.assertEquals(len(wf_branch['modules']), m_count - 1)
         for m in wf_branch['modules']:
             self.assertNotEquals(m['id'], m_id)
@@ -356,7 +393,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_keys({l['rel'] : l['href'] for l in links}, keys)
 
     def validate_module_handle(self, module):
-        self.validate_keys(module, ['id', 'command', 'stdout', 'stderr', 'datasets', 'links', 'views'])
+        self.validate_keys(module, ['id', 'command', 'text', 'stdout', 'stderr', 'datasets', 'links', 'views'])
         self.validate_keys(module['command'], ['type', 'id', 'arguments'])
         self.validate_links(module['links'], ['delete', 'insert', 'replace'])
         for ds in module['datasets']:
@@ -385,17 +422,32 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_project_descriptor(pj)
 
     def validate_workflow_descriptor(self, wf):
-        self.validate_keys(wf, ['version', 'links', 'createdAt', 'packageId', 'commandId'])
-        self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append'])
+        self.validate_keys(wf, ['version', 'links', 'createdAt', 'packageId', 'commandId', 'action', 'statement'])
+        self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append', 'modules'])
 
-    def validate_workflow_handle(self, wf, number_of_modules=0):
+    def validate_workflow_handle(self, wf):
+        self.validate_keys(wf,['project', 'branch', 'version', 'createdAt', 'state', 'links', 'readOnly'])
+        self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append', 'modules'])
+        self.validate_project_descriptor(wf['project'])
+        state = wf['state']
+        self.validate_keys(state,['datasets', 'charts', 'hasError', 'moduleCount'])
+
+    def validate_workflow_modules(self, wf, number_of_modules=0):
         self.validate_keys(wf,['project', 'branch', 'version', 'modules', 'createdAt', 'links', 'datasets', 'readOnly'])
-        self.validate_links(wf['links'], ['self', 'branch', 'branches', 'append'])
+        self.validate_links(wf['links'], ['self', 'workflow'])
         self.validate_project_descriptor(wf['project'])
         self.assertEquals(len(wf['modules']), number_of_modules)
         for m in wf['modules']:
             self.validate_module_handle(m)
 
+
+    def validate_workflow_update_result(self, wf):
+        self.validate_keys(wf,['workflow', 'modules', 'datasets'])
+        self.validate_workflow_handle(wf['workflow'])
+        for m in wf['modules']:
+            self.validate_module_handle(m)
+        for ds in wf['datasets']:
+            self.validate_dataset_handle(ds)
 
 
 if __name__ == '__main__':

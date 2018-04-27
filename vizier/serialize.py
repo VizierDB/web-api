@@ -88,10 +88,11 @@ def BRANCH_HANDLE(viztrail, branch, urls):
             wf.created_at,
             urls
         )
-        if not wf.package_id is None:
-            descriptor['packageId'] = wf.package_id
-        if not wf.command_id is None:
-            descriptor['commandId'] = wf.command_id
+        descriptor['action'] = wf.action
+        descriptor['packageId'] = wf.package_id
+        descriptor['commandId'] = wf.command_id
+        command = cmd.PACKAGES[wf.package_id][wf.command_id]
+        descriptor['statement'] = command[cmd.MODULE_NAME]
         obj['workflows'].append(descriptor)
     return obj
 
@@ -540,6 +541,164 @@ def FILE_LISTING(files, urls):
     }
 
 
+def MODULE_HANDLE(viztrail, branch, version, module, views, urls):
+    """Get dictionary representaion for a workflow module handle.
+
+    Parameters
+    ----------
+    viztrail : vizier.workflow.base.ViztrailHandle
+        Viztrail handle
+    branch : vizier.workflow.base.ViztrailBranch
+        Workflow handle
+    module : vizier.workflow.module.ModuleHandle
+        Handle for workflow module
+    views: dict(vizier.plot.view.ChartViewHandle)
+        Dictionary of available views indexed by their name.
+
+    Returns
+    -------
+    dict
+    """
+    module_url = urls.workflow_module_url(
+        viztrail.identifier,
+        branch.identifier,
+        version,
+        module.identifier
+    )
+
+    # Convert chart views in the module output to dictionaries that contain
+    # a self reference for data access. In the first step we replace the
+    # data value with the view name
+    stdout = list()
+    view_outputs = list()
+    for obj in module.stdout:
+        if obj['type'] == O_CHARTVIEW:
+            view = ChartViewHandle.from_dict(obj['data'])
+            if view.dataset_name in module.datasets:
+                views[view.chart_name] = view
+                # This is a bit tricky. Create a placeholder object and then
+                # replace the data value with the serialized version of
+                # the chart handle later on. Make sure to keep track of any
+                # results that may be associated with the output
+                placeholder = {'type': O_CHARTVIEW, 'data': view.chart_name}
+                if 'result' in obj:
+                    placeholder['result'] = obj['result']
+                obj = placeholder
+                view_outputs.append(obj)
+            else:
+                # Remove outputs that reference views accessing non-existent
+                # datasets
+                obj = None
+        if not obj is None:
+            stdout.append(obj)
+    # Create a list of serialized view handles
+    view_handles = dict()
+    for view in views.values():
+        if view.dataset_name in module.datasets:
+            view_url = urls.workflow_module_view_url(
+                viztrail.identifier,
+                branch.identifier,
+                version,
+                module.identifier,
+                view.identifier
+                )
+            v_serial = {
+                'name': view.chart_name,
+                JSON_REFERENCES: [
+                    self_reference(view_url)
+                ]
+            }
+            view_handles[view.chart_name] = v_serial
+    # Replace data in view outputs
+    for obj in view_outputs:
+        obj['data'] = view_handles[obj['data']]
+    args = module.command.arguments
+    return {
+        'id' : module.identifier,
+        'command': {
+            'type': module.command.module_type,
+            'id': module.command.command_identifier,
+            'arguments': [{'name': key, 'value': args[key]} for key in args]
+        },
+        'text': module.command_text,
+        'stdout': stdout,
+        'stderr': module.stderr,
+        'datasets': [{
+                'id': module.datasets[d],
+                'name' : d
+            } for d in sorted(module.datasets.keys())
+        ],
+        'views': view_handles.values(),
+        JSON_REFERENCES: [
+            reference(hateoas.REL_DELETE, module_url),
+            reference(hateoas.REL_INSERT, module_url),
+            reference(hateoas.REL_REPLACE, module_url)
+        ]
+    }
+
+
+
+def MODULE_SPECIFICATION(module_type, module_id, module_spec):
+    """Dictionary serialization for a workflow module specification.
+
+    Parameters
+    ----------
+    module_type: string
+        Identifier of the package the module belongs to
+    module_id: string
+        Package-specific unique identifier of the module
+    module_spec: dict
+        Module specification. Is expected toe contain 'name' and 'arguments'
+
+    Returns
+    -------
+    dict
+    """
+    arguments =  module_spec[cmd.MODULE_ARGUMENTS]
+    return {
+        'type': module_type,
+        'id': module_id,
+        'name': module_spec[cmd.MODULE_NAME],
+        'arguments': [arguments[arg] for arg in arguments]
+    }
+
+
+def NOTEBOOK_HANDLE(viztrail, workflow, config, files, urls, dataset_cache, read_only=False):
+    """Dictionary representaion for a notebook handle.
+
+    Parameters
+    ----------
+    viztrail : vizier.workflow.base.ViztrailHandle
+        Viztrail handle
+    workflow : vizier.workflow.base.WorkflowHandle
+        Workflow handle
+    config : vizier.config.AppConfig
+        Application configuration parameters
+    files: list(vizier.filestore.base.FileHandle)
+        List of file handles
+    urls: vizier.hateoas.UrlFactory
+        Factory for resource urls
+    dataset_cache: func
+        Function to get dataset handle for given identifier
+    read_only: bool, oprional
+        Value for the read only flag in the workflow serialization
+    Returns
+    -------
+    dict
+    """
+    obj = dict()
+    obj['project'] = PROJECT_HANDLE(viztrail, files, urls)
+    obj['workflow'] = WORKFLOW_HANDLE(
+        viztrail,
+        workflow,
+        config,
+        urls,
+        dataset_cache,
+        read_only=read_only
+    )
+    return add_modules(obj, viztrail, workflow, config, urls, dataset_cache)
+
+
 def PLAIN_TEXT(text):
     """Create a plain text output object.
 
@@ -696,127 +855,6 @@ def PROJECT_MODULE_SPECIFICATIONS(viztrail, urls):
     }
 
 
-def MODULE_HANDLE(viztrail, branch, version, module, views, urls):
-    """Get dictionary representaion for a workflow module handle.
-
-    Parameters
-    ----------
-    viztrail : vizier.workflow.base.ViztrailHandle
-        Viztrail handle
-    branch : vizier.workflow.base.ViztrailBranch
-        Workflow handle
-    module : vizier.workflow.module.ModuleHandle
-        Handle for workflow module
-    views: dict(vizier.plot.view.ChartViewHandle)
-        Dictionary of available views indexed by their name.
-
-    Returns
-    -------
-    dict
-    """
-    module_url = urls.workflow_module_url(
-        viztrail.identifier,
-        branch.identifier,
-        version,
-        module.identifier
-    )
-
-    # Convert chart views in the module output to dictionaries that contain
-    # a self reference for data access. In the first step we replace the
-    # data value with the view name
-    stdout = list()
-    view_outputs = list()
-    for obj in module.stdout:
-        if obj['type'] == O_CHARTVIEW:
-            view = ChartViewHandle.from_dict(obj['data'])
-            if view.dataset_name in module.datasets:
-                views[view.chart_name] = view
-                # This is a bit tricky. Create a placeholder object and then
-                # replace the data value with the serialized version of
-                # the chart handle later on. Make sure to keep track of any
-                # results that may be associated with the output
-                placeholder = {'type': O_CHARTVIEW, 'data': view.chart_name}
-                if 'result' in obj:
-                    placeholder['result'] = obj['result']
-                obj = placeholder
-                view_outputs.append(obj)
-            else:
-                # Remove outputs that reference views accessing non-existent
-                # datasets
-                obj = None
-        if not obj is None:
-            stdout.append(obj)
-    # Create a list of serialized view handles
-    view_handles = dict()
-    for view in views.values():
-        if view.dataset_name in module.datasets:
-            view_url = urls.workflow_module_view_url(
-                viztrail.identifier,
-                branch.identifier,
-                version,
-                module.identifier,
-                view.identifier
-                )
-            v_serial = {
-                'name': view.chart_name,
-                JSON_REFERENCES: [
-                    self_reference(view_url)
-                ]
-            }
-            view_handles[view.chart_name] = v_serial
-    # Replace data in view outputs
-    for obj in view_outputs:
-        obj['data'] = view_handles[obj['data']]
-    args = module.command.arguments
-    return {
-        'id' : module.identifier,
-        'command': {
-            'type': module.command.module_type,
-            'id': module.command.command_identifier,
-            'arguments': [{'name': key, 'value': args[key]} for key in args]
-        },
-        'stdout': stdout,
-        'stderr': module.stderr,
-        'datasets': [{
-                'id': module.datasets[d],
-                'name' : d
-            } for d in sorted(module.datasets.keys())
-        ],
-        'views': view_handles.values(),
-        JSON_REFERENCES: [
-            reference(hateoas.REL_DELETE, module_url),
-            reference(hateoas.REL_INSERT, module_url),
-            reference(hateoas.REL_REPLACE, module_url)
-        ]
-    }
-
-
-
-def MODULE_SPECIFICATION(module_type, module_id, module_spec):
-    """Dictionary serialization for a workflow module specification.
-
-    Parameters
-    ----------
-    module_type: string
-        Identifier of the package the module belongs to
-    module_id: string
-        Package-specific unique identifier of the module
-    module_spec: dict
-        Module specification. Is expected toe contain 'name' and 'arguments'
-
-    Returns
-    -------
-    dict
-    """
-    arguments =  module_spec[cmd.MODULE_ARGUMENTS]
-    return {
-        'type': module_type,
-        'id': module_id,
-        'name': module_spec[cmd.MODULE_NAME],
-        'arguments': [arguments[arg] for arg in arguments]
-    }
-
-
 def SERVICE_BUILD(components, urls):
     """Dictionary serialization for service build information.
 
@@ -872,6 +910,7 @@ def SERVICE_DESCRIPTOR(config, urls):
         JSON_REFERENCES : [
             self_reference(urls.service_url()),
             reference(hateoas.REL_SYSTEM_BUILD, urls.system_build_url()),
+            reference(hateoas.REL_NOTEBOOKS, urls.notebooks_url()),
             reference(hateoas.REL_PROJECTS, urls.projects_url()),
             reference(hateoas.REL_FILES, urls.files_url()),
             reference(hateoas.REL_UPLOAD, urls.files_upload_url()),
@@ -911,6 +950,7 @@ def WORKFLOW_DESCRIPTOR(viztrail, branch, version, created_at, urls):
     else:
         self_ref = urls.workflow_url(vt_id, branch_id, version)
         append_url = urls.workflow_append_url(vt_id, branch_id, version)
+    modules_url = urls.workflow_modules_url(vt_id, branch_id, version)
     # Return  serialization
     return {
         'version': version,
@@ -919,7 +959,8 @@ def WORKFLOW_DESCRIPTOR(viztrail, branch, version, created_at, urls):
             self_reference(self_ref),
             reference(hateoas.REL_BRANCH, urls.branch_url(vt_id, branch_id)),
             reference(hateoas.REL_BRANCHES, urls.branches_url(vt_id)),
-            reference(hateoas.REL_APPEND, append_url)
+            reference(hateoas.REL_APPEND, append_url),
+            reference(hateoas.REL_MODULES, modules_url)
         ]
     }
 
@@ -951,6 +992,201 @@ def WORKFLOW_HANDLE(viztrail, workflow, config, urls, dataset_cache, read_only=F
     obj = WORKFLOW_DESCRIPTOR(viztrail, branch, version, created_at, urls)
     obj['project'] = PROJECT_DESCRIPTOR(viztrail, urls)
     obj['branch'] = BRANCH_DESCRIPTOR(viztrail, branch, urls)
+    # Datasets and chart views in the current workflow state.
+    charts = list()
+    datasets = list()
+    if not workflow.has_error and len(workflow.modules) > 0:
+        # Create list of all datasets in the current workflow state.
+        state_datasets = workflow.modules[-1].datasets
+        for ds_name in state_datasets:
+            dataset_id = state_datasets[ds_name]
+            dataset = dataset_cache(dataset_id)
+            ds_desc = DATASET_DESCRIPTOR(dataset, config, urls)
+            # Make sure to add the dataset name to the descriptor
+            ds_desc['name'] = ds_name
+            datasets.append(ds_desc)
+        # Create list of dataset chart views in the current workflow state. The
+        # chart definitions have to be extracted from the outputs of the modules in
+        # the view
+        state_charts = dict()
+        for module in workflow.modules[::-1]:
+            for out in module.stdout:
+                if out['type'] == O_CHARTVIEW:
+                    view = ChartViewHandle.from_dict(out['data'])
+                    state_charts[view.chart_name] = view
+        for name in state_charts:
+            view = state_charts[name]
+            if view.dataset_name in state_datasets:
+                view_url = urls.workflow_module_view_url(
+                    viztrail.identifier,
+                    branch.identifier,
+                    version,
+                    workflow.modules[-1].identifier,
+                    view.identifier
+                )
+                charts.append({
+                    'id': name,
+                    'name': name,
+                    JSON_REFERENCES: [
+                        self_reference(view_url)
+                    ]
+                })
+    obj['state'] = {
+        'datasets': datasets,
+        'charts': charts,
+        'hasError': workflow.has_error,
+        'moduleCount': len(workflow.modules)
+    }
+    obj['readOnly'] = read_only
+    return obj
+
+
+def WORKFLOW_MODULES(viztrail, workflow, config, urls, dataset_cache, read_only=False):
+    """Dictionary representaion for list of modules in a workflow.
+
+    Parameters
+    ----------
+    viztrail : vizier.workflow.base.ViztrailHandle
+        Viztrail handle
+    workflow : vizier.workflow.base.WorkflowHandle
+        Workflow handle
+    config : vizier.config.AppConfig
+        Application configuration parameters
+    urls: vizier.hateoas.UrlFactory
+        Factory for resource urls
+    dataset_cache: func
+        Function to get dataset handle for given identifier
+    read_only: bool, oprional
+        Value for the read only flag in the workflow serialization
+
+    Returns
+    -------
+    dict
+    """
+    branch = viztrail.branches[workflow.branch_id]
+    version = workflow.version
+    created_at = workflow.created_at
+    obj = {
+        'version': version,
+        'createdAt': created_at.isoformat(),
+    }
+    obj['project'] = PROJECT_DESCRIPTOR(viztrail, urls)
+    obj['branch'] = BRANCH_DESCRIPTOR(viztrail, branch, urls)
+    obj['readOnly'] = read_only
+    # Resource references
+    obj[JSON_REFERENCES] = [
+        self_reference(
+            urls.workflow_modules_url(
+                viztrail.identifier,
+                branch.identifier,
+                workflow.version
+            )
+        ),
+        reference(
+            hateoas.REL_WORKFLOW,
+            urls.workflow_url(
+                viztrail.identifier,
+                branch.identifier,
+                workflow.version
+            )
+        )
+    ]
+    return add_modules(obj, viztrail, workflow, config, urls, dataset_cache)
+
+
+def WORKFLOW_UPDATE_RESULT(
+    viztrail, workflow, config, files, urls, dataset_cache,
+    read_only=False, includeDataset=None, dataset_serializer=None
+):
+    """Dictionary representaion the result of a workflow update operation.
+    Contains the handle for the new workflow version and optional content.
+
+    If the includedDataset is given the result content will contain the new
+    version of the specified dataset if the dataset exists (i.e., there was no
+    error during workflow execution).
+
+    If incodedDataset is not given or the workflow is in error state the
+    returned content object will contain the workflow modules and datasets.
+
+    Parameters
+    ----------
+    viztrail : vizier.workflow.base.ViztrailHandle
+        Viztrail handle
+    workflow : vizier.workflow.base.WorkflowHandle
+        Workflow handle
+    config : vizier.config.AppConfig
+        Application configuration parameters
+    files: list(vizier.filestore.base.FileHandle)
+        List of file handles
+    urls: vizier.hateoas.UrlFactory
+        Factory for resource urls
+    dataset_cache: func
+        Function to get dataset handle for given identifier
+    read_only: bool, oprional
+        Value for the read only flag in the workflow serialization
+     includeDataset: dict, optional
+        If included the result will contain the modified dataset rows
+        starting at the given offset. Expects a dictionary containing name
+        and offset keys.
+    dataset_serializer: func, optional
+        API function to get serialization in for included datasets.
+
+   Returns
+    -------
+    dict
+    """
+    obj = dict()
+    obj['workflow'] = WORKFLOW_HANDLE(
+        viztrail,
+        workflow,
+        config,
+        urls,
+        dataset_cache,
+        read_only=read_only
+    )
+    # Add dataset descriptor for optional included dataset
+    if not includeDataset is None and not workflow.has_error:
+        ds_name = includeDataset['name'].lower()
+        offset = includeDataset['offset']
+        if ds_name in workflow.modules[-1].datasets:
+            ds_id = workflow.modules[-1].datasets[ds_name]
+            dataset = dataset_serializer(ds_id, offset=offset)
+            obj['dataset'] = dataset
+    else:
+        add_modules(obj, viztrail, workflow, config, urls, dataset_cache)
+    return obj
+
+
+# ------------------------------------------------------------------------------
+# Helper Methods
+# ------------------------------------------------------------------------------
+
+def add_modules(obj, viztrail, workflow, config, urls, dataset_cache, read_only=False):
+    """Add list of modules and dataset descriptors for a workflow to the given
+    dictionary.
+
+    Parameters
+    ----------
+    obj: dict
+        Dictionary representation for a resource
+    viztrail : vizier.workflow.base.ViztrailHandle
+        Viztrail handle
+    workflow : vizier.workflow.base.WorkflowHandle
+        Workflow handle
+    config : vizier.config.AppConfig
+        Application configuration parameters
+    urls: vizier.hateoas.UrlFactory
+        Factory for resource urls
+    dataset_cache: func
+        Function to get dataset handle for given identifier
+    read_only: bool, oprional
+        Value for the read only flag in the workflow serialization
+    Returns
+    -------
+    dict
+    """
+    branch = viztrail.branches[workflow.branch_id]
+    version = workflow.version
     # Create listing of workflow modules. This will transform chart view
     # outputs into web resources and keep track of views that are available
     # to each module.
@@ -967,5 +1203,4 @@ def WORKFLOW_HANDLE(viztrail, workflow, config, urls, dataset_cache, read_only=F
                 dataset = dataset_cache(dataset_id)
                 datasets[dataset_id] = DATASET_DESCRIPTOR(dataset, config, urls)
     obj['datasets'] = datasets.values()
-    obj['readOnly'] = read_only
     return obj

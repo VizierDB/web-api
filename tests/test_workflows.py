@@ -254,6 +254,8 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
+        cmd_text = wf.modules[-1].command_text
+        self.assertEquals(cmd_text, 'LOAD DATASET people FROM FILE dataset.csv')
         #print '(2) INSERT ROW'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -261,6 +263,8 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
+        cmd_text = wf.modules[-1].command_text
+        self.assertEquals(cmd_text, 'INSERT ROW INTO people AT POSITION 1')
         #print '(3) Set name to Bobby and set variables'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
@@ -268,6 +272,8 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
+        cmd_text = wf.modules[-1].command_text
+        self.assertEquals(cmd_text, SET_VARIABLES_PY)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         #print '(4) Set age to 28'
         self.db.append_workflow_module(
@@ -276,6 +282,8 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
+        cmd_text = wf.modules[-1].command_text
+        self.assertEquals(cmd_text.upper(), 'UPDATE PEOPLE SET [AGE,1] = 28')
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         #print '(5) Change Alice to Bob'
         self.db.append_workflow_module(
@@ -284,12 +292,16 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
+        cmd_text = wf.modules[-1].command_text
+        self.assertEquals(cmd_text.upper(), 'UPDATE PEOPLE SET [NAME,0] = \'BOB\'')
         #print '(6) UPDATE DATASET WITH FILTER'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.python_cell(UPDATE_DATASET_WITH_FILTER_PY)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        cmd_text = wf.modules[-1].command_text
+        self.assertEquals(cmd_text, UPDATE_DATASET_WITH_FILTER_PY)
         self.assertFalse(wf.has_error)
         # Ensure that all names are Bobby
         ds = DatasetClient(self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME]))

@@ -197,7 +197,6 @@ PYTHON_CODE = 'CODE'
 
 """Identifier for sysyem commands."""
 SYS_CREATE_BRANCH = 'CREATE_BRANCH'
-SYS_DELETE_MODULE = 'DELETE_MODULE'
 
 """Identifier for VizUAL commands."""
 VIZUAL_DEL_COL = 'DELETE_COLUMN'
@@ -535,14 +534,30 @@ VIZUAL_COMMANDS = {
     }
 }
 
+"""System commands."""
+SYSTEM_COMMANDS = {
+    SYS_CREATE_BRANCH: {
+        MODULE_NAME: 'Create Branch'
+    }
+}
 
-"""Dictionary of available packages."""
+"""Dictionary of available packages. These are packages that contain modules
+which can be used in vizier workflows.
+"""
 AVAILABLE_PACKAGES = {
     PACKAGE_MIMIR: MIMIR_LENSES,
     PACKAGE_PLOT: PLOT_COMMANDS,
     PACKAGE_PYTHON: PYTHON_COMMANDS,
     PACKAGE_VIZUAL: VIZUAL_COMMANDS
 }
+
+"""The packages dictionary extends the available packages with the system
+commands. Note that system commands are primarily used for the branch history
+and a re not intended for the user. Thus, the distinction between available
+packages and packages.
+"""
+PACKAGES = dict(AVAILABLE_PACKAGES)
+PACKAGES[PACKAGE_SYS] = SYSTEM_COMMANDS
 
 
 # ------------------------------------------------------------------------------
@@ -632,7 +647,7 @@ def mimir_missing_key(dataset_name, column, missing_only=None, make_input_certai
     )
 
 
-def mimir_missing_value(dataset_name, column, make_input_certain=False):
+def mimir_missing_value(dataset_name, column, constraint=None, make_input_certain=False):
     """Create a Mimir Missing Value Lens.
 
     Parameters
@@ -641,6 +656,8 @@ def mimir_missing_value(dataset_name, column, make_input_certain=False):
         Name of the dataset
     column: string or int
         Name or index for column
+    constraint: string, optional
+        Optional value constraint
     make_input_certain: bool, optional
         Flag indicating whether input should be made certain
 
@@ -648,15 +665,14 @@ def mimir_missing_value(dataset_name, column, make_input_certain=False):
     -------
     vizier.workflow.module.ModuleSpecification
     """
-    return ModuleSpecification(
-        PACKAGE_MIMIR,
-        MIMIR_MISSING_VALUE,
-        {
-            PARA_DATASET : dataset_name,
-            PARA_COLUMN: column,
-            PARA_MAKE_CERTAIN: make_input_certain
-        }
-    )
+    args = {
+        PARA_DATASET : dataset_name,
+        PARA_COLUMN: column,
+        PARA_MAKE_CERTAIN: make_input_certain
+    }
+    if not constraint is None:
+        args[PARA_CONSTRAINT] = constraint
+    return ModuleSpecification(PACKAGE_MIMIR, MIMIR_MISSING_VALUE, args)
 
 
 def mimir_picker(dataset_name,  schema, pick_as=None, make_input_certain=False):
@@ -740,6 +756,37 @@ def mimir_type_inference(dataset_name, percent_conform, make_input_certain=False
             PARA_DATASET : dataset_name,
             PARA_PERCENT_CONFORM: percent_conform,
             PARA_MAKE_CERTAIN: make_input_certain
+        }
+    )
+
+
+# ------------------------------------------------------------------------------
+# Plot
+# ------------------------------------------------------------------------------
+def create_plot(ds_name, chart_name, series):
+    """Module specification to create a simple plot.
+
+    Parameters
+    ----------
+    ds_name: string
+        Dataset name
+    chart_name: string
+        Name of the chart
+    series: list()
+        Specification of data series
+
+    Returns
+    -------
+    vizier.workflow.module.ModuleSpecification
+    """
+    return ModuleSpecification(
+        PACKAGE_PLOT,
+        PLOT_SIMPLE_CHART,
+        {
+            PARA_DATASET: ds_name,
+            PARA_NAME: chart_name,
+            PARA_SERIES: series,
+            PARA_CHART: {PARA_CHART_TYPE: 'bar', PARA_CHART_GROUPED: False}
         }
     )
 

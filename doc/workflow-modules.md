@@ -141,7 +141,7 @@ type: 'vizual'
 id: 'DELETE_COLUMN'
 arguments:
     dataset: 'Dataset name'
-    column: 'Column index, name, or label'
+    column: 'Column identifier'
 ```
 
 #### Delete Row
@@ -201,7 +201,7 @@ type: 'vizual'
 id: 'MOVE_COLUMN'
 arguments:
     dataset: 'Dataset name'
-    column: 'Column index, name, or label'
+    column: 'Column identifier'
     position: 'Target index for column'
 ```
 
@@ -223,7 +223,7 @@ type: 'vizual'
 id: 'RENAME_COLUMN'
 arguments:
     dataset: 'Dataset name'
-    column: 'Column index, name, or label'
+    column: 'Column identifier'
     name: 'New column name'
 ```
 
@@ -244,7 +244,7 @@ type: 'vizual'
 id: 'UPDATE_CELL'
 arguments:
     dataset: 'Dataset name'
-    column: 'Column index, name, or label'
+    column: 'Column identifier'
     row: 'Row index'
     value: 'New cell value'
 ```

@@ -16,6 +16,12 @@ DEFAULT_BRANCH = 'master'
 """Default name for the master branch."""
 DEFAULT_BRANCH_NAME = 'Default'
 
+"""Workflow modification action identifier."""
+ACTION_CREATE = 'cre'
+ACTION_DELETE = 'del'
+ACTION_INSERT = 'ins'
+ACTION_REPLACE = 'upd'
+
 
 class WorkflowVersionDescriptor(object):
     """Simple workflow descriptor that contains the workflow version and the
@@ -28,13 +34,16 @@ class WorkflowVersionDescriptor(object):
     create_at: datetime.datetime, optional
         Timestamp of workflow creation (UTC)
     """
-    def __init__(self, version, package_id=None, command_id=None, created_at=None):
+    def __init__(self, version, action=None, package_id=None, command_id=None, created_at=None):
         """Initialize the descriptor.
 
         Parameters
         ----------
         version: int
             Workflow version identifier
+        actions: string
+            Identifier of the action that created the workflow version (create,
+            insert, delete, or replace)
         package_id: string
             Identifier of the package the module command is from
         command_id: string
@@ -43,6 +52,7 @@ class WorkflowVersionDescriptor(object):
             Timestamp of workflow creation (UTC)
         """
         self.version = version
+        self.action = action
         self.package_id = package_id
         self.command_id = command_id
         self.created_at = created_at if not created_at is None else get_current_time()
@@ -57,6 +67,7 @@ class WorkflowVersionDescriptor(object):
         """
         return WorkflowVersionDescriptor(
             obj['version'],
+            action=obj['action'] if 'action' in obj else None,
             package_id=obj['packageId'] if 'packageId' in obj else None,
             command_id=obj['commandId'] if 'commandId' in obj else None,
             created_at=to_datetime(obj['createdAt'])
@@ -71,6 +82,7 @@ class WorkflowVersionDescriptor(object):
         """
         return {
             'version': self.version,
+            'action': self.action,
             'packageId': self.package_id,
             'commandId': self.command_id,
             'createdAt': self.created_at.isoformat()

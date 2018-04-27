@@ -66,7 +66,9 @@ class MimirLens(Module):
         ('context', 'basic:Dictionary')
     ]
     _output_ports = [
-        ('context', 'basic:Dictionary')
+        ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
+        ('output', 'basic:Dictionary')
     ]
 
     def compute(self):
@@ -77,6 +79,13 @@ class MimirLens(Module):
         # Get module identifier and VizierDB client for current workflow state
         module_id = self.moduleInfo['moduleId']
         vizierdb = get_env(module_id, context)
+        # Get command text. Catch potential exceptions (bugs) to avoid that the
+        # workflow execution breaks here.
+        #try:
+        cmd_text = self.to_string(lens, args, vizierdb)
+        #except Exception as ex:
+        #    cmd_text = 'MIMIR ' + str(name)
+        self.set_output('command', cmd_text)
         # Module outputs
         outputs = ModuleOutputs()
         store_as_dataset = None
@@ -109,6 +118,7 @@ class MimirLens(Module):
                 False
             )
             params = [ROW_ID, 'MISSING_ONLY(FALSE)']
+            update_rows = True
         elif lens == cmd.MIMIR_DOMAIN:
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
             column = dataset.columns[get_index_for_column(dataset, c_col)]
@@ -129,7 +139,7 @@ class MimirLens(Module):
                 c_idx = get_index_for_column(dataset, c_col)
                 column = dataset.columns[c_idx]
                 pick_from.append(column.name_in_rdb)
-                column_names.append(column.name.upper())
+                column_names.append(column.name.upper().replace(' ', '_'))
             # Add result column to dataset schema
             pick_as = ''
             if cmd.PARA_PICKAS in args:
@@ -185,7 +195,7 @@ class MimirLens(Module):
             lens_name, row_counter = create_missing_key_view(
                 dataset,
                 lens_name,
-                column.name_in_rdb
+                column
             )
             dataset.row_counter = row_counter
         # Create datastore entry for lens.
@@ -225,6 +235,108 @@ class MimirLens(Module):
         self.set_output('context', context)
         self.set_output('output', outputs)
 
+    def to_string(self, lens, args, vizierdb):
+        """Get string representation for the cell command.
+
+        Parameters
+        ----------
+        lens: string
+            Unique lens identifier
+        args: dict
+            Dictionary of command arguments
+        vizierdb: vizier.workflow.context.VizierDBClient
+            VizierDB client as returned by get_env()
+
+        Returns
+        -------
+        string
+        """
+        ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+        if lens == cmd.MIMIR_KEY_REPAIR:
+            # KEY REPAIR FOR <column> IN <dataset>
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            return ' '.join([
+                'KEY REPAIR FOR',
+                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                'IN',
+                format_str(ds_name.lower())
+            ])
+        elif lens == cmd.MIMIR_MISSING_KEY:
+            # MISSING KEYS FOR <column> IN <dataset>
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            return ' '.join([
+                'MISSING KEYS FOR',
+                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                'IN',
+                format_str(ds_name.lower())
+            ])
+        elif lens == cmd.MIMIR_DOMAIN:
+            # DOMAIN FOR <column> IN <dataset>
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            return ' '.join([
+                'DOMAIN FOR',
+                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                'IN',
+                format_str(ds_name.lower())
+            ])
+        elif lens == cmd.MIMIR_MISSING_VALUE:
+            # MISSING VALUES FOR <column> IN <dataset> {WITH CONSTRAINT} <constraint>
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            cmd_text = ' '.join([
+                'MISSING VALUES FOR',
+                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                'IN',
+                format_str(ds_name.lower())
+            ])
+            if cmd.PARA_CONSTRAINT in args:
+                cmd_text += ' WITH CONSTRAINT ' + str(args[cmd.PARA_CONSTRAINT])
+            return cmd_text
+        elif lens == cmd.MIMIR_PICKER:
+            # PICK FROM <columns> {AS <name>} IN <dataset>
+            pick_from = list()
+            for col in get_argument(cmd.PARA_SCHEMA, args, default_value=[]):
+                col_id = get_argument(cmd.PARA_PICKFROM, col, raise_error=False)
+                c_name = format_str(get_column_name(ds_name, col_id, vizierdb))
+                pick_from.append(format_str(c_name))
+            # Add result column to dataset schema
+            pick_as = ''
+            if cmd.PARA_PICKAS in args:
+                pick_as = format_str(args[cmd.PARA_PICKAS].strip())
+            if pick_as != '':
+                pick_as = ' AS ' + pick_as
+            pick_from = ','.join(pick_from) + pick_as
+            return ' '.join([
+                'PICK FROM',
+                pick_from,
+                'IN',
+                format_str(ds_name.lower())
+            ])
+        elif lens == cmd.MIMIR_SCHEMA_MATCHING:
+            # SCHEMA MATCHING <dataset>(<columns>) AS <name>
+            store_as = get_argument(cmd.PARA_RESULT_DATASET, args, default_value='?')
+            ds_schema = list()
+            for col in get_argument(cmd.PARA_SCHEMA, args, default_value=[]):
+                c_name = get_argument(cmd.PARA_COLUMN, col, default_value='?')
+                c_type = get_argument(cmd.PARA_TYPE, col, default_value='?')
+                ds_schema.append(format_str(c_name) + ' ' + c_type)
+            return ' '.join([
+                'SCHEMA MATCHING',
+                format_str(ds_name.lower()),
+                '(' + ', '.join(ds_schema) + ')',
+                'AS',
+                format_str(store_as)
+            ])
+        elif lens == cmd.MIMIR_TYPE_INFERENCE:
+            # TYPE INFERENCE FOR COLUMNS IN <dataset> WITH percent_conform = <value>
+            return ' '.join([
+                'TYPE INFERENCE FOR COLUMNS IN',
+                format_str(ds_name.lower()),
+                'WITH percent_conform =',
+                str(get_argument(cmd.PARA_PERCENT_CONFORM, args, default_value='?'))
+            ])
+        # Default message for unknown command.
+        return 'unknown Mimir lens \'' + str(lens) + '\''
+
 
 class PlotCell(NotCacheable, Module):
     """Vistrails module to execute a plot command. Expects a command type (name)
@@ -238,6 +350,7 @@ class PlotCell(NotCacheable, Module):
     ]
     _output_ports = [
         ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
         ('output', 'basic:Dictionary')
     ]
 
@@ -252,6 +365,13 @@ class PlotCell(NotCacheable, Module):
         module_id = self.moduleInfo['moduleId']
         vizierdb = get_env(module_id, context)
         outputs = ModuleOutputs()
+        # Get command text. Catch potential exceptions (bugs) to avoid that the
+        # workflow execution breaks here.
+        try:
+            cmd_text = self.to_string(name, args, vizierdb)
+        except Exception as ex:
+            cmd_text = 'PLOT ' + str(name)
+        self.set_output('command', cmd_text)
         if name == cmd.PLOT_SIMPLE_CHART:
             # Get dataset name and the associated dataset. This will raise an
             # exception if the dataset name is unknown.
@@ -310,6 +430,33 @@ class PlotCell(NotCacheable, Module):
         self.set_output('context', context)
         self.set_output('output', outputs)
 
+    def to_string(self, name, args, vizierdb):
+        """Get string representation for the cell command.
+
+        Parameters
+        ----------
+        name: string
+            Unique command identifier
+        args: dict
+            Dictionary of command arguments
+        vizierdb: vizier.workflow.context.VizierDBClient
+            VizierDB client as returned by get_env()
+
+        Returns
+        -------
+        string
+        """
+        if name == cmd.PLOT_SIMPLE_CHART:
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            return ' '.join([
+                'CREATE PLOT',
+                format_str(get_argument(cmd.PARA_NAME, args), default_value='?'),
+                'FOR',
+                format_str(ds_name.lower())
+            ])
+        # Default message for unknown command.
+        return 'unknown plot command \'' + str(name) + '\''
+
 
 class PythonCell(NotCacheable, Module):
     _input_ports = [
@@ -318,6 +465,7 @@ class PythonCell(NotCacheable, Module):
     ]
     _output_ports = [
         ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
         ('output', 'basic:Dictionary')
     ]
 
@@ -359,6 +507,7 @@ class PythonCell(NotCacheable, Module):
             else:
                 outputs.stderr(content=PLAIN_TEXT(text))
         self.set_output('context', context)
+        self.set_output('command', source)
         self.set_output('output', outputs)
 
 
@@ -375,6 +524,7 @@ class VizualCell(NotCacheable, Module):
     ]
     _output_ports = [
         ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
         ('output', 'basic:Dictionary')
     ]
 
@@ -391,6 +541,13 @@ class VizualCell(NotCacheable, Module):
         # Set VizUAL engine (shortcut)
         v_eng = vizierdb.vizual
         outputs = ModuleOutputs()
+        # Get command text. Catch potential exceptions (bugs) to avoid that the
+        # workflow execution breaks here.
+        try:
+            cmd_text = self.to_string(name, args, vizierdb)
+        except Exception as ex:
+            cmd_text = 'VIZUAL ' + str(name)
+        self.set_output('command', cmd_text)
         if name == cmd.VIZUAL_DEL_COL:
             # Get dataset name, and column specification. Raise exception if
             # the specified dataset does not exist.
@@ -468,13 +625,13 @@ class VizualCell(NotCacheable, Module):
             # exception if the specified dataset does not exist or the
             # target position is not an integer.
             ds_name = get_argument(cmd.PARA_DATASET, args).lower()
+            c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
             c_pos = int(get_argument(cmd.PARA_POSITION, args))
-            c_name = get_argument(cmd.PARA_COLUMN, args)
             ds = vizierdb.get_dataset_identifier(ds_name)
             # Execute move column command. Replacte existing dataset
             # identifier with updated dataset id and set number of affected
             # columns in output
-            col_count, ds_id = v_eng.move_column(ds, c_name, c_pos)
+            col_count, ds_id = v_eng.move_column(ds, c_col, c_pos)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
             outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' column moved'))
         elif name == cmd.VIZUAL_MOV_ROW:
@@ -541,6 +698,143 @@ class VizualCell(NotCacheable, Module):
         self.set_output('context', context)
         self.set_output('output', outputs)
 
+    def to_string(self, name, args, vizierdb):
+        """Get string representation for the cell command.
+
+        Parameters
+        ----------
+        name: string
+            Unique command identifier
+        args: dict
+            Dictionary of command arguments
+        vizierdb: vizier.workflow.context.VizierDBClient
+            VizierDB client as returned by get_env()
+
+        Returns
+        -------
+        string
+        """
+        if name in [cmd.VIZUAL_DEL_COL]:
+            # DELETE COLUMN <name> FROM <dataset>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            return ' '.join([
+                'DELETE COLUMN',
+                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                'FROM',
+                format_str(ds_name.lower())
+            ])
+        elif name == cmd.VIZUAL_DEL_ROW:
+            # DELETE ROW <index> FROM <dataset>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            return ' '.join([
+                'DELETE ROW',
+                str(get_argument(cmd.PARA_ROW, args, default_value='?')),
+                'FROM',
+                format_str(ds_name.lower())
+            ])
+        elif name == cmd.VIZUAL_DROP_DS:
+            # DROP DATASET <dataset>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            return ' '.join(['DROP DATASET', format_str(ds_name.lower())])
+        elif name == cmd.VIZUAL_INS_COL:
+            # INSERT COLUMN <name> INTO <dataset> AT POSITION <index>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            return ' '.join([
+                'INSERT COLUMN',
+                format_str(get_argument(cmd.PARA_NAME, args, default_value='?')),
+                'INTO',
+                format_str(ds_name.lower()),
+                'AT POSITION',
+                str(get_argument(cmd.PARA_POSITION, args, default_value='?'))
+            ])
+        elif name == cmd.VIZUAL_INS_ROW:
+            # INSERT ROW INTO <dataset> AT POSITION <index>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            return ' '.join([
+                'INSERT ROW INTO',
+                format_str(ds_name.lower()),
+                'AT POSITION',
+                str(get_argument(cmd.PARA_POSITION, args, default_value='?'))
+            ])
+        elif name == cmd.VIZUAL_LOAD:
+            # LOAD DATASET <dataset> FROM FILE <name>
+            file_id = get_argument(cmd.PARA_FILE, args, default_value='?')
+            ds_name = get_argument(cmd.PARA_NAME, args, default_value='?')
+            f_handle = vizierdb.vizual.fileserver.get_file(file_id)
+            return ' '.join([
+                'LOAD DATASET',
+                format_str(ds_name),
+                'FROM FILE',
+                f_handle.name if not f_handle is None else '?'
+            ])
+        elif name == cmd.VIZUAL_MOV_COL:
+            # MOVE COLUMN <name> IN <dataset> TO POSITION <index>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            return ' '.join([
+                'MOVE COLUMN',
+                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                'IN',
+                format_str(ds_name.lower()),
+                'TO POSITION',
+                str(get_argument(cmd.PARA_POSITION, args, default_value='?'))
+            ])
+        elif name == cmd.VIZUAL_MOV_ROW:
+            # MOVE ROW <index> IN <dataset> TO POSITION <index>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            return ' '.join([
+                'MOVE ROW',
+                str(get_argument(cmd.PARA_ROW, args, default_value='?')),
+                'IN',
+                format_str(ds_name.lower()),
+                'TO POSITION',
+                str(get_argument(cmd.PARA_POSITION, args, default_value='?'))
+            ])
+        elif name == cmd.VIZUAL_REN_COL:
+            # RENAME COLUMN <name> IN <dataset> TO <name>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            return ' '.join([
+                'RENAME COLUMN',
+                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                'IN',
+                format_str(ds_name.lower()),
+                'TO',
+                format_str(get_argument(cmd.PARA_NAME, args, default_value='?'))
+            ])
+        elif name == cmd.VIZUAL_REN_DS:
+            # RENAME DATASET <dataset> TO <name>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            return ' '.join([
+                'RENAME DATASET',
+                format_str(ds_name.lower()),
+                'TO',
+                format_str(get_argument(cmd.PARA_NAME, args, default_value='?'))
+            ])
+        elif name == cmd.VIZUAL_UPD_CELL:
+            # UPDATE <dataset> SET [<column>,<row>] = <value>
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            return ' '.join([
+                'UPDATE',
+                format_str(ds_name.lower()),
+                'SET',
+                ''.join([
+                    '[',
+                    format_str(get_column_name(ds_name, col_id, vizierdb)),
+                    ',',
+                    str(get_argument(cmd.PARA_ROW, args, default_value='?')),
+                    ']'
+                ]),
+                '=',
+                number_or_str(
+                    get_argument(cmd.PARA_VALUE, args, default_value='?')
+                )
+            ])
+        # Default message for unknown command.
+        return 'unknown vizual command \'' + str(name) + '\''
+
 
 # ------------------------------------------------------------------------------
 #
@@ -601,7 +895,31 @@ def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES):
     )
 
 
-def get_argument(key, args, as_int=False):
+def format_str(value, default_value='?'):
+    """Format an output string. Simply puts single quotes around the value if
+    it contains a space character. If the given argument is none the default
+    value is returned
+
+    Parameters
+    ----------
+    value: string
+        Given input value. Expected to be of type string
+    default_value: string
+        Default value that is returned in case value is None
+
+    Returns
+    -------
+    string
+    """
+    if value is None:
+        return default_value
+    if ' ' in str(value):
+        return '\'' + str(value) + '\''
+    else:
+        return str(value)
+
+
+def get_argument(key, args, as_int=False, raise_error=True, default_value=None):
     """Retrieve command argument with given key. Will raise ValueError if no
     argument with given key is present.
 
@@ -614,12 +932,24 @@ def get_argument(key, args, as_int=False):
     as_int : bool
         Flag indicating whther the argument should be cobverted to int. If the
         given value cannot be converted the original argument value is returned.
+    raise_error: bool, optional
+        Flag indicating whether to raise a ValueError if the args dictionary
+        does not contain key. If False the default_value will be returned
+        instead. Is ignored if default_value is not None (implies raise_error to
+        be True)
+    default_value: string, optional
+        Default value that is returned if the args dictionary does not contain
+        key
+
     Returns
     -------
     dict
     """
     if not key in args:
-        raise ValueError('missing argument: ' + key)
+        if raise_error and default_value is None:
+            raise ValueError('missing argument: ' + key)
+        else:
+            return default_value
     val = args[key]
     if as_int:
         try:
@@ -627,6 +957,36 @@ def get_argument(key, args, as_int=False):
         except ValueError as ex:
             pass
     return val
+
+
+def get_column_name(ds_name, column_id, vizierdb):
+    """Get the name of a column with given id in the dataset with ds_name from
+    the current context. Returns col_id if the respective column is not found.
+
+    Parameters
+    ----------
+    ds_name: string or None
+        Name of the dataset (or None if argument was missing)
+    column_id: str or int or None
+        Identifier of dataset column (may be missing)
+    vizierdb: vizier.workflow.context.VizierDBClient
+        VizierDB client as returned by get_env()
+
+    Returns
+    -------
+    string
+    """
+    try:
+        # Try to convert col_id to int (as this is not guaranteed)
+        col_id = int(column_id)
+        # Get descriptor for dataset with given name
+        ds = vizierdb.get_dataset(ds_name)
+        for col in ds.columns:
+            if col.identifier == col_id:
+                return col.name
+    except Exception:
+        pass
+    return str(column_id)
 
 
 def get_env(module_id, context):
@@ -682,6 +1042,31 @@ def get_env(module_id, context):
         vizual = MimirVizualEngine(datastore, fileserver)
     # Return vizier client
     return VizierDBClient(datastore, datasets, vizual)
+
+
+def number_or_str(value):
+    """Puts the value into single quotes if it cannot be converted into a
+    number.
+
+    Parameters
+    ----------
+    value: string or number
+        Input value
+
+    Returns
+    -------
+    string
+    """
+    try:
+        val = int(value)
+        return str(val)
+    except ValueError:
+        try:
+            val = float(value)
+            return str(val)
+        except ValueError:
+            pass
+    return '\'' + str(value) + '\''
 
 
 def print_dataset_schema(outputs, name, columns):

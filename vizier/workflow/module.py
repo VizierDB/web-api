@@ -20,7 +20,7 @@ class ModuleHandle(object):
     stderr: list(string), optional
         Module output that was written to STDERR
     """
-    def __init__(self, identifier, command, datasets=None, stdout=None, stderr=None):
+    def __init__(self, identifier, command, datasets=None, stdout=None, stderr=None, command_text=None):
         """Initialize the module handle. For new modules, datasets and outputs
         are initially empty.
 
@@ -30,19 +30,22 @@ class ModuleHandle(object):
             Unique module number (within a worktrail)
         command : ModuleSpecification
             Specification of the module (i.e., package, name, and arguments)
-        datasets : dict(string), optional
-            Dictionary of resulting datasets. the user-specified name is the key
+        datasets : dict(string:string), optional
+            Dictionary of resulting datasets. The user-specified name is the key
             and the unique dataset identifier the value.
         stdout : list(string), optional
             Module output that was written to STDOUT
         stderr: list(str), optional
             Module output that was written to STDERR
+        command_text: string, optional
+            Printable representation of module command
         """
         self.identifier = identifier
         self.command = command
         self.datasets = datasets if not datasets is None else dict()
         self.stdout = stdout if not stdout is None else list()
         self.stderr = stderr if not stderr is None else list()
+        self.command_text = command_text
 
     def copy(self):
         """Return a copy of the module handle.
@@ -59,7 +62,8 @@ class ModuleHandle(object):
             self.command,
             datasets=dict(self.datasets),
             stdout=list(self.stdout),
-            stderr=list(self.stderr)
+            stderr=list(self.stderr),
+            command_text=self.command_text
         )
 
     @staticmethod
@@ -80,7 +84,8 @@ class ModuleHandle(object):
             command=ModuleSpecification.from_dict(doc['command']),
             datasets={ds['name'] : ds['id'] for ds in doc['datasets']},
             stdout=doc['stdout'],
-            stderr=doc['stderr']
+            stderr=doc['stderr'],
+            command_text=doc['commandText']
         )
 
     @property
@@ -107,6 +112,7 @@ class ModuleHandle(object):
             'command' : self.command.to_dict(),
             'stdout' : self.stdout,
             'stderr': self.stderr,
+            'commandText': self.command_text,
             'datasets' : [{
                     'name' : key,
                     'id' : self.datasets[key]

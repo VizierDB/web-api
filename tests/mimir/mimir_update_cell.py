@@ -16,7 +16,7 @@ from vizier.workflow.vizual.mimir import MimirVizualEngine
 DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
 
-CSV_FILE = '../data/mimir/jsonsampletocsv.csv' #pick.csv
+CSV_FILE = '../data/mimir/Employee.csv' #pick.csv
 
 
 def cleanUp():
@@ -47,7 +47,7 @@ for i in range(len(rows)):
     row = rows[i]
     print row.values
 
-_, ds_id = vizual.update_cell(ds.identifier, 3, 0, 'A')
+_, ds_id = vizual.update_cell(ds.identifier, 2, 0, '2015-01-10')
 ds_load = datastore.get_dataset(ds_id)
 print [col.name_in_rdb + ' AS ' + col.name + '(' + col.data_type + ')' for col in ds_load.columns]
 print str(ds_load.row_count) + ' row(s)'

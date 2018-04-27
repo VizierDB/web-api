@@ -103,7 +103,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
                 )
             ),
             stdout=outputs.stdout(),
-            stderr=outputs.stderr()
+            stderr=outputs.stderr(),
+            command_text=cell.get_output('command')
         )
 
     def execute_workflow(self, version, modules, modified_index):
@@ -164,7 +165,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
                     module.identifier,
                     module.command,
                     stdout=list(),
-                    stderr=list()
+                    stderr=list(),
+                    command_text=module.command_text
                 )
             else:
                 if i < start_index:

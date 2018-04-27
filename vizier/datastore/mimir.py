@@ -156,6 +156,8 @@ class MimirDatasetColumn(DatasetColumn):
 )
                 #except ValueError:
                 #    pass
+        elif self.data_type.lower() in ['date']:
+            return 'datetime(\'' + value + '\')'
         elif self.data_type.lower() in ['bool']:
             if value:
                 return '1'
@@ -683,11 +685,13 @@ class MimirDataStore(DataStore):
             for row in rs['data']:
                 dataset_row_ids.add(int(row[rowid_idx]))
             modified_row_ids = list()
-            # Remove row id's that are no longer in the data. There should not
-            # be any new row id's because Mimir is not aware of the ROW_ID
-            # column
+            # Remove row id's that are no longer in the data.
             for row_id in row_ids:
                 if row_id in dataset_row_ids:
+                    modified_row_ids.append(row_id)
+            # Add new row ids
+            for row_id in dataset_row_ids:
+                if not row_id in modified_row_ids:
                     modified_row_ids.append(row_id)
             # Replace row ids with modified list
             row_ids = modified_row_ids
@@ -783,7 +787,7 @@ class MimirDataStore(DataStore):
 # Helper Methods
 # ------------------------------------------------------------------------------
 
-def create_missing_key_view(dataset, lens_name, key_column_name):
+def create_missing_key_view(dataset, lens_name, key_column):
     """ Create a view for missing ROW_ID's on a MISSING_KEY lens.
 
     Parameters
@@ -792,7 +796,7 @@ def create_missing_key_view(dataset, lens_name, key_column_name):
         Descriptor for the dataset on which the lens was created
     lens_name: string
         Identifier of the created MISSING_KEY lens
-    key_column_name: string
+    key_column: vizier.datastore.mimir.MimirDatasetColumn
         Name of the column for which the missing values where generated
 
     Returns
@@ -802,19 +806,20 @@ def create_missing_key_view(dataset, lens_name, key_column_name):
         ids.
     """
     # Select the rows that have missing row ids
-    sql = 'SELECT ' + key_column_name + ' FROM ' + lens_name
+    key_col_name = key_column.name_in_rdb
+    sql = 'SELECT ' + key_col_name + ' FROM ' + lens_name
     sql += ' WHERE ' + ROW_ID + ' IS NULL'
-    print sql
-    csv_str = mimir._mimir.vistrailsQueryMimir(sql, False, False).csvStr()
-    print csv_str
-    reader = csv.reader(StringIO(csv_str), delimiter=',')
-    # Skip headline row
-    reader.next()
+    rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
     case_conditions = []
-    for row in reader:
+    for row in rs['data']:
         row_id = dataset.row_counter + len(case_conditions)
+        val = str(row[0])
+        # If the key colum is of type real then we need to convert val into
+        # something that looks like a real
+        if key_column.data_type.lower() == 'real':
+            val += '.0'
         case_conditions.append(
-            'WHEN ' + key_column_name + ' = ' + row[0] + ' THEN ' + str(row_id)
+            'WHEN ' + key_col_name + ' = ' + val + ' THEN ' + str(row_id)
         )
     # If no new rows where inserted we are good to go with the existing lens
     if len(case_conditions) == 0:
