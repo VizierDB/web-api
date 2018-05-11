@@ -12,9 +12,7 @@ from vizier.datastore.fs import DATA_FILE, METADATA_FILE
 from vizier.datastore.mem import InMemDataStore, InMemDatasetHandle
 from vizier.datastore.mem import VolatileDataStore
 from vizier.datastore.mimir import MimirDataStore
-from vizier.datastore.metadata import UpdateCellAnnotation as UpdCell
-from vizier.datastore.metadata import UpdateColumnAnnotation as UpdCol
-from vizier.datastore.metadata import UpdateRowAnnotation as UpdRow
+from vizier.datastore.metadata import update_annotations
 from vizier.filestore.base import DefaultFileServer
 
 
@@ -72,10 +70,9 @@ class TestDataStore(unittest.TestCase):
         self.assertIsNone(fed_store.get_dataset('UNDEFINED'))
         with self.assertRaises(NotImplementedError):
             fed_store.load_dataset(fh)
-        upd = UpdRow(0, 'name', 'My Name')
-        self.assertIsNotNone(fed_store.update_annotation(ds1.identifier, upd))
-        self.assertIsNotNone(fed_store.update_annotation(ds2.identifier, upd))
-        self.assertIsNone(fed_store.update_annotation('UNDEFINED', upd))
+        self.assertIsNotNone(fed_store.update_annotation(ds1.identifier, column_id=0, key='name', value='My Name'))
+        self.assertIsNotNone(fed_store.update_annotation(ds2.identifier, column_id=0, key='name', value='My Name'))
+        self.assertIsNone(fed_store.update_annotation('UNDEFINED', column_id=0, key='name', value='My Name'))
 
     def test_fs_datastore(self):
         """Run test for file system datastore."""

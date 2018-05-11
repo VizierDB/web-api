@@ -134,8 +134,5 @@ print [col.name for col in ds.columns]
 for row_id in ds.row_ids:
     for col in ds.columns:
         anno = ds.annotations.for_cell(col.identifier, row_id)
-        if len(anno.keys()) > 0:
-            print '[' + str(col.identifier) + ',' + str(row_id) + ']'
-            print anno.keys()
 
 mimir.finalize()

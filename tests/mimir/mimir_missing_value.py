@@ -1,3 +1,4 @@
+import json
 import os
 
 
@@ -13,43 +14,29 @@ materialize = False
 mimir.initialize()
 
 table_name = mimir._mimir.loadCSV(os.path.abspath(CSV_FILE))
+sql = 'SELECT * FROM ' + table_name
 
 type_ = 'MISSING_VALUE'
-params = ['\'AGE > 40\'']
-
-
+#params = ['\'AGE > 40\'']
+#
 lens_name = mimir._mimir.createLens(
     table_name,
-    mimir._jvmhelper.to_scala_seq(params),
+    mimir._jvmhelper.to_scala_seq(['\'AGE\'']),
     type_,
     make_input_certain,
     materialize
 )
 
-print lens_name
+#print lens_name
 sql = 'SELECT * FROM ' + lens_name
-#print sql
-csvStrDet = mimir._mimir.vistrailsQueryMimir(sql, True, True)
-print csvStrDet.schema()
-print csvStrDet.csvStr()
-#print csvStrDet.colsDet()
-#for c in csvStrDet.colsDet():
-#    print c
-#    print type(c)
-#    for t in c:
-#        print t
-#print csvStrDet.rowsDet()
-#for r in csvStrDet.rowsDet():
-#    print r
-reasons = csvStrDet.celReasons()
-print 'NUMBER OF REASONS: ' + str(len(reasons))
-for p in reasons:
-    print 'REASON ' + str(p)
-    for s in p:
-        print '-> ' + s
-    print '-'
-#print csvStrDet.schema()
-#print csvStrDet.schema().get('NAME')
+rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, True))
+
+print json.dumps(rs, indent=4, sort_keys=True)
+
+buf = mimir._mimir.explainCell('SELECT AGE FROM ' + lens_name + ' WHERE NAME = \'Claudia\'', 0, '3')
+
+for i in range(buf.size()):
+    print buf.array()[i]
 
 mimir.finalize()
 

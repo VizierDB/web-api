@@ -9,7 +9,7 @@ from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, max_column_id, max_row_id
 from vizier.datastore.base import validate_schema
-from vizier.datastore.metadata import DatasetMetadata
+from vizier.datastore.metadata import DatasetMetadata, update_annotations
 from vizier.datastore.reader import InMemDatasetReader
 
 
@@ -83,6 +83,31 @@ class InMemDatasetHandle(DatasetHandle):
             column_counter=len(columns),
             row_counter=len(rows)
         )
+
+    def get_annotations(self, column_id=-1, row_id=-1):
+        """Get list of annotations for a dataset component. Expects at least one
+        of the given identifier to be a valid identifier (>= 0).
+
+        Parameters
+        ----------
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optiona
+            Unique row identifier
+
+        Returns
+        -------
+        list(vizier.datastore.metadata.Annotation)
+        """
+        if column_id >= 0 and row_id < 0:
+            anno = self.annotations.for_column(column_id)
+        elif column_id < 0 and row_id >= 0:
+            anno = self.annotations.for_row(row_id)
+        elif column_id >= 0 and row_id >= 0:
+            anno = self.annotations.for_cell(column_id, row_id)
+        else:
+            raise ValueError('invalid component identifier')
+        return annotations.values()
 
     def reader(self):
         """Get reader for the dataset to access the dataset rows.
@@ -235,7 +260,7 @@ class InMemDataStore(DataStore):
             annotations=dataset.annotations
         )
 
-    def update_annotation(self, identifier, upd_stmt):
+    def update_annotation(self, identifier, column_id=-1, row_id=-1, anno_id=-1, key=None, value=None):
         """Update the annotations for a component of the datasets with the given
         identifier. Returns the updated annotations or None if the dataset
         does not exist.
@@ -244,19 +269,30 @@ class InMemDataStore(DataStore):
         ----------
         identifier : string
             Unique dataset identifier
-        upd_stmt: vizier.datastore.metadata.AnnotationUpdateStatement
-            Update statement that handles update of an existing DatasetMetadata
-            object.
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optional
+            Unique row identifier
+        anno_id: int
+            Unique annotation identifier
+        key: string, optional
+            Annotation key
+        value: string, optional
+            Annotation value
 
         Returns
         -------
-        vizier.datastore.metadata.AnnotationUpdateStatement
+        vizier.datastore.metadata.Annotation
         """
         if identifier in self.datasets:
             dataset = self.datasets[identifier]
             # Update dataset annotations
-            dataset.annotations = upd_stmt.eval(dataset.annotations)
-            return dataset.annotations
+            return update_annotations(
+                dataset.annotations.for_object(column_id=column_id, row_id=row_id),
+                identifier=anno_id,
+                key=key,
+                value=value
+            )
         return None
 
 

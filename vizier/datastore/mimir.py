@@ -4,6 +4,7 @@ import csv
 import gzip
 import json
 import os
+import re
 import shutil
 import tempfile
 import unicodecsv
@@ -17,12 +18,25 @@ from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, max_column_id
-from vizier.datastore.metadata import DatasetMetadata
+from vizier.datastore.metadata import Annotation, DatasetMetadata
+from vizier.datastore.metadata import add_annotation, get_first, update_annotations
 from vizier.datastore.reader import DatasetReader, InMemDatasetReader
 
 
 """Mimir annotation keys."""
 ANNO_UNCERTAIN = 'mimir:uncertain'
+ANNO_UNCERTAIN_ROW_PROV = 'mimir:uncertain:rowProv'
+
+"""Value casts for SQL update statements."""
+CAST_TRUE = 'CAST(1 AS BOOL)'
+CAST_FALSE = 'CAST(0 AS BOOL)'
+
+"""Compiled regular expressions to identify valid date and datetime values.
+Note that this does not check if a date string actually specifies a valid
+calendar date. But it appears that Mimir accepts any sting that follows this
+format."""
+DATE_FORMAT = re.compile('^\d{4}-\d\d?-\d\d?$')
+DATETIME_FORMAT = re.compile('^\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?(\.\d+)?$')
 
 """Column name prefix (Important: Use upper case!)."""
 COL_PREFIX = 'COL'
@@ -151,18 +165,35 @@ class MimirDatasetColumn(DatasetColumn):
                 int(value)
                 return str(value)
             except ValueError:
-                #try:
-                return str(float(value)
-)
-                #except ValueError:
-                #    pass
-        elif self.data_type.lower() in ['date']:
-            return 'datetime(\'' + value + '\')'
-        elif self.data_type.lower() in ['bool']:
-            if value:
-                return '1'
+                return str(float(value))
+        elif self.data_type.lower() == 'date':
+            if DATE_FORMAT.match(value):
+                return 'CAST(\'' + str(value) + '\' AS DATE)'
+            raise ValueError('not a date \'' + str(value) + '\'')
+        elif self.data_type.lower() == 'datetime':
+            if DATETIME_FORMAT.match(value):
+                return 'CAST(\'' + str(value) + '\' AS DATETIME)'
+            raise ValueError('not a datetime \'' + str(value) + '\'')
+        elif self.data_type.lower() == 'bool':
+            if isinstance(value, bool):
+                if value:
+                    return CAST_TRUE
+                else:
+                    return CAST_FALSE
+            elif isinstance(value, int):
+                if value == 1:
+                    return CAST_TRUE
+                elif value == 0:
+                    return CAST_FALSE
             else:
-                return '0'
+                str_val = str(value).upper()
+                if str_val in ['TRUE', '1']:
+                    return CAST_TRUE
+                elif str_val in ['FALSE', '0']:
+                    return CAST_FALSE
+            # If none of the previous tests returned a bool representation we
+            # raise an exception to trigger value casting.
+            raise ValueError('not a boolean value \'' + str(value) + '\'')
         #elif self.data_type.lower() in ['date', 'datetime']:
             #return self.data_type.upper() + '(\'' + str(value) + '\')'
         #    return 'DATE(\'' + str(value) + '\')'
@@ -243,6 +274,65 @@ class MimirDatasetHandle(DatasetHandle):
             row_counter=doc['rowCounter'],
             annotations=annotations
         )
+
+    def get_annotations(self, column_id=-1, row_id=-1):
+        """Get list of annotations for a dataset component. Expects at least one
+        of the given identifier to be a valid identifier (>= 0).
+
+        Parameters
+        ----------
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optiona
+            Unique row identifier
+
+        Returns
+        -------
+        list(vizier.datastore.metadata.Annotation)
+        """
+        if column_id >= 0 and row_id < 0:
+            annotations = self.annotations.for_column(column_id)
+        elif column_id < 0 and row_id >= 0:
+            annotations = self.annotations.for_row(row_id)
+        elif column_id >= 0 and row_id >= 0:
+            annotations = self.annotations.for_cell(column_id, row_id)
+        else:
+            raise ValueError('invalid component identifier')
+        # Build the result set
+        result = list()
+        for anno in annotations.values():
+            # At this state only for dataset cells we check whether there are
+            # annotations for uncertainty reasons and if so query the dataset.
+            if anno.key == ANNO_UNCERTAIN:
+                # If present value is expected to be true (not checked here)
+                column = None
+                for col in self.columns:
+                    if col.identifier == column_id:
+                        column = col
+                        break
+                row_prov = get_first(annotations, ANNO_UNCERTAIN_ROW_PROV)
+                sql = 'SELECT ' + column.name_in_rdb + ' FROM ' + self.table_name + ' WHERE ' + ROW_ID + ' = ' + str(row_id)
+                buffer = mimir._mimir.explainCell(sql, 0, '1')
+                print buffer
+                for i in range(buffer.size()):
+                    value = str(buffer.array()[i])
+                    # Remove references to table
+                    value = value.replace(self.table_name, '')
+                    # Replace references to column name
+                    value = value.replace('.' + column.name_in_rdb, column.name)
+                    # Remove content in double square brackets
+                    if '{{' in value:
+                        value = value[:value.find('{{')].strip()
+                    result.append(
+                        Annotation(
+                            anno.identifier,
+                            key=anno.key,
+                            value=value
+                        )
+                    )
+            elif anno.key != ANNO_UNCERTAIN_ROW_PROV:
+                result.append(anno)
+        return result
 
     def reader(self):
         """Get reader for the dataset to access the dataset rows.
@@ -493,7 +583,7 @@ class MimirDataStore(DataStore):
         """
         return os.path.join(self.get_dataset_dir(identifier), 'dataset.yaml')
 
-    def get_dataset(self, identifier, include_annotations=True):
+    def get_dataset(self, identifier):
         """Read a full dataset from the data store. Returns None if no dataset
         with the given identifier exists.
 
@@ -501,8 +591,6 @@ class MimirDataStore(DataStore):
         ----------
         identifier : string
             Unique dataset identifier
-        include_annotations: bool, optional
-            Flag indicating whether to include annotations
 
         Returns
         -------
@@ -512,11 +600,9 @@ class MimirDataStore(DataStore):
         dataset_file = self.get_dataset_file(identifier)
         if not os.path.isfile(dataset_file):
             return None
-        annotations = None
-        if include_annotations:
-            annotations = DatasetMetadata.from_file(
-                self.get_metadata_filename(identifier)
-            )
+        annotations = DatasetMetadata.from_file(
+            self.get_metadata_filename(identifier)
+        )
         return MimirDatasetHandle.from_file(
             dataset_file,
             annotations=annotations
@@ -658,7 +744,8 @@ class MimirDataStore(DataStore):
         """
         # Query the database to get schema information and row ids if necessary
         sql = get_select_query(table_name, columns)
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, False))
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, True))
+        print json.dumps(rs, indent=4, sort_keys=True)
         # Create a mapping from database column names to column types. This
         # mapping is then used to update the data type information for all
         # column descriptors. We also keep track of the index of the columns
@@ -706,11 +793,6 @@ class MimirDataStore(DataStore):
             for i in range(len(rs['data'])):
                 row = rs['data'][i]
                 row_id = int(row[rowid_idx])
-                # Update row uncertainity annotation
-                update_uncertainty_annotation(
-                    annotations=annotations.for_row(row_id),
-                    is_certain=rs['row_taint'][i]
-                )
                 # Uncertainty information for row cells
                 col_taint = rs['col_taint'][i]
                 for col in columns:
@@ -718,7 +800,8 @@ class MimirDataStore(DataStore):
                     certain = col_taint[mimir_schema[col.name_in_rdb]['index']]
                     update_uncertainty_annotation(
                         annotations=anno,
-                        is_certain=certain
+                        is_certain=certain,
+                        row_prov=rs['prov'][i]
                     )
         # Set column counter to max column id + 1 if None
         if column_counter is None:
@@ -751,7 +834,7 @@ class MimirDataStore(DataStore):
         )
         return dataset
 
-    def update_annotation(self, identifier, upd_stmt):
+    def update_annotation(self, identifier, column_id=-1, row_id=-1, anno_id=-1, key=None, value=None):
         """Update the annotations for a component of the datasets with the given
         identifier. Returns the updated annotations or None if the dataset
         does not exist.
@@ -760,23 +843,34 @@ class MimirDataStore(DataStore):
         ----------
         identifier : string
             Unique dataset identifier
-        upd_stmt: vizier.datastore.metadata.AnnotationUpdateStatement
-            Update statement that handles update of an existing DatasetMetadata
-            object.
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optional
+            Unique row identifier
+        anno_id: int
+            Unique annotation identifier
+        key: string, optional
+            Annotation key
+        value: string, optional
+            Annotation value
 
         Returns
         -------
-        vizier.datastore.metadata.AnnotationUpdateStatement
+        vizier.datastore.metadata.Annotation
         """
         metadata_file = self.get_metadata_filename(identifier)
         if not os.path.isfile(metadata_file):
             return False
         # Read annotations from file, evaluate update statement and write result
         # back to file.
-        annotations = upd_stmt.eval(
-            DatasetMetadata.from_file(
-                os.path.join(metadata_file)
-            )
+        annotations = DatasetMetadata.from_file(
+            os.path.join(metadata_file)
+        )
+        result = update_annotations(
+            annotations.for_object(column_id=column_id, row_id=row_id),
+            identifier=anno_id,
+            key=key,
+            value=value
         )
         annotations.to_file(os.path.join(metadata_file))
         return annotations
@@ -867,20 +961,31 @@ def get_tempfile():
     return tempfile.mkstemp(suffix='.csv', prefix=tmp_prefix)[1]
 
 
-def update_uncertainty_annotation(annotations, is_certain=None):
+def update_uncertainty_annotation(annotations, is_certain=None, row_prov=0):
     """Update uncertainity annotation for a dataset object. Add a new annotation
     ff the object is uncertain and no annotations exist. If the object is
     certain remove any existing uncertainty annotation for the object.
 
     Parameters
     ----------
-    annotations: vizier.datastore.metadata.ObjectMetadataSet
+    annotations: dict
         Object annotations
     is_certain: bool
         String representation of boolean uncertainty flag.
+    row_prov: int
+        Row identifier needed to query reson using _mimir.explainCell()
     """
     certain = (is_certain)
-    if certain and annotations.has_annotation(ANNO_UNCERTAIN):
-         annotations.set_annotation(ANNO_UNCERTAIN, None)
-    elif not certain and not annotations.has_annotation(ANNO_UNCERTAIN):
-        annotations.set_annotation(ANNO_UNCERTAIN, 'true')
+    if certain:
+        # Remove any previous uncertainty annotations
+        keys = annotations.keys()
+        for anno_id in keys:
+            anno = annotations[anno_id]
+            if anno.key in [ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV]:
+                del annotations[anno_id]
+    elif not certain:
+        for anno in annotations.values():
+            if anno.key in [ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV]:
+                return
+        add_annotation(annotations, ANNO_UNCERTAIN, 'true')
+        add_annotation(annotations, ANNO_UNCERTAIN_ROW_PROV, row_prov)

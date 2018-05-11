@@ -24,9 +24,11 @@ rs = json.loads(jstr)
 
 print json.dumps(rs, indent=4, sort_keys=True)
 
-print '\nSCHEMA\n'
+rs = mimir._mimir.explainCell(sql, 0, '2')
+print rs
+#print '\nSCHEMA\n'
 
-schema = json.loads(mimir._mimir.getSchema(sql))
-print schema
+#schema = json.loads(mimir._mimir.getSchema(sql))
+#print schema
 
 mimir.finalize()

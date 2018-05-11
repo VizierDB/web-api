@@ -31,7 +31,7 @@
 * Enable upload of files that do not parse correctly as CSV/TSV files
 
 
-### 0.4.0 - 2018-04-??
+### 0.4.0 - 2018-05-10
 
 * Add support for dataset chart views
 * Fix issues with dataset upload and column data type awareness

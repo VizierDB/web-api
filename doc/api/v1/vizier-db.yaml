@@ -842,11 +842,6 @@ paths:
                   required: true
                   description: The unique dataset identifier
                   type: string
-                - name: includeAnnotations
-                  in: query
-                  required: false
-                  description: Flag indicating whether annotations should be included in result
-                  type: string
                 - name: offset
                   in: query
                   required: false
@@ -879,6 +874,16 @@ paths:
                   required: true
                   description: The unique dataset identifier
                   type: string
+                - name: column
+                  in: query
+                  required: false
+                  description: Unique column identifier
+                  type: integer
+                - name: row
+                  in: query
+                  required: false
+                  description: Unique row identifier
+                  type: integer
             produces:
                 - application/json
             responses:
@@ -938,17 +943,6 @@ paths:
                 404:
                     description: Unknown datasets
 definitions:
-    Annotation:
-        type: object
-        description: Annotation key-value pair
-        required:
-            - key
-            - value
-        properties:
-            key:
-                type: string
-            value:
-                type: string
     BranchDescriptor:
         type: object
         description: Fundamental branch information
@@ -1032,13 +1026,12 @@ definitions:
                 type: array
                 items:
                     $ref: "#/definitions/ObjectProperty"
-    CellAnnotations:
+    DatasetAnnotations:
         type: object
-        description: Annotations for a dataset cell
+        description: Annotations for a dataset component
         required:
-            - column
-            - row
             - annotations
+            - links
         properties:
             column:
                 type: integer
@@ -1047,41 +1040,17 @@ definitions:
             annotations:
                 type: array
                 items:
-                    $ref: "#/definitions/Annotation"
-    ColumnAnnotations:
-        type: object
-        description: Annotations for a dataset column
-        required:
-            - id
-            - annotations
-        properties:
-            id:
-                type: integer
-            annotations:
-                type: array
-                items:
-                    $ref: "#/definitions/Annotation"
-    DatasetAnnotations:
-        type: object
-        description: Annotations for a dataset object
-        required:
-            - columns
-            - rows
-            - cells
-            - links
-        properties:
-            columns:
-                type: array
-                items:
-                    $ref: "#/definitions/ColumnAnnotations"
-            rows:
-                type: array
-                items:
-                    $ref: "#/definitions/RowAnnotations"
-            cells:
-                type: array
-                items:
-                    $ref: "#/definitions/CellAnnotations"
+                    required:
+                        - id
+                        - key
+                        - value
+                    properties:
+                        id:
+                            type: integer
+                        key:
+                            type: string
+                        value:
+                            type: string
             links:
                 type: array
                 items:
@@ -1167,8 +1136,6 @@ definitions:
                     $ref: "#/definitions/DatasetColumn"
             rows:
                 type: integer
-            annotations:
-                $ref: '#/definitions/DatasetAnnotations'
             links:
                 type: array
                 items:
@@ -1182,6 +1149,7 @@ definitions:
             - rows
             - offset
             - rowcount
+            - annotations
             - links
         properties:
             id:
@@ -1199,7 +1167,18 @@ definitions:
             rowcount:
                 type: integer
             annotations:
-                $ref: '#/definitions/DatasetAnnotations'
+                type: array
+                items:
+                    type: object
+                    properties:
+                        column:
+                            type: integer
+                        row:
+                            type: integer
+                        types:
+                            type: array
+                            items:
+                                type: string
             links:
                 type: array
                 items:
@@ -1616,19 +1595,6 @@ definitions:
         properties:
             name:
                 type: string
-    RowAnnotations:
-        type: object
-        description: Annotations for a dataset row
-        required:
-            - id
-            - annotations
-        properties:
-            id:
-                type: integer
-            annotations:
-                type: array
-                items:
-                    $ref: "#/definitions/Annotation"
     ServiceBuild:
         type: object
         description: Information about system components
@@ -1706,6 +1672,8 @@ definitions:
         required:
             - key
         properties:
+            annoId:
+                type: integer
             columnId:
                 type: integer
             rowId:

@@ -59,32 +59,41 @@ class FederatedDataStore(DataStore):
                 return ds
         return None
 
-    def update_annotation(self, identifier, upd_stmt):
+    def update_annotation(self, identifier, column_id=-1, row_id=-1, anno_id=-1, key=None, value=None):
         """Update the annotations for a component of the datasets with the given
         identifier. Returns the updated annotations or None if the dataset
         does not exist.
-
-        Update is handled by the update statement to avoid too much code
-        repetition for different data store implementations. The annotation
-        update statement captures the logic to identify the component that is
-        being updated.
 
         Parameters
         ----------
         identifier : string
             Unique dataset identifier
-        upd_stmt: vizier.datastore.metadata.AnnotationUpdateStatement
-            Update statement that handles update of an existing DatasetMetadata
-            object.
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optional
+            Unique row identifier
+        anno_id: int
+            Unique annotation identifier
+        key: string, optional
+            Annotation key
+        value: string, optional
+            Annotation value
 
         Returns
         -------
-        vizier.datastore.metadata.AnnotationUpdateStatement
+        vizier.datastore.metadata.Annotation
         """
         # Try all data stores. At most one would return a non-None value if the
         # dataset exists
         for store in self.datastores:
-            result = store.update_annotation(identifier, upd_stmt)
+            result = store.update_annotation(
+                identifier,
+                anno_id=anno_id,
+                column_id=column_id,
+                row_id=row_id,
+                key=key,
+                value=value
+            )
             if not result is None:
                 return result
         return None

@@ -16,7 +16,7 @@ from vizier.datastore.base import DatasetHandle, DatasetColumn, DataStore
 from vizier.datastore.base import validate_schema
 from vizier.datastore.mem import InMemDatasetHandle
 from vizier.datastore.reader import DefaultJsonDatasetReader
-from vizier.datastore.metadata import DatasetMetadata
+from vizier.datastore.metadata import DatasetMetadata, update_annotations
 
 
 """Constants for data file names."""
@@ -105,6 +105,31 @@ class FileSystemDatasetHandle(DatasetHandle):
             row_counter=doc['rowCounter'],
             annotations=annotations
         )
+
+    def get_annotations(self, column_id=-1, row_id=-1):
+        """Get list of annotations for a dataset component. Expects at least one
+        of the given identifier to be a valid identifier (>= 0).
+
+        Parameters
+        ----------
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optiona
+            Unique row identifier
+
+        Returns
+        -------
+        list(vizier.datastore.metadata.Annotation)
+        """
+        if column_id >= 0 and row_id < 0:
+            annotations = self.annotations.for_column(column_id)
+        elif column_id < 0 and row_id >= 0:
+            annotations = self.annotations.for_row(row_id)
+        elif column_id >= 0 and row_id >= 0:
+            annotations = self.annotations.for_cell(column_id, row_id)
+        else:
+            raise ValueError('invalid component identifier')
+        return annotations.values()
 
     def reader(self):
         """Get reader for the dataset to access the dataset rows.
@@ -328,7 +353,7 @@ class FileSystemDataStore(DataStore):
             row_counter=dataset.row_counter
         )
 
-    def update_annotation(self, identifier, upd_stmt):
+    def update_annotation(self, identifier, column_id=-1, row_id=-1, anno_id=-1, key=None, value=None):
         """Update the annotations for a component of the datasets with the given
         identifier. Returns the updated annotations or None if the dataset
         does not exist.
@@ -337,23 +362,34 @@ class FileSystemDataStore(DataStore):
         ----------
         identifier : string
             Unique dataset identifier
-        upd_stmt: vizier.datastore.metadata.AnnotationUpdateStatement
-            Update statement that handles update of an existing DatasetMetadata
-            object.
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optional
+            Unique row identifier
+        anno_id: int
+            Unique annotation identifier
+        key: string, optional
+            Annotation key
+        value: string, optional
+            Annotation value
 
         Returns
         -------
-        vizier.datastore.metadata.AnnotationUpdateStatement
+        vizier.datastore.metadata.Annotation
         """
         dataset_dir = self.get_dataset_dir(identifier)
         if not os.path.isdir(dataset_dir):
             return None
         # Read annotations from file, evaluate update statement and write result
         # back to file.
-        annotations = upd_stmt.eval(
-            DatasetMetadata.from_file(
-                os.path.join(dataset_dir, METADATA_FILE)
-            )
+        annotations = DatasetMetadata.from_file(
+            os.path.join(dataset_dir, METADATA_FILE)
+        )
+        result = update_annotations(
+            annotations.for_object(column_id=column_id, row_id=row_id),
+            identifier=anno_id,
+            key=key,
+            value=value
         )
         annotations.to_file(os.path.join(dataset_dir, METADATA_FILE))
-        return annotations
+        return result

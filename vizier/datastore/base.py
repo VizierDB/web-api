@@ -136,6 +136,24 @@ class DatasetHandle(object):
                         break
         return rows
 
+    @abstractmethod
+    def get_annotations(self, column_id=-1, row_id=-1):
+        """Get list of annotations for a dataset component. Expects at least one
+        of the given identifier to be a valid identifier (>= 0).
+
+        Parameters
+        ----------
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optiona
+            Unique row identifier
+
+        Returns
+        -------
+        list(vizier.datastore.metadata.Annotation)
+        """
+        raise NotImplementedError
+
     def get_column_by_name(self, name, ignore_case=True):
         """Returns the first column with a matching name. The result is None if
         no matching column is found.
@@ -439,27 +457,29 @@ class DataStore(VizierSystemComponent):
         return data
 
     @abstractmethod
-    def update_annotation(self, identifier, upd_stmt):
+    def update_annotation(self, identifier, column_id=-1, row_id=-1, anno_id=-1, key=None, value=None):
         """Update the annotations for a component of the datasets with the given
         identifier. Returns the updated annotations or None if the dataset
         does not exist.
-
-        Update is handled by the update statement to avoid too much code
-        repetition for different data store implementations. The annotation
-        update statement captures the logic to identify the component that is
-        being updated.
 
         Parameters
         ----------
         identifier : string
             Unique dataset identifier
-        upd_stmt: vizier.datastore.metadata.AnnotationUpdateStatement
-            Update statement that handles update of an existing DatasetMetadata
-            object.
+        column_id: int, optional
+            Unique column identifier
+        row_id: int, optional
+            Unique row identifier
+        anno_id: int
+            Unique annotation identifier
+        key: string, optional
+            Annotation key
+        value: string, optional
+            Annotation value
 
         Returns
         -------
-        vizier.datastore.metadata.AnnotationUpdateStatement
+        vizier.datastore.metadata.Annotation
         """
         raise NotImplementedError
 

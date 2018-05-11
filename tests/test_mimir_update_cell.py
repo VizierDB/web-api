@@ -17,6 +17,7 @@ DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
 
 CSV_FILE = './data/mimir/jsonsampletocsv.csv'
+CSV_FILE_DT = './data/mimir/DetectSeriesTest1.csv'
 
 
 class TestLoadMimirDataset(unittest.TestCase):
@@ -52,9 +53,16 @@ class TestLoadMimirDataset(unittest.TestCase):
         self.update_cell(CSV_FILE, 4, 0, 'varchar', 'A')
         self.update_cell(CSV_FILE, 4, 0, 'varchar', 10, result_value='10')
         self.update_cell(CSV_FILE, 4, 0, 'varchar', 10.87, result_value='10.87')
-        self.update_cell(CSV_FILE, 8, 0, 'varchar', 'A')
-        self.update_cell(CSV_FILE, 8, 0, 'varchar', 10, result_value='10')
-        self.update_cell(CSV_FILE, 8, 0, 'varchar', 10.87, result_value='10.87')
+        self.update_cell(CSV_FILE, 8, 0, 'bool', 'False', result_value=False)
+        self.update_cell(CSV_FILE, 8, 0, 'bool', '0', result_value=False)
+        self.update_cell(CSV_FILE, 8, 1, 'bool', True, result_value=True)
+        self.update_cell(CSV_FILE, 8, 1, 'bool', '1', result_value=True)
+        self.update_cell(CSV_FILE, 8, 1, 'bool', 'A', result_value='A', result_type='varchar')
+        self.update_cell(CSV_FILE, 8, 1, 'bool', 10.87, result_value='10.87', result_type='varchar')
+        self.update_cell(CSV_FILE_DT, 1, 0, 'date', '2018-05-09')
+        self.update_cell(CSV_FILE_DT, 1, 0, 'date', '20180509', result_value='20180509', result_type='varchar')
+        self.update_cell(CSV_FILE_DT, 0, 0, 'datetime', '2018-05-09 12:03:22.0000')
+        self.update_cell(CSV_FILE_DT, 0, 0, 'datetime', 'ABC', result_value='ABC', result_type='varchar')
         mimir.finalize()
 
     def update_cell(self, filename, col, row, data_type, value, result_value=None, result_type=None):
@@ -76,9 +84,6 @@ class TestLoadMimirDataset(unittest.TestCase):
         else:
             self.assertEquals(ds.columns[col].data_type, result_type)
         rows = ds.fetch_rows()
-        #for i in range(len(rows)):
-        #    row = rows[i]
-        #    print row.values
         if result_value is None:
             self.assertEquals(rows[row].values[col], value)
         else:

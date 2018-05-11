@@ -175,8 +175,6 @@ class TestMimirLenses(unittest.TestCase):
             command=cmd.mimir_missing_value(DS_NAME, ds.get_column_by_name('AGE').identifier)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        if wf.has_error:
-            print wf.modules[-1].stderr[0]
         self.assertFalse(wf.has_error)
         self.assertEquals(wf.modules[-1].command_text.upper(), 'MISSING VALUES FOR AGE IN ' + DS_NAME.upper())
         self.assertEquals(len(wf.modules), 2)
@@ -184,6 +182,10 @@ class TestMimirLenses(unittest.TestCase):
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         rows = ds.fetch_rows()
         self.assertNotEquals(rows[2].values[ds.column_index('Age')], '')
+        # Annotations
+        annotations = ds.get_annotations(column_id=1, row_id=4)
+        for a in annotations:
+            print a.key + ': ' + a.value
         # MISSING VALUE Lens with value constraint
         vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'New Project'})
         self.db.append_workflow_module(
@@ -245,7 +247,7 @@ class TestMimirLenses(unittest.TestCase):
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertEquals(len(ds.columns), 3)
         rows = ds.fetch_rows()
-        self.assertEquals(len(rows), 12)
+        self.assertEquals(len(rows), 24)
         #self.db.append_workflow_module(
         #    viztrail_id=vt.identifier,
         #    command=cmd.load_dataset(f_handle.identifier, DS_NAME + '2')
@@ -264,7 +266,7 @@ class TestMimirLenses(unittest.TestCase):
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertEquals(len(ds.columns), 3)
         rows = ds.fetch_rows()
-        self.assertEquals(len(rows), 28)
+        self.assertEquals(len(rows), 55)
         mimir.finalize()
 
     def test_picker_lens(self):
@@ -427,7 +429,7 @@ class TestMimirLenses(unittest.TestCase):
         # Get dataset
         ds2 = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         self.assertEquals(len(ds2.columns), 3)
-        self.assertEquals(ds2.row_count, 4)
+        self.assertEquals(ds2.row_count, 7)
         ds1_rows = ds1.fetch_rows()
         ds2_rows = ds2.fetch_rows()
         for i in range(ds2.row_count):

@@ -41,11 +41,8 @@ class TestLoadMimirDataset(unittest.TestCase):
 
     def test_load(self):
         """Run workflow with default configuration."""
-        # Create new work trail and retrieve the HEAD workflow of the default
-        # branch
+        # Ignore files that raised errors (or are taking too much time to load)
         ignore_files = ['JSONOUTPUTWIDE.csv']
-        # Error: new-line character seen in unquoted field - do you need to open the file in universal-newline mode?
-        # UnicodeEncodeError: 'ascii' codec can't encode character u'\u2026' in position 222: ordinal not in range(128)
         data_types = set()
         mimir.initialize()
         for filename in os.listdir(LOAD_DIR):
@@ -56,14 +53,10 @@ class TestLoadMimirDataset(unittest.TestCase):
             f_handle = self.fileserver.upload_file(filename)
             ds = self.datastore.load_dataset(f_handle)
             ds_load = self.datastore.get_dataset(ds.identifier)
-            print_ds = False
             for col in ds_load.columns:
                 data_types.add(col.data_type)
-                if col.data_type == 'bool':
-                    print_ds = True
-            if print_ds:
-                print [col.name_in_rdb + ' AS ' + col.name + '(' + col.data_type + ')' for col in ds_load.columns]
-                print str(ds.row_count) + ' row(s)'
+                print '\t' + col.name_in_rdb + ' AS ' + col.name + '(' + col.data_type + ')'
+            print '\t' + str(ds.row_count) + ' row(s)'
             self.assertEquals(len(ds.columns), len(ds_load.columns))
             self.assertEquals(ds.column_counter, ds_load.column_counter)
             self.assertEquals(ds.row_counter, ds_load.row_counter)

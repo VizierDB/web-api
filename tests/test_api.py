@@ -7,8 +7,7 @@ import unittest
 
 from vizier.config import AppConfig, ExecEnv, FileServerConfig
 from vizier.datastore.fs import FileSystemDataStore
-from vizier.datastore.mem import InMemDatasetHandle
-from vizier.datastore.metadata import DatasetMetadata, UpdateColumnAnnotation
+from vizier.datastore.metadata import DatasetMetadata, update_annotations
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
 from vizier.workflow.command import PACKAGE_PYTHON, PACKAGE_VIZUAL
@@ -128,21 +127,22 @@ class TestWebServiceAPI(unittest.TestCase):
 
     def test_datasets(self):
         """Test retireval of datasets."""
-        ds = InMemDatasetHandle.from_file(self.fileserver.upload_file(CSV_FILE))
-        annotations = DatasetMetadata()
-        annotations.for_column(0).set_annotation('comment', 'Hello')
-        annotations.for_row(1).set_annotation('comment', 'World')
-        annotations.for_cell(1, 0).set_annotation('comment', '!')
+        ds = self.datastore.load_dataset(self.fileserver.upload_file(CSV_FILE))
         ds = self.datastore.create_dataset(
             columns=ds.columns,
-            rows=ds.fetch_rows(),
-            annotations=annotations
+            rows=ds.fetch_rows()
         )
         self.validate_dataset_handle(self.api.get_dataset(ds.identifier))
-        self.validate_dataset_annotations(self.api.get_dataset_annotations(ds.identifier))
+        anno = self.api.update_dataset_annotation(ds.identifier, column_id=0, key='comment', value='Hello')
+        anno_id = anno['annotations'][0]['id']
+        self.api.update_dataset_annotation(ds.identifier, row_id=1, key='comment', value='World')
+        self.api.update_dataset_annotation(ds.identifier, column_id=1, row_id=0, key='comment', value='!')
+        self.validate_dataset_annotations(ds.identifier, column_id=0, expected={'comment': 'Hello'})
+        self.validate_dataset_annotations(ds.identifier, row_id=1, expected={'comment': 'World'})
+        self.validate_dataset_annotations(ds.identifier, column_id=1, row_id=0, expected={'comment': '!'})
         # Update annotations
-        upd_col = UpdateColumnAnnotation(1, 'name', 'Some Name')
-        self.validate_dataset_annotations(self.api.update_dataset_annotation(ds.identifier, upd_col), col_anno_count=2)
+        self.api.update_dataset_annotation(ds.identifier, anno_id=anno_id, column_id=0, key='comment', value='Some Name')
+        self.validate_dataset_annotations(ds.identifier, column_id=0, expected={'comment': 'Some Name'})
         # Make sure unknown datasets are handeled correctly
         self.assertIsNone(self.api.get_dataset('someunknonwidentifier'))
         self.assertIsNone(self.api.get_dataset_annotations('someunknonwidentifier'))
@@ -337,36 +337,28 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_workflow_descriptor(wf)
 
     def validate_dataset_handle(self, ds):
-        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'rowcount'])
+        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'annotations', 'rowcount'])
         for col in ds['columns']:
             self.validate_keys(col, ['id', 'name'])
         for row in ds['rows']:
             self.validate_keys(row, ['id', 'index', 'values'])
         self.validate_links(ds['links'], ['self', 'download', 'annotations', 'pagefirst', 'pagefirstanno'])
 
-    def validate_dataset_annotations(self, annos, col_anno_count=1):
-        self.validate_keys(annos, ['columns', 'rows', 'cells', 'links'])
-        for key in ['columns', 'rows']:
-            comp_annos = annos[key]
-            if key == 'columns':
-                self.assertEquals(len(comp_annos), col_anno_count)
-            else:
-                self.assertEquals(len(comp_annos), 1)
-            c_anno = comp_annos[0]
-            for key in ['id', 'annotations']:
-                self.assertTrue(key in c_anno)
-            self.assertEquals(len(c_anno['annotations']), 1)
-            for k in ['key', 'value']:
-                self.assertTrue(k in c_anno['annotations'][0])
-        comp_annos = annos['cells']
-        self.assertEquals(len(comp_annos), 1)
-        c_anno = comp_annos[0]
-        for key in ['column', 'row', 'annotations']:
-            self.assertTrue(key in c_anno)
-        self.assertEquals(len(c_anno['annotations']), 1)
-        for k in ['key', 'value']:
-            self.assertTrue(k in c_anno['annotations'][0])
-        self.validate_links(annos['links'], ['self', 'dataset'])
+    def validate_dataset_annotations(self, ds_id, column_id=-1, row_id=-1, expected=dict()):
+        annotations = self.api.get_dataset_annotations(ds_id, column_id=column_id, row_id=row_id)
+        keys = ['links', 'annotations']
+        if column_id >= 0:
+            keys.append('column')
+        if row_id >= 0:
+            keys.append('row')
+        self.validate_keys(annotations, keys)
+        annos = annotations['annotations']
+        self.assertEquals(len(annos), len(expected))
+        for anno in annos:
+            self.validate_keys(anno, ['id', 'key', 'value'])
+            key = anno['key']
+            self.assertTrue(key in expected)
+            self.assertEquals(anno['value'], expected[key])
 
     def validate_file_handle(self, fh):
         self.validate_keys(fh, ['id', 'name', 'columns', 'rows', 'filesize', 'createdAt', 'lastModifiedAt', 'links'])

@@ -66,7 +66,7 @@ type: 'mimir'
 id: 'MISSING_KEY'
 arguments:
     dataset: 'Dataset name'
-    column: 'Column index, name, or labe'l
+    column: 'Column index, name, or label'
     missingOnly: 'Optional Boolean MISSING_ONLY parameter'
     makeInputCertain: 'Flag indicating whether to make input certain'
 ```
@@ -78,9 +78,8 @@ type: 'mimir'
 id: 'MISSING_VALUE'
 arguments:
     dataset: 'Dataset name'
-    pickFrom: 'List of column names'
-    pickAs: 'Optional list of output column names'
-    hidePick: 'Optional Boolean flag HIDE_PICK_FROM'
+    column: 'Column index, name, or label'
+    constraint: 'Optional value constraint'
     makeInputCertain: 'Flag indicating whether to make input certain'
 ```
 

@@ -86,7 +86,6 @@ class TestWorkflowUpdates(unittest.TestCase):
             command=cmd.create_plot(DS_NAME, CHART_NAME, series=[{'series_column': 2}])
         )
         url = self.api.get_workflow(vt.identifier, DEFAULT_BRANCH)['state']['charts'][0]['links'][0]['href']
-        print url
         self.assertTrue('master/workflows/1/modules/1/views' in url)
         # print '(3) UPDATE CELL'
         self.db.append_workflow_module(
@@ -94,7 +93,6 @@ class TestWorkflowUpdates(unittest.TestCase):
             command=cmd.update_cell(DS_NAME, 0, 0, '28')
         )
         url = self.api.get_workflow(vt.identifier, DEFAULT_BRANCH)['state']['charts'][0]['links'][0]['href']
-        print url
         self.assertTrue('master/workflows/2/modules/2/views' in url)
 
 

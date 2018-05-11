@@ -66,7 +66,6 @@ class TestVizierClient(unittest.TestCase):
         ds.insert_column('Age')
         ds.insert_row(['Alice', '23'])
         ds.insert_row(['Bob', '25'])
-        ds.annotations.for_cell(1, 1).set_annotation('value', '26')
         client.create_dataset('MyDataset', ds)
         # Ensure the returned dataset contains the input data
         ds = client.get_dataset('MyDataset')

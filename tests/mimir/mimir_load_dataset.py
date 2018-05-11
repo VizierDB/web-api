@@ -15,7 +15,7 @@ from vizier.filestore.base import DefaultFileServer
 DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
 
-CSV_FILE = '../data/mimir/Employee.csv'
+CSV_FILE = '../data/mimir/jsonsampletocsv.csv' #DetectSeriesTest1.csv' #Employee.csv'
 
 
 def cleanUp():

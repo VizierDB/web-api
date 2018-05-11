@@ -224,7 +224,7 @@ def COMMAND_REPOSITORY(command_repository):
     return modules
 
 
-def DATASET(dataset, rows, config, urls, offset=0, limit=-1, include_annotations=False):
+def DATASET(dataset, rows, config, urls, offset=0, limit=-1):
     """Dictionary serialization for (part of the ) dataset state.
 
     Parameters
@@ -241,9 +241,6 @@ def DATASET(dataset, rows, config, urls, offset=0, limit=-1, include_annotations
         Number of rows at the beginning of the list that are skipped.
     limit: int, optional
         Limits the number of rows that are returned.
-    include_annotations: bool
-        Flag indicating whether dataset annotations should be included in
-        the result
 
     Returns
     -------
@@ -256,14 +253,9 @@ def DATASET(dataset, rows, config, urls, offset=0, limit=-1, include_annotations
         'columns' : [col.to_dict() for col in dataset.columns],
         'rows': rows,
         'offset': offset,
-        'rowcount': dataset.row_count
+        'rowcount': dataset.row_count,
+        'annotations': dataset.annotations.cells_with_annotations()
     }
-    if include_annotations:
-        obj['annotations'] = DATASET_ANNOTATIONS(
-            dataset_id,
-            dataset.annotations,
-            urls
-        )
     # Add references if dataset exists
     obj[JSON_REFERENCES] = [
         self_reference(urls.dataset_url(dataset_id)),
@@ -279,15 +271,19 @@ def DATASET(dataset, rows, config, urls, offset=0, limit=-1, include_annotations
     return obj
 
 
-def DATASET_ANNOTATIONS(dataset_id, annotations, urls):
-    """Get dictionary serialization for dataset annotations.
+def DATASET_ANNOTATIONS(dataset_id, annotations, column_id, row_id, urls):
+    """Get dictionary serialization for dataset component annotations.
 
     Parameters
     ----------
     dataset_id : string
         Unique dataset identifier
-    annotations: vizier.datastore.metadata.DatasetMetadata
+    annotations: list(vizier.datastore.metadata.Annotation)
         Set of annotations for dataset components
+    column_id: int
+        Unique column identifier for component
+    row_id: int
+        Unique row identifier for component
     urls: vizier.hateoas.UrlFactory
         Factory for resource urls
 
@@ -295,7 +291,17 @@ def DATASET_ANNOTATIONS(dataset_id, annotations, urls):
     -------
     dict
     """
-    obj = annotations.to_dict()
+    obj = {
+        'annotations': [{
+            'id': a.identifier,
+            'key': a.key,
+            'value': a.value
+        } for a in annotations]
+    }
+    if column_id >= 0:
+        obj['column'] = column_id
+    if row_id >= 0:
+        obj['row'] = row_id
     # Add references if dataset exists
     obj[JSON_REFERENCES] = [
         self_reference(urls.dataset_annotations_url(dataset_id)),
@@ -392,10 +398,7 @@ def DATASET_PAGE_URLS(dataset, rel, offset, limit, urls):
     # Return list with two references
     return [
         reference(rel, url(d_id, offset=offset, limit=limit)),
-        reference(
-            rel + 'anno',
-            url(d_id, offset=offset, limit=limit, include_annotations=True)
-        )
+        reference(rel + 'anno', url(d_id, offset=offset, limit=limit))
     ]
 
 

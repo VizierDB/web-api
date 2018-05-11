@@ -173,7 +173,7 @@ class UrlFactory:
         """
         return self.datasets_url()
 
-    def dataset_pagination_url(self, dataset_id, offset=0, limit=None, include_annotations=False):
+    def dataset_pagination_url(self, dataset_id, offset=0, limit=None):
         """Get Url for dataset row pagination.
 
         Parameters
@@ -185,8 +185,6 @@ class UrlFactory:
             parameter
         limit: int, optional
             Dataset row limit. Only included if not None
-        include_annotations: boolean, optional
-            Extend Url to include annotations
 
         Returns
         -------
@@ -195,8 +193,6 @@ class UrlFactory:
         query = PAGE_OFFSET + '=' + str(offset)
         if not limit is None:
             query += '&' + PAGE_LIMIT + '=' + str(limit)
-        if include_annotations:
-            return self.dataset_with_annotations_url(dataset_id) + '&' + query
         else:
             return self.dataset_url(dataset_id) + '?' + query
 
