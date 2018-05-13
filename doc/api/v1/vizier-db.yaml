@@ -1149,7 +1149,7 @@ definitions:
             - rows
             - offset
             - rowcount
-            - annotations
+            - annotatedCells
             - links
         properties:
             id:
@@ -1166,7 +1166,7 @@ definitions:
                 type: integer
             rowcount:
                 type: integer
-            annotations:
+            annotatedCells:
                 type: array
                 items:
                     type: object
@@ -1175,10 +1175,6 @@ definitions:
                             type: integer
                         row:
                             type: integer
-                        types:
-                            type: array
-                            items:
-                                type: string
             links:
                 type: array
                 items:

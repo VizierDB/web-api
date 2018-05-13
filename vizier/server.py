@@ -283,12 +283,12 @@ def update_dataset_annotation(dataset_id):
     # Validate the request
     obj = validate_json_request(
         request,
-        required=['key'],
-        optional=['annoId', 'columnId', 'rowId', 'value']
+        required=[],
+        optional=['annoId', 'columnId', 'rowId', 'key', 'value']
     )
     # Create update statement and execute. The result is None if no dataset with
     # given identifier exists.
-    key = obj['key']
+    key = obj['key'] if 'key' in obj else None
     anno_id = obj['annoId'] if 'annoId' in obj else -1
     column_id = obj['columnId'] if 'columnId' in obj else -1
     row_id = obj['rowId'] if 'rowId' in obj else -1

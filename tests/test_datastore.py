@@ -12,7 +12,6 @@ from vizier.datastore.fs import DATA_FILE, METADATA_FILE
 from vizier.datastore.mem import InMemDataStore, InMemDatasetHandle
 from vizier.datastore.mem import VolatileDataStore
 from vizier.datastore.mimir import MimirDataStore
-from vizier.datastore.metadata import update_annotations
 from vizier.filestore.base import DefaultFileServer
 
 

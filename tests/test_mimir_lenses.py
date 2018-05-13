@@ -93,7 +93,6 @@ class TestMimirLenses(unittest.TestCase):
         self.assertEquals(len(wf.modules), 2)
         # Get dataset
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        print [c.name for c in ds.columns]
         rows = ds.fetch_rows()
         self.assertNotEquals(rows[2].values[ds.column_index('Age')], '')
         # Introduce an error. Make sure command formating is correct
@@ -102,8 +101,6 @@ class TestMimirLenses(unittest.TestCase):
             command=cmd.mimir_domain('MY DS', 'MY COL')
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        if wf.has_error:
-            print wf.modules[-1].stderr[0]
         self.assertTrue(wf.has_error)
         self.assertEquals(wf.modules[-1].command_text.upper(), 'DOMAIN FOR \'MY COL\' IN \'MY DS\'')
         mimir.finalize()

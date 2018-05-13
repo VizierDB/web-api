@@ -16,7 +16,7 @@ from vizier.datastore.base import DatasetHandle, DatasetColumn, DataStore
 from vizier.datastore.base import validate_schema
 from vizier.datastore.mem import InMemDatasetHandle
 from vizier.datastore.reader import DefaultJsonDatasetReader
-from vizier.datastore.metadata import DatasetMetadata, update_annotations
+from vizier.datastore.metadata import DatasetMetadata
 
 
 """Constants for data file names."""
@@ -121,15 +121,8 @@ class FileSystemDatasetHandle(DatasetHandle):
         -------
         list(vizier.datastore.metadata.Annotation)
         """
-        if column_id >= 0 and row_id < 0:
-            annotations = self.annotations.for_column(column_id)
-        elif column_id < 0 and row_id >= 0:
-            annotations = self.annotations.for_row(row_id)
-        elif column_id >= 0 and row_id >= 0:
-            annotations = self.annotations.for_cell(column_id, row_id)
-        else:
-            raise ValueError('invalid component identifier')
-        return annotations.values()
+        annos = self.annotations.for_object(column_id=column_id, row_id=row_id)
+        return annos.values()
 
     def reader(self):
         """Get reader for the dataset to access the dataset rows.
@@ -385,11 +378,9 @@ class FileSystemDataStore(DataStore):
         annotations = DatasetMetadata.from_file(
             os.path.join(dataset_dir, METADATA_FILE)
         )
-        result = update_annotations(
-            annotations.for_object(column_id=column_id, row_id=row_id),
-            identifier=anno_id,
-            key=key,
-            value=value
-        )
+        # Get object annotations and update
+        obj_annos = annotations.for_object(column_id=column_id, row_id=row_id)
+        result = obj_annos.update(identifier=anno_id, key=key, value=value)
+        # Write modified annotations to file
         annotations.to_file(os.path.join(dataset_dir, METADATA_FILE))
         return result

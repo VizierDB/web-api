@@ -31,10 +31,12 @@
 * Enable upload of files that do not parse correctly as CSV/TSV files
 
 
-### 0.4.0 - 2018-05-10
+### 0.4.0 - 2018-05-??
 
 * Add support for dataset chart views
 * Fix issues with dataset upload and column data type awareness
 * Pagination for datasets
 * Switch to column ids in module arguments
 * Server-side command text for workflow modules
+* Default label for data series
+* Enable multiple annotation with same key for single object (e.g., multiple user comments)

@@ -416,7 +416,8 @@ class PlotCell(NotCacheable, Module):
                 add_data_series(
                     view=view,
                     series_spec=data_series,
-                    dataset=dataset
+                    dataset=dataset,
+                    default_label='Series ' + str(len(view.data) + 1)
                 )
             # Execute the query and get the result
             rows = vizierdb.datastore.get_dataset_chart(dataset_id, view)
@@ -842,7 +843,7 @@ class VizualCell(NotCacheable, Module):
 #
 # ------------------------------------------------------------------------------
 
-def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES):
+def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES, default_label=None):
     """Add a data series handle to a given chart view handle. Expects a data
     series specification and a dataset descriptor.
 
@@ -856,6 +857,8 @@ def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES):
         Dataset handle
     prefix: string, optional
         Prefix for all arguments in the data series specification.
+    default_label: string, optional
+        Default label for dataseries if not given in the specification.
     """
     col_id = get_argument(prefix + '_' + cmd.PARA_COLUMN, series_spec, as_int=True)
     # Get column index to ensure that the column exists. Will raise
@@ -865,9 +868,9 @@ def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES):
     if prefix + '_' + cmd.PARA_LABEL in series_spec:
         s_label = str(series_spec[prefix + '_' + cmd.PARA_LABEL])
         if s_label.strip() == '':
-            s_label = c_name
+            s_label = default_label if not default_label is None else c_name
     else:
-        s_label = c_name
+        s_label = default_label if not default_label is None else c_name
     # Check for range specifications. Expect string of format int or
     # int:int with the second value being greater or equal than
     # the first.

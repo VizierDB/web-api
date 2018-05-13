@@ -19,7 +19,6 @@ from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, max_column_id
 from vizier.datastore.metadata import Annotation, DatasetMetadata
-from vizier.datastore.metadata import add_annotation, get_first, update_annotations
 from vizier.datastore.reader import DatasetReader, InMemDatasetReader
 
 
@@ -290,19 +289,24 @@ class MimirDatasetHandle(DatasetHandle):
         -------
         list(vizier.datastore.metadata.Annotation)
         """
+        # Return immediately if request is for column or row annotations. At the
+        # moment we only maintain uncertainty information for cells. If cell
+        # annotations are requested we need to query the database to retrieve
+        # any existing uncertainty annotations for the cell.
         if column_id >= 0 and row_id < 0:
-            annotations = self.annotations.for_column(column_id)
+            return self.annotations.for_column(column_id).values()
         elif column_id < 0 and row_id >= 0:
-            annotations = self.annotations.for_row(row_id)
+            return self.annotations.for_row(row_id).values()
         elif column_id >= 0 and row_id >= 0:
             annotations = self.annotations.for_cell(column_id, row_id)
         else:
             raise ValueError('invalid component identifier')
-        # Build the result set
+        # Retrieve uncertainty annotations for a cell.
         result = list()
         for anno in annotations.values():
             # At this state only for dataset cells we check whether there are
             # annotations for uncertainty reasons and if so query the dataset.
+            anno_id = anno.identifier
             if anno.key == ANNO_UNCERTAIN:
                 # If present value is expected to be true (not checked here)
                 column = None
@@ -310,26 +314,27 @@ class MimirDatasetHandle(DatasetHandle):
                     if col.identifier == column_id:
                         column = col
                         break
-                row_prov = get_first(annotations, ANNO_UNCERTAIN_ROW_PROV)
-                sql = 'SELECT ' + column.name_in_rdb + ' FROM ' + self.table_name + ' WHERE ' + ROW_ID + ' = ' + str(row_id)
-                buffer = mimir._mimir.explainCell(sql, 0, '1')
-                print buffer
+                sql = 'SELECT ' + column.name_in_rdb + ' '
+                sql += 'FROM ' + self.table_name + ' '
+                sql += 'WHERE ' + ROW_ID + ' = ' + str(row_id)
+                row_prov = annotations.find_one(ANNO_UNCERTAIN_ROW_PROV)
+                buffer = mimir._mimir.explainCell(sql, 0, str(row_prov.value))
                 for i in range(buffer.size()):
                     value = str(buffer.array()[i])
-                    # Remove references to table
-                    value = value.replace(self.table_name, '')
+                    # Remove references to lenses
+                    while 'LENS_' in value:
+                        start_pos = value.find('LENS_')
+                        end_pos = value.find('.', start_pos)
+                        if end_pos > start_pos:
+                            value = value[:start_pos] + value[end_pos + 1:]
+                        else:
+                            value = value[:start_pos]
                     # Replace references to column name
-                    value = value.replace('.' + column.name_in_rdb, column.name)
+                    value = value.replace(column.name_in_rdb, column.name)
                     # Remove content in double square brackets
                     if '{{' in value:
                         value = value[:value.find('{{')].strip()
-                    result.append(
-                        Annotation(
-                            anno.identifier,
-                            key=anno.key,
-                            value=value
-                        )
-                    )
+                    result.append(Annotation(anno_id, key=anno.key, value=value))
             elif anno.key != ANNO_UNCERTAIN_ROW_PROV:
                 result.append(anno)
         return result
@@ -744,8 +749,7 @@ class MimirDataStore(DataStore):
         """
         # Query the database to get schema information and row ids if necessary
         sql = get_select_query(table_name, columns)
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, True))
-        print json.dumps(rs, indent=4, sort_keys=True)
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, False))
         # Create a mapping from database column names to column types. This
         # mapping is then used to update the data type information for all
         # column descriptors. We also keep track of the index of the columns
@@ -866,12 +870,10 @@ class MimirDataStore(DataStore):
         annotations = DatasetMetadata.from_file(
             os.path.join(metadata_file)
         )
-        result = update_annotations(
-            annotations.for_object(column_id=column_id, row_id=row_id),
-            identifier=anno_id,
-            key=key,
-            value=value
-        )
+        # Get object annotations and update
+        obj_annos = annotations.for_object(column_id=column_id, row_id=row_id)
+        result = obj_annos.update(identifier=anno_id, key=key, value=value)
+        # Write modified annotations to file
         annotations.to_file(os.path.join(metadata_file))
         return annotations
 
@@ -969,7 +971,7 @@ def update_uncertainty_annotation(annotations, is_certain=None, row_prov=0):
     Parameters
     ----------
     annotations: dict
-        Object annotations
+        vizier.datastore.metadata.ObjectMetadataSet
     is_certain: bool
         String representation of boolean uncertainty flag.
     row_prov: int
@@ -978,14 +980,10 @@ def update_uncertainty_annotation(annotations, is_certain=None, row_prov=0):
     certain = (is_certain)
     if certain:
         # Remove any previous uncertainty annotations
-        keys = annotations.keys()
-        for anno_id in keys:
-            anno = annotations[anno_id]
-            if anno.key in [ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV]:
-                del annotations[anno_id]
+        annotations.remove_all([ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV])
     elif not certain:
         for anno in annotations.values():
             if anno.key in [ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV]:
                 return
-        add_annotation(annotations, ANNO_UNCERTAIN, 'true')
-        add_annotation(annotations, ANNO_UNCERTAIN_ROW_PROV, row_prov)
+        annotations.add(ANNO_UNCERTAIN, 'true')
+        annotations.add(ANNO_UNCERTAIN_ROW_PROV, row_prov)

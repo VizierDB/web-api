@@ -9,7 +9,7 @@ from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, max_column_id, max_row_id
 from vizier.datastore.base import validate_schema
-from vizier.datastore.metadata import DatasetMetadata, update_annotations
+from vizier.datastore.metadata import DatasetMetadata
 from vizier.datastore.reader import InMemDatasetReader
 
 
@@ -99,15 +99,8 @@ class InMemDatasetHandle(DatasetHandle):
         -------
         list(vizier.datastore.metadata.Annotation)
         """
-        if column_id >= 0 and row_id < 0:
-            anno = self.annotations.for_column(column_id)
-        elif column_id < 0 and row_id >= 0:
-            anno = self.annotations.for_row(row_id)
-        elif column_id >= 0 and row_id >= 0:
-            anno = self.annotations.for_cell(column_id, row_id)
-        else:
-            raise ValueError('invalid component identifier')
-        return annotations.values()
+        annos = self.annotations.for_object(column_id=column_id, row_id=row_id)
+        return annos.values()
 
     def reader(self):
         """Get reader for the dataset to access the dataset rows.
@@ -284,16 +277,13 @@ class InMemDataStore(DataStore):
         -------
         vizier.datastore.metadata.Annotation
         """
-        if identifier in self.datasets:
-            dataset = self.datasets[identifier]
-            # Update dataset annotations
-            return update_annotations(
-                dataset.annotations.for_object(column_id=column_id, row_id=row_id),
-                identifier=anno_id,
-                key=key,
-                value=value
-            )
-        return None
+        if not identifier in self.datasets:
+            return None
+        # Get object annotations
+        annotations = self.datasets[identifier].annotations
+        obj_annos = annotations.for_object(column_id=column_id, row_id=row_id)
+        # Update annotation and return result
+        return obj_annos.update(identifier=anno_id, key=key, value=value)
 
 
 class VolatileDataStore(DataStore):

@@ -7,7 +7,7 @@ import unittest
 
 from vizier.config import AppConfig, ExecEnv, FileServerConfig
 from vizier.datastore.fs import FileSystemDataStore
-from vizier.datastore.metadata import DatasetMetadata, update_annotations
+from vizier.datastore.metadata import DatasetMetadata
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
 from vizier.workflow.command import PACKAGE_PYTHON, PACKAGE_VIZUAL

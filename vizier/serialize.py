@@ -254,7 +254,7 @@ def DATASET(dataset, rows, config, urls, offset=0, limit=-1):
         'rows': rows,
         'offset': offset,
         'rowcount': dataset.row_count,
-        'annotations': dataset.annotations.cells_with_annotations()
+        'annotatedCells': dataset.annotations.cells_with_annotations()
     }
     # Add references if dataset exists
     obj[JSON_REFERENCES] = [

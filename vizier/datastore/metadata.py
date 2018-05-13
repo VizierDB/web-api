@@ -56,6 +56,193 @@ class Annotation(object):
         return {'id': self.identifier, 'key': self.key, 'value': self.value}
 
 
+class ObjectMetadataSet(object):
+    """Manage annotations for a single identifiable dataset component. This is
+    a wrapper around the dictionary that contains the annotations. In the
+    dictionary, annotations are indexed by their unique identifier.
+    """
+    def __init__(self, annotations=None,):
+        """initialize the metadata set.
+
+        Parameters
+        ----------
+        annotations: dict
+            Dictionary of object annotations
+        """
+        if annotations is None:
+            self.annotations = dict()
+        else:
+            self.annotations=annotations
+
+    def add(self, key, value):
+        """Add a new annotation to the given metadata set. The unique annotation
+        identifier is the current size of the dictionary.
+
+        Parameters
+        ----------
+        key: string
+            Key value for new annotation
+        value: string
+            Value for new annotation
+
+        Returns
+        -------
+        vizier.datastore.metadata.Annotation
+        """
+        anno = Annotation(len(self.annotations), key, value)
+        self.annotations[anno.identifier] = anno
+        return anno
+
+    def contains(self, key):
+        """Test if an annotation with given key exists for the object.
+
+        Parameters
+        ----------
+        key: string
+            Annotation key
+
+        Returns
+        -------
+        bool
+        """
+        return not self.find_one(key) is None
+
+    def find_all(self, key):
+        """Get a list with all annotations that have a given key. Returns an
+        empty list if no annotation with the given key exists.
+
+        Parameters
+        ----------
+        key: string
+            Key value for new annotation
+
+        Returns
+        -------
+        list(vizier.datastore.metadata.Annotation)
+        """
+        result = list()
+        for anno in self.annotations.values():
+            if anno.key == key:
+                result.append(anno)
+        return result
+
+    def find_one(self, key):
+        """Find the first annotation with given key. Returns None if no
+        annotation with the given key exists.
+
+        Parameters
+        ----------
+        key: string
+            Key value for new annotation
+
+        Returns
+        -------
+        vizier.datastore.metadata.Annotation
+        """
+        for anno in self.annotations.values():
+            if anno.key == key:
+                return anno
+
+    def get(self, identifier):
+        """Get the annotation with the given identifier. Returns None if no
+        annotation with the given identifier exists.
+
+        Parameters
+        ----------
+        identifier: int
+            Unique annotation identifier
+
+        Returns
+        -------
+        vizier.datastore.metadata.Annotation
+        """
+        if identifier in self.annotations:
+            return self.annotations[identifier]
+
+    def keys(self):
+        """List of existing annotation keys for the object.
+
+        Returns
+        -------
+        list(string)
+        """
+        result = set()
+        for anno in self.annotations.values():
+            result.add(anno.key)
+        return list(result)
+
+    def remove_all(self, keys):
+        """Remove all annotations for a given list of keys.
+
+        Parameters
+        ----------
+        key: list(string)
+            List of keys for annotations to be removed
+        """
+        for anno_id in self.annotations.keys():
+            anno = self.annotations[anno_id]
+            if anno.key in keys:
+                del annotations[anno_id]
+
+    def size(self):
+        """Number of annotations for this object.
+
+        Returns
+        -------
+        int
+        """
+        return len(self.annotations)
+
+    def update(self, identifier=-1, key=None, value=None):
+        """Update the annotation dictionary. If the annotation identifier is not
+        negative an attempt to update an existing annotation is made. Otherwise
+        a new annotation is being inserted.
+
+        If the annotation value is None an existing annotation will be deleted.
+
+        Parameters
+        ----------
+        identifier: int
+            Unique annotation identifier
+        key: string
+            Annotation key
+        value: string
+            Annotation value
+
+        Returns
+        -------
+        vizier.datastore.metadata.Annotation
+        """
+        # Check if an existing annotation is being updated or a new annotation
+        # added
+        if identifier >= 0:
+            # Delete the existing annotation if the given value is None
+            if value is None:
+                anno = self.annotations[identifier]
+                del self.annotations[identifier]
+                return anno
+            else:
+                if key is None:
+                    # Get the key for the current annotation
+                    key = self.annotations[identifier].key
+                anno = Annotation(identifier, key=key, value=value)
+                self.annotations[identifier] = anno
+                return anno
+        else:
+            # New annotation. Only add an annotation if value is not None
+            if not key is None and not value is None:
+                return self.add(key=key, value=value)
+
+    def values(self):
+        """List of all annotations in the dictionary.
+
+        Returns
+        -------
+        list(vizier.datastore.metadata.Annotation)
+        """
+        return self.annotations.values()
+
+
 class DatasetMetadata(object):
     """Collection of annotations for a dataset object. For each object a
     dictionary of annotations (key,value pairs) is maintained.
@@ -126,12 +313,8 @@ class DatasetMetadata(object):
         """
         result = list()
         for key in self.cell_annotations:
-            obj = DatasetMetadata.cell_key_serializer(key)
-            keys = set()
-            for anno in self.cell_annotations[key].values():
-                keys.add(anno.key)
-            obj['types'] = list(keys)
-            result.append(obj)
+            if len(self.cell_annotations[key]) > 0:
+                result.append(DatasetMetadata.cell_key_serializer(key))
         return result
 
     def clear_cell(self, column_id, row_id):
@@ -174,12 +357,12 @@ class DatasetMetadata(object):
 
         Returns
         -------
-        dict()
+        vizier.datastore.metadata.ObjectMetadataSet
         """
         cell_id = DatasetMetadata.get_cell_key(column_id, row_id)
         if not cell_id in self.cell_annotations:
             self.cell_annotations[cell_id] =  dict()
-        return self.cell_annotations[cell_id]
+        return ObjectMetadataSet(self.cell_annotations[cell_id])
 
     def for_column(self, column_id):
         """Get object metadata set for a dataset column.
@@ -196,7 +379,7 @@ class DatasetMetadata(object):
         key = str(column_id)
         if not key in self.column_annotations:
             self.column_annotations[key] =  dict()
-        return self.column_annotations[key]
+        return ObjectMetadataSet(self.column_annotations[key])
 
     def for_object(self, column_id=-1, row_id=-1):
         """Get annotation dictionary for the dataset component identified by the
@@ -211,7 +394,7 @@ class DatasetMetadata(object):
 
         Returns
         -------
-        dict
+        vizier.datastore.metadata.ObjectMetadataSet
         """
         if column_id >= 0 and row_id < 0:
             return self.for_column(column_id)
@@ -230,12 +413,12 @@ class DatasetMetadata(object):
 
         Returns
         -------
-        dict()
+        vizier.datastore.metadata.ObjectMetadataSet
         """
         key = str(row_id)
         if not key in self.row_annotations:
             self.row_annotations[key] =  dict()
-        return self.row_annotations[key]
+        return ObjectMetadataSet(self.row_annotations[key])
 
     @staticmethod
     def from_file(filename):
@@ -321,28 +504,6 @@ class DatasetMetadata(object):
 # Helper Methods
 # ------------------------------------------------------------------------------
 
-def add_annotation(annotations, key, value):
-    """Adds a new annotation to the given dictionary. The unique annotation
-    identifier is the current size of the dictionary.
-
-    Parameters
-    ----------
-    annotations: dict
-        Annotation dictionary that is being modified
-    key: string
-        Key value for new annotation
-    value: string
-        Value for new annotation
-
-    Returns
-    -------
-    vizier.datastore.metadata.Annotation
-    """
-    anno = Annotation(len(annotations), key, value)
-    annotations[anno.identifier] = anno
-    return anno
-
-
 def annotations_from_list(annotations):
     """Convert a list of (key, dict) pairs into a object metadata set.
 
@@ -389,66 +550,3 @@ def annotations_to_list(annotations, serializer=None):
             doc['annotations'] = [anno.to_dict() for anno in obj_anno.values()]
             result.append(doc)
     return result
-
-
-def get_first(annotations, key):
-    """Find the first annotation with given key. Returns null if no annotation
-    with the given key exists.
-
-    Parameters
-    ----------
-    annotations: dict
-        Annotation dictionary that is being modified
-    key: string
-        Key value for new annotation
-
-    Returns
-    -------
-    vizier.datastore.metadata.Annotation
-    """
-    for anno in annotations.values():
-        if anno.key == key:
-            return anno
-
-
-def update_annotations(annotations, identifier=-1, key=None, value=None):
-    """Update an annotation dictionary. If the annotation identifier is not
-    negative an attempt to update an existing annotation is made. Otherwise a
-    new annotation is being inserted.
-
-    If the annotation value is None an existing annotation will be deleted.
-
-    Parameters
-    ----------
-    annotations: dict
-        Annotation dictionary that is being modified
-    identifier: int
-        Unique annotation identifier
-    key: string
-        Annotation key
-    value: string
-        Annotation value
-
-    Returns
-    -------
-    vizier.datastore.metadata.Annotation
-    """
-    # Check if an existing annotation is being updated or a new annotation
-    # added
-    if identifier >= 0:
-        # Delete the existing annotation if the given value is None
-        if value is None:
-            anno = annotations[identifier]
-            del annotations[identifier]
-            return anno
-        else:
-            if key is None:
-                # Get the key for the current annotation
-                key = annotations[identifier].key
-            anno = Annotation(identifier, key=key, value=value)
-            annotations[identifier] = anno
-            return anno
-    else:
-        # New annotation. Only add an annotation if value is not None
-        if not key is None and not value is None:
-            return add_annotation(annotations, key=key, value=value)
