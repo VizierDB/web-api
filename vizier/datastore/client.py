@@ -232,6 +232,22 @@ class MutableDatasetRow(DatasetRow):
         )
         self.dataset = dataset
 
+    def annotations(self, column):
+        """Get annotation object for given row cell.
+
+        Parameters
+        ----------
+        column : int or string
+            Column index, name, or label
+
+        Returns
+        -------
+        vizier.datastore.metadata.ObjectMetadataSet
+        """
+        col_index = self.dataset.column_index(column)
+        column_id = self.dataset.columns[col_index].identifier
+        return self.dataset.annotations.for_cell(column_id, self.identifier)
+
     def get_value(self, column):
         """Get the row value for the given column.
 
@@ -247,7 +263,7 @@ class MutableDatasetRow(DatasetRow):
         col_index = self.dataset.column_index(column)
         return self.values[col_index]
 
-    def set_value(self, column, value, clear_annotations=True):
+    def set_value(self, column, value, clear_annotations=False):
         """Set the row value for the given column.
 
         Parameters

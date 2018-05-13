@@ -448,11 +448,11 @@ class MimirVizualEngine(DefaultVizualEngine):
                 col_list.append(col.name_in_rdb)
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
         view_name = mimir._mimir.createView(dataset.table_name, sql)
-        # Clear dataset annotations for the updated value
-        dataset.annotations.clear_cell(
-            dataset.columns[col_index].identifier,
-            row_id
-        )
+        # Clear dataset annotations for the updated value. Currently disabled
+        #dataset.annotations.clear_cell(
+        #    dataset.columns[col_index].identifier,
+        #    row_id
+        #)
         # Store updated dataset information with new identifier
         ds = self.datastore.register_dataset(
             table_name=view_name,

@@ -182,7 +182,7 @@ class ObjectMetadataSet(object):
         for anno_id in self.annotations.keys():
             anno = self.annotations[anno_id]
             if anno.key in keys:
-                del annotations[anno_id]
+                del self.annotations[anno_id]
 
     def size(self):
         """Number of annotations for this object.

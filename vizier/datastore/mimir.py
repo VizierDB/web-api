@@ -513,11 +513,13 @@ class MimirDataStore(DataStore):
         # the name in the database
         db_columns = list()
         for col in columns:
-            db_columns.append(MimirDatasetColumn(
-                identifier=col.identifier,
-                name_in_dataset=col.name,
-                name_in_rdb=COL_PREFIX + str(len(db_columns))
-            ))
+            db_columns.append(
+                MimirDatasetColumn(
+                    identifier=col.identifier,
+                    name_in_dataset=col.name,
+                    name_in_rdb=COL_PREFIX + str(len(db_columns))
+                )
+            )
         # List of row ids in the new dataset
         db_row_ids = list()
         # Create CSV file for load
@@ -535,7 +537,8 @@ class MimirDataStore(DataStore):
         return self.register_dataset(
             table_name=table_name,
             columns=db_columns,
-            row_ids=db_row_ids
+            row_ids=db_row_ids,
+            annotations=annotations
         )
 
     def delete_dataset(self, identifier):
