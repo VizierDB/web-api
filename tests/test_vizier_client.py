@@ -152,7 +152,15 @@ class TestVizierClient(unittest.TestCase):
         self.assertEquals(len(annotations), 0)
         annotations = ds.rows[0].annotations('Age').find_all('user:comment')
         self.assertEquals(len(annotations), 1)
-        
+        # Delete column
+        ds = client.get_dataset('people')
+        ds.delete_column('Age')
+        client.update_dataset('people', ds)
+        ds = client.get_dataset('people')
+        names = [col.name.upper() for col in ds.columns]
+        self.assertTrue('NAME' in names)
+        self.assertFalse('AGE' in names)
+
 
 if __name__ == '__main__':
     unittest.main()

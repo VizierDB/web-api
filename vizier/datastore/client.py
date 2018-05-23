@@ -83,7 +83,7 @@ class DatasetClient(object):
         name: string or int
             Name or index position of the new column
         """
-        col_index = self.column_index(column)
+        col_index = self.column_index(name)
         # Delete column from schema
         del self.columns[col_index]
         # Delete all value for the deleted column

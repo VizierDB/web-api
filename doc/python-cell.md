@@ -83,6 +83,28 @@ ds.insert_row(values=['Zara', 'R&D', 33, 45.78], position=0)
 vizierdb.update_dataset('employee', ds)
 ```
 
+To delete a column from a dataset use the ```delete_column(name)``` method. The method expects the name, spreadsheet label or index position of a column. It will also update all dataset rows. The following example deletes column *age* from dataset *employee*.
+
+```
+ds = vizierdb.get_dataset('employee')
+
+# Delete column with name 'age'
+ds.delete_column('age')
+
+vizierdb.update_dataset('employee', ds)
+```
+
+Dataset rows can be deleted by removing them from the list that maintains the dataset rows. The following example removes the first row from dataset *employee* and stores the result as *last-years-employee*.
+
+```
+ds = vizierdb.get_dataset('employee')
+
+# Delete first row using Pythons del and the row index
+del ds.rows[0]
+
+vizierdb.create_dataset('last-years-employee', ds)
+```
+
 
 Create Dataset
 --------------
