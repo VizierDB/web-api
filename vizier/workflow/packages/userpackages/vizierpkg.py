@@ -289,7 +289,9 @@ class MimirLens(Module):
                 format_str(ds_name.lower())
             ])
             if cmd.PARA_CONSTRAINT in args:
-                cmd_text += ' WITH CONSTRAINT ' + str(args[cmd.PARA_CONSTRAINT])
+                constraint = args[cmd.PARA_CONSTRAINT]
+                if constraint != '':
+                    cmd_text += ' WITH CONSTRAINT ' + str(constraint)
             return cmd_text
         elif lens == cmd.MIMIR_PICKER:
             # PICK FROM <columns> {AS <name>} IN <dataset>

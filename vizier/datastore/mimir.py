@@ -985,8 +985,25 @@ def update_uncertainty_annotation(annotations, is_certain=None, row_prov=0):
         # Remove any previous uncertainty annotations
         annotations.remove_all([ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV])
     elif not certain:
-        for anno in annotations.values():
-            if anno.key in [ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV]:
-                return
-        annotations.add(ANNO_UNCERTAIN, 'true')
-        annotations.add(ANNO_UNCERTAIN_ROW_PROV, row_prov)
+        # Ensure that ANNO_UNCERTAIN is 'true'
+        anno = annotations.find_one(ANNO_UNCERTAIN)
+        if not anno is None:
+            if anno.value != 'true':
+                annotations.update(
+                    identifier=anno.identifier,
+                    key=ANNO_UNCERTAIN,
+                    value='true'
+                )
+        else:
+            annotations.add(ANNO_UNCERTAIN, 'true')
+        # Set ANNO_UNCERTAIN_ROW_PROV to row_prov
+        anno = annotations.find_one(ANNO_UNCERTAIN_ROW_PROV)
+        if not anno is None:
+            if anno.value != row_prov:
+                annotations.update(
+                    identifier=anno.identifier,
+                    key=ANNO_UNCERTAIN_ROW_PROV,
+                    value=row_prov
+                )
+        else:
+            annotations.add(ANNO_UNCERTAIN_ROW_PROV, row_prov)
