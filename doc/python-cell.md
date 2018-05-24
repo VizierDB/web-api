@@ -21,7 +21,8 @@ for row in ds.rows:
     print str(row.get_value('age'))
 ```
 
-Columns can be reference by their name (will raise ValueError if column names are not unique), their spreadsheet label (i.e., A, B, C, D, ...), or the column index.
+Columns can be reference by their name (will raise ValueError if column names are not unique), their spreadsheet label (i.e., A, B, C, D, ...), or the column index. You can use the ```column_index(name)``` method the get the index of a dataset column by name or spreadsheet label.
+
 
 ```
 ds = vizierdb.get_dataset('employee')
@@ -31,6 +32,11 @@ print ds.rows[0].get_value('age')
 print ds.rows[0].get_value('B')
 # Column by index position
 print ds.rows[0].get_value(1)
+
+# Get index for column with name 'age'
+c_index = ds.column_index('age')
+# Print unique identifier of the 'age' column
+print ds.columns[c_index].identifier
 ```
 
 
@@ -158,4 +164,33 @@ To delete an existing dataset use the ```drop_dataset(name)``` method.
 
 ```
 vizierdb.drop_dataset('my_employee')
+```
+
+Annotations
+-----------
+
+It is possible to access and manipulate dataset annotations from within the Python code. Note that for annotations, columns and rows are identified by their internal unique identifier and not their name or index position. Below is an example that manipulates and prints annotations for dataset cells. Changes to dataset annotations are persisted when the dataset is saved.
+
+```
+# Get object for dataset with given name.
+ds = vizierdb.get_dataset('employee')
+
+# Get object for 'age' column
+col_age = ds.columns[ds.column_index('age')]
+
+# Add annotation to 'age' value for all employees
+for row in ds.rows:
+    annos = ds.annotations.for_cell(col_age.identifier, row.identifier)
+    if not annos.contains('value:currency'):
+        annos.add('value:currency', 'US Dollar')
+
+# Print all annotations for employees 'age' value
+for row in ds.rows:
+    annos = ds.annotations.for_cell(col_age.identifier, row.identifier)
+    for key in annos.keys():
+        for a in annos.find_all(key):
+            print a.key + ' = ' + str(a.value)
+
+# Persist changes by saving the dataset        
+vizierdb.update_dataset('employee', ds)
 ```
