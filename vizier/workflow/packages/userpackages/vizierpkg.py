@@ -97,14 +97,32 @@ class MimirLens(Module):
         if dataset is None:
             raise ValueError('unknown dataset \'' + ds_name + '\'')
         mimir_table_name = dataset.table_name
-        if lens == cmd.MIMIR_KEY_REPAIR:
-            c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[get_index_for_column(dataset, c_col)]
+        if lens == cmd.MIMIR_DOMAIN:
+            column = get_column_argument(dataset, args, cmd.PARA_COLUMN)
+            params = [column.name_in_rdb]
+        elif lens == cmd.MIMIR_GEOCODE:
+            geocoder = get_argument(cmd.PARA_GEOCODER, args)
+            params = ['GEOCODER(' + geocoder + ')']
+            add_param(params, 'HOUSE_NUMBER', dataset, args, cmd.PARA_HOUSE_NUMBER)
+            add_param(params, 'STREET', dataset, args, cmd.PARA_STREET)
+            add_param(params, 'CITY', dataset, args, cmd.PARA_CITY)
+            add_param(params, 'STATE', dataset, args, cmd.PARA_STATE)
+            # Add columns for LATITUDE and LONGITUDE
+            c_id = dataset.column_counter
+            c_lat = COL_PREFIX + str(c_id)
+            dataset.columns.append(MimirDatasetColumn(c_id, 'LATITUDE', c_lat))
+            dataset.column_counter += 1
+            c_id = dataset.column_counter
+            c_lon = COL_PREFIX + str(c_id)
+            dataset.columns.append(MimirDatasetColumn(c_id, 'LONGITUDE', c_lon))
+            dataset.column_counter += 1
+            params.append('RESULT_COLUMNS(' + c_lat + ',' + c_lon + ')')
+        elif lens == cmd.MIMIR_KEY_REPAIR:
+            column = get_column_argument(dataset, args, cmd.PARA_COLUMN)
             params = [column.name_in_rdb]
             update_rows = True
         elif lens == cmd.MIMIR_MISSING_KEY:
-            c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[get_index_for_column(dataset, c_col)]
+            column = get_column_argument(dataset, args, cmd.PARA_COLUMN)
             params = [column.name_in_rdb]
             # Set MISSING ONLY to FALSE to ensure that all rows are returned
             params += ['MISSING_ONLY(FALSE)']
@@ -119,13 +137,8 @@ class MimirLens(Module):
             )
             params = [ROW_ID, 'MISSING_ONLY(FALSE)']
             update_rows = True
-        elif lens == cmd.MIMIR_DOMAIN:
-            c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[get_index_for_column(dataset, c_col)]
-            params = [column.name_in_rdb]
         elif lens == cmd.MIMIR_MISSING_VALUE:
-            c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            column = dataset.columns[get_index_for_column(dataset, c_col)]
+            column = get_column_argument(dataset, args, cmd.PARA_COLUMN)
             params = column.name_in_rdb
             if cmd.PARA_CONSTRAINT in args:
                 params = params + ' ' + str(args[cmd.PARA_CONSTRAINT])
@@ -279,6 +292,35 @@ class MimirLens(Module):
                 'IN',
                 format_str(ds_name.lower())
             ])
+        elif lens == cmd.MIMIR_GEOCODE:
+            tokens = [
+                'GEOCODE',
+            ]
+            goecode_columns = list()
+            if cmd.PARA_HOUSE_NUMBER in args:
+                col_id = get_argument(cmd.PARA_HOUSE_NUMBER, args)
+                col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
+                goecode_columns.append('HOUSE_NUMBER(' + col_name + ')')
+            if cmd.PARA_STREET in args:
+                col_id = get_argument(cmd.PARA_STREET, args)
+                col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
+                goecode_columns.append('STREET(' + col_name + ')')
+            if cmd.PARA_CITY in args:
+                col_id = get_argument(cmd.PARA_CITY, args)
+                col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
+                goecode_columns.append('CITY(' + col_name + ')')
+            if cmd.PARA_STATE in args:
+                col_id = get_argument(cmd.PARA_STATE, args)
+                col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
+                goecode_columns.append('STATE(' + col_name + ')')
+            if len(goecode_columns) > 0:
+                tokens.append(','.join(goecode_columns))
+            tokens = tokens + [
+                format_str(ds_name.lower()),
+                'USING',
+                get_argument(cmd.PARA_GEOCODER, args)
+            ]
+            return ' '.join(tokens)
         elif lens == cmd.MIMIR_MISSING_VALUE:
             # MISSING VALUES FOR <column> IN <dataset> {WITH CONSTRAINT} <constraint>
             col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
@@ -900,6 +942,25 @@ def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES, default_
     )
 
 
+def add_param(params, name, dataset, args, key):
+    """Add a Mimir lens parameter to the given list. This is a shortcut to add
+    a column parameter to a list of arguments for a lens.
+
+    params: list
+        List of Mimir lens parameters
+    name: string
+        Name of the parameter
+    dataset: vizier.datastore.base.DatasetHandle
+        Dataset handle
+    args : dict(dict())
+        Dictionary of command arguments
+    key : string
+        Argument name
+    """
+    column = get_column_argument(dataset, args, key, optional=True)
+    if not column is None:
+        params.append(name + '(' + column.name_in_rdb + ')')
+
 def format_str(value, default_value='?'):
     """Format an output string. Simply puts single quotes around the value if
     it contains a space character. If the given argument is none the default
@@ -952,7 +1013,7 @@ def get_argument(key, args, as_int=False, raise_error=True, default_value=None):
     """
     if not key in args:
         if raise_error and default_value is None:
-            raise ValueError('missing argument: ' + key)
+            raise ValueError('missing argument \'' + key + '\'')
         else:
             return default_value
     val = args[key]
@@ -962,6 +1023,36 @@ def get_argument(key, args, as_int=False, raise_error=True, default_value=None):
         except ValueError as ex:
             pass
     return val
+
+
+def get_column_argument(dataset, args, key, optional=False):
+    """Get a datast column object specified by a command argument parameter.
+    Assumes that the column is specified by the column identifier.
+
+    Raises ValueError if the argument is not optional and no value for the given
+    key exists or the value cannot be converted to an integer.
+
+    Parameters
+    ----------
+    dataset: vizier.datastore.base.DatasetHandle
+        Dataset handle
+    args : dict(dict())
+        Dictionary of command arguments
+    key : string
+        Argument name
+    optional : bool, Optional
+        Flag indicating whther the argument is optional.
+
+    Returns
+    -------
+    vizier.datastore.base.DatasetColumn
+    """
+    # Return None if the argument is optional and not present in the given
+    # dictionary.
+    if optional and not key in args:
+        return None
+    c_col = get_argument(key, args, as_int=True)
+    return dataset.columns[get_index_for_column(dataset, c_col)]
 
 
 def get_column_name(ds_name, column_id, vizierdb):
@@ -1062,6 +1153,9 @@ def number_or_str(value):
     -------
     string
     """
+    # Return the string NULL if the given value is None
+    if value is None:
+        return 'NULL'
     try:
         val = int(value)
         return str(val)

@@ -37,6 +37,30 @@ class Sequence(object):
 # Helper Methods
 # ------------------------------------------------------------------------------
 
+def cast(value):
+    """Attempt to convert a given value to integer or float. If both attempts
+    fail the value is returned as is.
+
+    Parameters
+    ----------
+    value: string
+
+    Returns
+    -------
+    int, float, or string
+    """
+    # Return None if the value is None
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value
+
+
 def get_unique_identifier():
     """Create a new unique identifier.
 

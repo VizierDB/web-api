@@ -38,10 +38,13 @@ DATA_TYPES = [
 PARA_CHART = 'chart'
 PARA_CHART_TYPE = 'chartType'
 PARA_CHART_GROUPED = 'chartGrouped'
+PARA_CITY = 'city'
 PARA_COLUMN = 'column'
 PARA_CONSTRAINT = 'constraint'
 PARA_DATASET = 'dataset'
 PARA_FILE = 'file'
+PARA_GEOCODER = 'geocoder'
+PARA_HOUSE_NUMBER = 'strnumber'
 PARA_LABEL = 'label'
 PARA_MAKE_CERTAIN = 'makeInputCertain'
 PARA_NAME = 'name'
@@ -54,6 +57,8 @@ PARA_RESULT_DATASET = 'resultName'
 PARA_ROW = 'row'
 PARA_SCHEMA = 'schema'
 PARA_SERIES = 'series'
+PARA_STATE = 'state'
+PARA_STREET = 'strname'
 PARA_TYPE = 'type'
 PARA_VALUE = 'value'
 PARA_XAXIS = 'xaxis'
@@ -182,6 +187,7 @@ PLOT_SIMPLE_CHART = 'CHART'
 
 """Identifier for Mimir lenses."""
 MIMIR_DOMAIN = 'DOMAIN'
+MIMIR_GEOCODE = 'GEOCODE'
 MIMIR_KEY_REPAIR ='KEY_REPAIR'
 MIMIR_MISSING_KEY ='MISSING_KEY'
 MIMIR_MISSING_VALUE = 'MISSING_VALUE'
@@ -219,6 +225,48 @@ MIMIR_LENSES = {
             PARA_DATASET: para_dataset(0),
             PARA_COLUMN: para_column(1),
             PARA_MAKE_CERTAIN: para_make_input_certain(2)
+        }
+    },
+    MIMIR_GEOCODE: {
+        MODULE_NAME: 'Geocode Lens',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            PARA_HOUSE_NUMBER: parameter_specification(
+                PARA_HOUSE_NUMBER,
+                'House Nr.',
+                DT_COLUMN_ID,
+                1,
+                required=False
+            ),
+            PARA_STREET: parameter_specification(
+                PARA_STREET,
+                'Street',
+                DT_COLUMN_ID,
+                2,
+                required=False
+            ),
+            PARA_CITY: parameter_specification(
+                PARA_CITY,
+                'City',
+                DT_COLUMN_ID,
+                3,
+                required=False
+            ),
+            PARA_STATE: parameter_specification(
+                PARA_STATE,
+                'State',
+                DT_COLUMN_ID,
+                4,
+                required=False
+            ),
+            PARA_GEOCODER: parameter_specification(
+                PARA_GEOCODER,
+                'Geocoder',
+                DT_STRING,
+                5,
+                values=['GOOGLE', 'OSM']
+            ),
+            PARA_MAKE_CERTAIN: para_make_input_certain(6)
         }
     },
     MIMIR_KEY_REPAIR: {
@@ -589,6 +637,38 @@ def mimir_domain(dataset_name, column, make_input_certain=False):
             PARA_MAKE_CERTAIN: make_input_certain
         }
     )
+
+
+def mimir_geocode(dataset_name, geocoder, house_nr=None, street=None, city=None, state=None, make_input_certain=False):
+    """Create a Mimir Missing Value Lens.
+
+    Parameters
+    ----------
+    dataset_name: string
+        Name of the dataset
+    column: string or int
+        Name or index for column
+    make_input_certain: bool, optional
+        Flag indicating whether input should be made certain
+
+    Returns
+    -------
+    vizier.workflow.module.ModuleSpecification
+    """
+    args = {
+        PARA_DATASET : dataset_name,
+        PARA_GEOCODER: geocoder,
+        PARA_MAKE_CERTAIN: make_input_certain
+    }
+    if not house_nr is None:
+        args[PARA_HOUSE_NUMBER] = house_nr
+    if not street is None:
+        args[PARA_STREET] = street
+    if not city is None:
+        args[PARA_CITY] = city
+    if not state is None:
+        args[PARA_STATE] = state
+    return ModuleSpecification(PACKAGE_MIMIR, MIMIR_GEOCODE, args)
 
 
 def mimir_key_repair(dataset_name, column, make_input_certain=False):

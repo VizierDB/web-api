@@ -81,36 +81,10 @@ class TestMimirAnnotations(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        print 'MISSING VALUE LENS:'
-        print [c.name + ' (' + str(c.identifier) + ')' for c in ds.columns]
-        for row in ds.fetch_rows():
-            print str(row.identifier) + ' ' + str(row.values)
-        for anno in ds.get_annotations(column_id=1, row_id=2):
-            print anno.key + ': ' + anno.value
-        # Missing key lens
-        self.db.append_workflow_module(
-            viztrail_id=vt.identifier,
-            command=cmd.mimir_missing_key(DS_NAME, ds.get_column_by_name('AGE').identifier, missing_only=True)
-        )
-        print 'MISSING KEY LENS'
-        wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        if wf.has_error:
-            print wf.modules[-1].stderr[0]['data']
-        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        print [c.name + ' (' + str(c.identifier) + ')' for c in ds.columns]
-        for row in ds.fetch_rows():
-            print str(row.identifier) + ' ' + str(row.values)
-        # Key repair lens
-        self.db.append_workflow_module(
-            viztrail_id=vt.identifier,
-            command=cmd.mimir_key_repair(DS_NAME, ds.get_column_by_name('SALARY').identifier)
-        )
-        wf = self.db.get_workflow(viztrail_id=vt.identifier)
-        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        print 'KEY REPAIR LENS:'
-        print [c.name + ' (' + str(c.identifier) + ')' for c in ds.columns]
-        for row in ds.fetch_rows():
-            print str(row.identifier) + ' ' + str(row.values)
+        annos = ds.get_annotations(column_id=1, row_id=2)
+        self.assertEquals(len(annos), 2)
+        for anno in annos:
+            self.assertEquals(anno.key, 'mimir:uncertain')
         mimir.finalize()
 
 

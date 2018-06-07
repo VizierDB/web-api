@@ -5,7 +5,7 @@ implementation is primarily for test purposes.
 import csv
 
 from vizier.core.system import build_info
-from vizier.core.util import get_unique_identifier
+from vizier.core.util import cast, get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, max_column_id, max_row_id
 from vizier.datastore.base import validate_schema
@@ -73,7 +73,7 @@ class InMemDatasetHandle(DatasetHandle):
             for col_name in reader.next():
                 columns.append(DatasetColumn(len(columns), col_name.strip()))
             for row in reader:
-                values = [v.strip() for v in row]
+                values = [cast(v.strip()) for v in row]
                 rows.append(DatasetRow(len(rows), values))
         # Return InMemDatasetHandle
         return InMemDatasetHandle(

@@ -281,7 +281,7 @@ class DatasetRow(object):
         -------
         dict
         """
-        return {'id': self.identifier, 'values':self.values}
+        return {'id': self.identifier, 'values': self.values}
 
 
 # ------------------------------------------------------------------------------

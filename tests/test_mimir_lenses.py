@@ -27,6 +27,7 @@ FILESERVER_DIR = './env/fs'
 VIZTRAILS_DIR = './env/wt'
 
 CSV_FILE = './data/dataset.csv'
+GEO_FILE = './data/mimir/geo.csv'
 KEY_REPAIR_FILE = './data/key_repair.csv'
 INCOMPLETE_CSV_FILE = './data/dataset_with_missing_values.csv'
 PICKER_FILE = './data/dataset_pick.csv'
@@ -103,6 +104,59 @@ class TestMimirLenses(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertTrue(wf.has_error)
         self.assertEquals(wf.modules[-1].command_text.upper(), 'DOMAIN FOR \'MY COL\' IN \'MY DS\'')
+        mimir.finalize()
+
+    def test_geocode_lens(self):
+        """Test GEOCODE lens."""
+        # Create new work trail and retrieve the HEAD workflow of the default
+        # branch
+        mimir.initialize()
+        f_handle = self.fileserver.upload_file(GEO_FILE)
+        vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'My Project'})
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.load_dataset(f_handle.identifier, DS_NAME)
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        self.assertFalse(wf.has_error)
+        # Geocode Lens
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.mimir_geocode(
+                DS_NAME,
+                'GOOGLE',
+                house_nr=ds.get_column_by_name('STRNUMBER').identifier,
+                street=ds.get_column_by_name('STRNAME').identifier,
+                city=ds.get_column_by_name('CITY').identifier,
+                state=ds.get_column_by_name('STATE').identifier
+            )
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        if wf.has_error:
+            print wf.modules[-1].stderr[0]
+        self.assertEquals(wf.modules[-1].command_text.upper(), 'GEOCODE HOUSE_NUMBER(STRNUMBER),STREET(STRNAME),CITY(CITY),STATE(STATE) PEOPLE USING GOOGLE')
+        self.assertFalse(wf.has_error)
+        self.assertEquals(len(wf.modules), 2)
+        # Get dataset
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        self.assertEquals(len(ds.columns), 6)
+        self.db.append_workflow_module(
+            viztrail_id=vt.identifier,
+            command=cmd.mimir_geocode(
+                DS_NAME,
+                'GOOGLE'
+            )
+        )
+        wf = self.db.get_workflow(viztrail_id=vt.identifier)
+        if wf.has_error:
+            print wf.modules[-1].stderr[0]
+        self.assertEquals(wf.modules[-1].command_text.upper(), 'GEOCODE PEOPLE USING GOOGLE')
+        self.assertFalse(wf.has_error)
+        self.assertEquals(len(wf.modules), 3)
+        # Get dataset
+        ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
+        self.assertEquals(len(ds.columns), 8)
         mimir.finalize()
 
     def test_key_repair_lens(self):

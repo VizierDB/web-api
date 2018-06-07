@@ -337,7 +337,7 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_workflow_descriptor(wf)
 
     def validate_dataset_handle(self, ds):
-        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'annotations', 'rowcount'])
+        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'annotatedCells', 'rowcount'])
         for col in ds['columns']:
             self.validate_keys(col, ['id', 'name'])
         for row in ds['rows']:

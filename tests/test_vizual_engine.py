@@ -314,6 +314,8 @@ class TestVizualEngine(unittest.TestCase):
         ds_rows = ds.fetch_rows()
         self.assertEquals(len(ds.columns), 3)
         self.assertEquals(len(ds_rows), 2)
+        for row in ds_rows:
+            self.assertTrue(isinstance(row.values[1], int))
         # Ensure exception is thrown if dataset identifier is unknown
         with self.assertRaises(ValueError):
             self.vizual.load_dataset('unknown:uri')
@@ -341,11 +343,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[1].name.upper(), 'Name'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds_rows[0]
-        self.assertEquals(int(row.values[0]), 23)
+        self.assertEquals(row.values[0], 23)
         self.assertEquals(row.values[1], 'Alice')
         self.assertEquals(row.values[2], '35K')
         row = ds_rows[1]
-        self.assertEquals(int(row.values[0]), 32)
+        self.assertEquals(row.values[0], 32)
         self.assertEquals(row.values[1], 'Bob')
         self.assertEquals(row.values[2], '30K')
         # Ensure that row ids haven't changed
@@ -365,11 +367,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[1].name.upper(), 'Salary'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Name'.upper())
         row = ds_rows[0]
-        self.assertEquals(int(row.values[0]), 23)
+        self.assertEquals(row.values[0], 23)
         self.assertEquals(row.values[1], '35K')
         self.assertEquals(row.values[2], 'Alice')
         row = ds_rows[1]
-        self.assertEquals(int(row.values[0]), 32)
+        self.assertEquals(row.values[0], 32)
         self.assertEquals(row.values[1], '30K')
         self.assertEquals(row.values[2], 'Bob')
         # Ensure that row ids haven't changed
@@ -409,11 +411,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Bob')
-        self.assertEquals(int(row.values[1]), 32)
+        self.assertEquals(row.values[1], 32)
         self.assertEquals(row.values[2], '30K')
         row = ds_rows[1]
         self.assertEquals(row.values[0], 'Alice')
-        self.assertEquals(int(row.values[1]), 23)
+        self.assertEquals(row.values[1], 23)
         self.assertEquals(row.values[2], '35K')
         # Ensure that row ids haven't changed
         for i in range(len(ds_rows)):
@@ -431,11 +433,11 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Alice')
-        self.assertEquals(int(row.values[1]), 23)
+        self.assertEquals(row.values[1], 23)
         self.assertEquals(row.values[2], '35K')
         row = ds_rows[1]
         self.assertEquals(row.values[0], 'Bob')
-        self.assertEquals(int(row.values[1]), 32)
+        self.assertEquals(row.values[1], 32)
         self.assertEquals(row.values[2], '30K')
         # Ensure that row ids haven't changed
         for i in range(len(ds_rows)):
@@ -450,11 +452,11 @@ class TestVizualEngine(unittest.TestCase):
         ds_rows = ds.fetch_rows()
         row = ds_rows[0]
         self.assertEquals(row.values[0], 'Bob')
-        self.assertEquals(int(row.values[1]), 32)
+        self.assertEquals(row.values[1], 32)
         self.assertEquals(row.values[2], '30K')
         row = ds_rows[1]
         self.assertEquals(row.values[0], 'Alice')
-        self.assertEquals(int(row.values[1]), 23)
+        self.assertEquals(row.values[1], 23)
         self.assertEquals(row.values[2], '35K')
         # Ensure that row ids haven't changed
         for i in range(len(ds_rows)):
@@ -583,6 +585,12 @@ class TestVizualEngine(unittest.TestCase):
         # Make sure column identifier haven't changed
         for i in range(len(ds.columns)):
             self.assertEquals(ds.columns[i].identifier, col_ids[i])
+        # Set value to None
+        upd_rows, id3 = self.vizual.update_cell(id2, ds.get_column_by_name('Name').identifier, 0, None)
+        ds = self.datastore.get_dataset(id3)
+        ds_rows = ds.fetch_rows()
+        self.assertIsNone(ds_rows[0].values[0])
+        self.assertIsNone(ds_rows[0].values[ds.column_index('Name')])
         # Ensure exception is thrown if column is unknown
         with self.assertRaises(ValueError):
             self.vizual.update_cell(ds.identifier, 100, 0, 'MyValue')

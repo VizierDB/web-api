@@ -40,3 +40,8 @@
 * Server-side command text for workflow modules
 * Default label for data series
 * Enable multiple annotation with same key for single object (e.g., multiple user comments)
+
+
+### 0.4.1 - 2018-06-07
+
+* Add GEOCODE lens

@@ -31,6 +31,11 @@ class TestValidateCommand(unittest.TestCase):
         obj.arguments['row'] = 'row'
         with self.assertRaises(ValueError):
             cmd.validate_command(self.command_repository, obj)
+        # GEOCODE
+        obj = cmd.mimir_geocode('ds', 'GOOGLE', house_nr='23', street='5TH AVE', city='NYC', state='NY')
+        cmd.validate_command(self.command_repository, obj)
+        obj = cmd.mimir_geocode('ds', 'GOOGLE')
+        cmd.validate_command(self.command_repository, obj)
         # KEY REPAIR
         obj = cmd.mimir_key_repair('ds', 'colA', True)
         cmd.validate_command(self.command_repository, obj)

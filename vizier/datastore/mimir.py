@@ -155,6 +155,9 @@ class MimirDatasetColumn(DatasetColumn):
         -------
         string
         """
+        # If the given value is None simply return the keyword NULL
+        if value is None:
+            return 'NULL'
         # If the data type of the columns is numeric (int or real) try to
         # convert the given argument to check whether it actually is a numeric
         # value. Note that we always return a string beacuse the result is
