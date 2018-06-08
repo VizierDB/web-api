@@ -258,7 +258,7 @@ class FileSystemViztrailHandle(ViztrailHandle):
         if not branch_id in self.branches:
             return None
         branch = self.branches[branch_id]
-        if version < 0 and len(branch.workflows) == 0:
+        if version <= 0 and len(branch.workflows) == 0:
             # Returns an empty workflow if the branch does not contain any
             # executed workflows yet.
             return WorkflowHandle(branch_id, -1, get_current_time(), [])

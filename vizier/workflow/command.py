@@ -180,6 +180,7 @@ PACKAGE_SYS = '_sys'
 PACKAGE_VIZUAL = 'vizual'
 
 MODULE_NAME = 'name'
+MODULE_GROUP = 'group'
 MODULE_ARGUMENTS = 'arguments'
 
 """Identifier for plot commands."""
@@ -519,6 +520,7 @@ VIZUAL_COMMANDS = {
     },
     VIZUAL_LOAD: {
         MODULE_NAME: 'Load Dataset',
+        MODULE_GROUP: 'load',
         MODULE_ARGUMENTS: {
             PARA_FILE: parameter_specification(PARA_FILE, 'File', DT_FILE_ID, 0),
             PARA_NAME: parameter_specification(PARA_NAME, 'Dataset Name', DT_STRING, 1)

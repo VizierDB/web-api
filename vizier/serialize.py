@@ -658,12 +658,15 @@ def MODULE_SPECIFICATION(module_type, module_id, module_spec):
     dict
     """
     arguments =  module_spec[cmd.MODULE_ARGUMENTS]
-    return {
+    obj = {
         'type': module_type,
         'id': module_id,
         'name': module_spec[cmd.MODULE_NAME],
         'arguments': [arguments[arg] for arg in arguments]
     }
+    if cmd.MODULE_GROUP in module_spec:
+        obj['group'] = module_spec[cmd.MODULE_GROUP]
+    return obj
 
 
 def NOTEBOOK_HANDLE(viztrail, workflow, config, files, urls, dataset_cache, read_only=False):

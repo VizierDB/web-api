@@ -300,19 +300,19 @@ class MimirLens(Module):
             if cmd.PARA_HOUSE_NUMBER in args:
                 col_id = get_argument(cmd.PARA_HOUSE_NUMBER, args)
                 col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
-                goecode_columns.append('HOUSE_NUMBER(' + col_name + ')')
+                goecode_columns.append('HOUSE_NUMBER=' + col_name)
             if cmd.PARA_STREET in args:
                 col_id = get_argument(cmd.PARA_STREET, args)
                 col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
-                goecode_columns.append('STREET(' + col_name + ')')
+                goecode_columns.append('STREET=' + col_name)
             if cmd.PARA_CITY in args:
                 col_id = get_argument(cmd.PARA_CITY, args)
                 col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
-                goecode_columns.append('CITY(' + col_name + ')')
+                goecode_columns.append('CITY=' + col_name)
             if cmd.PARA_STATE in args:
                 col_id = get_argument(cmd.PARA_STATE, args)
                 col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
-                goecode_columns.append('STATE(' + col_name + ')')
+                goecode_columns.append('STATE=' + col_name)
             if len(goecode_columns) > 0:
                 tokens.append(','.join(goecode_columns))
             tokens = tokens + [

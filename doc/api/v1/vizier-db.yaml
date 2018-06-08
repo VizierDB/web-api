@@ -1342,6 +1342,8 @@ definitions:
                 type: string
             name:
                 type: string
+            group:
+                type: string
             arguments:
                 type: array
                 items:

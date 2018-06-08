@@ -392,6 +392,10 @@ class UrlFactory:
         -------
         string
         """
+        # Set negative versions to 0. Otherwise, the API will not recognize them
+        # as integers
+        if version < 0:
+            version = 0
         branch_url = self.branch_url(project_id, branch_id)
         return branch_url + '/workflows/' + str(version)
 
