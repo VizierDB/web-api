@@ -124,14 +124,29 @@ class FileSystemDatasetHandle(DatasetHandle):
         annos = self.annotations.for_object(column_id=column_id, row_id=row_id)
         return annos.values()
 
-    def reader(self):
-        """Get reader for the dataset to access the dataset rows.
+    def reader(self, offset=0, limit=-1):
+        """Get reader for the dataset to access the dataset rows. The optional
+        offset amd limit parameters are used to retrieve only a subset of
+        rows.
+
+        Parameters
+        ----------
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
 
         Returns
         -------
-        vizier.datastore.reader.DatasetReader
+        vizier.datastore.reader.DefaultJsonDatasetReader
         """
-        return DefaultJsonDatasetReader(self.datafile)
+        return DefaultJsonDatasetReader(
+            self.datafile,
+            columns=self.columns,
+            offset=offset,
+            limit=limit,
+            annotations=self.annotations
+        )
 
     def to_file(self, filename):
         """Write dataset handle to file. The default serialization format is

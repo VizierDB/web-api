@@ -61,7 +61,7 @@ class ObjectMetadataSet(object):
     a wrapper around the dictionary that contains the annotations. In the
     dictionary, annotations are indexed by their unique identifier.
     """
-    def __init__(self, annotations=None,):
+    def __init__(self, annotations=None):
         """initialize the metadata set.
 
         Parameters
@@ -303,20 +303,6 @@ class DatasetMetadata(object):
             'row': int(key[pos+1:])
         }
 
-    def cells_with_annotations(self):
-        """Get a list of (column, row) tuples for all cells that have
-        annotations.
-
-        Returns
-        -------
-        list(dict)
-        """
-        result = list()
-        for key in self.cell_annotations:
-            if len(self.cell_annotations[key]) > 0:
-                result.append(DatasetMetadata.cell_key_serializer(key))
-        return result
-
     def clear_cell(self, column_id, row_id):
         """Remove all annotations for a given cell."""
         cell_id = DatasetMetadata.get_cell_key(column_id, row_id)
@@ -459,6 +445,24 @@ class DatasetMetadata(object):
         string
         """
         return str(column_id) + '#' + str(row_id)
+
+    def has_cell_annotation(self, column_id, row_id):
+        """Check whether there exist any annotations for a given dataset cell.
+
+        Parameters
+        ----------
+        column_id: int
+            Unique column identifier
+        row_id: int
+            Unique row identifier
+
+        Returns
+        -------
+        bool
+        """
+        cell_id = DatasetMetadata.get_cell_key(column_id, row_id)
+        return cell_id in self.cell_annotations
+
 
     def to_dict(self):
         """Get a dictionary serialization of all object annotations.

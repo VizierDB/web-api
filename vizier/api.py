@@ -215,16 +215,10 @@ class VizierWebService(object):
                 result_size = self.config.defaults.max_row_limit
             elif self.config.defaults.max_row_limit >= 0:
                 result_size = min(result_size, self.config.defaults.max_row_limit)
-            # Read dataset rows
-            rows = list()
-            for row in dataset.fetch_rows(offset=offset, limit=result_size):
-                obj = row.to_dict()
-                obj['index'] = len(rows) + offset
-                rows.append(obj)
             # Serialize the dataset schema and cells
             return serialize.DATASET(
                 dataset=dataset,
-                rows=rows,
+                rows=dataset.fetch_rows(offset=offset, limit=result_size),
                 config=self.config,
                 urls=self.urls,
                 offset=offset,

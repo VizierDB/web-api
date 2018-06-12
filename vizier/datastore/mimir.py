@@ -17,9 +17,9 @@ import vistrails.packages.mimir.init as mimir
 from vizier.core.system import build_info
 from vizier.core.util import get_unique_identifier
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
-from vizier.datastore.base import DataStore, max_column_id
-from vizier.datastore.metadata import Annotation, DatasetMetadata
-from vizier.datastore.reader import DatasetReader, InMemDatasetReader
+from vizier.datastore.base import DataStore, encode_values, max_column_id
+from vizier.datastore.metadata import Annotation, DatasetMetadata, ObjectMetadataSet
+from vizier.datastore.reader import DatasetReader
 
 
 """Mimir annotation keys."""
@@ -301,55 +301,64 @@ class MimirDatasetHandle(DatasetHandle):
         elif column_id < 0 and row_id >= 0:
             return self.annotations.for_row(row_id).values()
         elif column_id >= 0 and row_id >= 0:
-            annotations = self.annotations.for_cell(column_id, row_id)
+            cell = self.annotations.for_cell(column_id, row_id)
+            # Make a copy of the annotation set and fetch annotations from
+            # the Mimir backend
+            annotations = ObjectMetadataSet(dict(cell.annotations))
+            column = None
+            for col in self.columns:
+                if col.identifier == column_id:
+                    column = col
+                    break
+            sql = 'SELECT ' + column.name_in_rdb + ' '
+            sql += 'FROM ' + self.table_name + ' '
+            sql += 'WHERE ' + ROW_ID + ' = ' + str(row_id)
+            row_prov = annotations.find_one(ANNO_UNCERTAIN_ROW_PROV)
+            buffer = mimir._mimir.explainCell(sql, 0, '')
+            for i in range(buffer.size()):
+                value = str(buffer.array()[i])
+                # Remove references to lenses
+                while 'LENS_' in value:
+                    start_pos = value.find('LENS_')
+                    end_pos = value.find('.', start_pos)
+                    if end_pos > start_pos:
+                        value = value[:start_pos] + value[end_pos + 1:]
+                    else:
+                        value = value[:start_pos]
+                # Replace references to column name
+                value = value.replace(column.name_in_rdb, column.name)
+                # Remove content in double square brackets
+                if '{{' in value:
+                    value = value[:value.find('{{')].strip()
+                annotations.add(ANNO_UNCERTAIN, value)
         else:
             raise ValueError('invalid component identifier')
-        # Retrieve uncertainty annotations for a cell.
-        result = list()
-        for anno in annotations.values():
-            # At this state only for dataset cells we check whether there are
-            # annotations for uncertainty reasons and if so query the dataset.
-            anno_id = anno.identifier
-            if anno.key == ANNO_UNCERTAIN:
-                # If present value is expected to be true (not checked here)
-                column = None
-                for col in self.columns:
-                    if col.identifier == column_id:
-                        column = col
-                        break
-                sql = 'SELECT ' + column.name_in_rdb + ' '
-                sql += 'FROM ' + self.table_name + ' '
-                sql += 'WHERE ' + ROW_ID + ' = ' + str(row_id)
-                row_prov = annotations.find_one(ANNO_UNCERTAIN_ROW_PROV)
-                buffer = mimir._mimir.explainCell(sql, 0, str(row_prov.value))
-                for i in range(buffer.size()):
-                    value = str(buffer.array()[i])
-                    # Remove references to lenses
-                    while 'LENS_' in value:
-                        start_pos = value.find('LENS_')
-                        end_pos = value.find('.', start_pos)
-                        if end_pos > start_pos:
-                            value = value[:start_pos] + value[end_pos + 1:]
-                        else:
-                            value = value[:start_pos]
-                    # Replace references to column name
-                    value = value.replace(column.name_in_rdb, column.name)
-                    # Remove content in double square brackets
-                    if '{{' in value:
-                        value = value[:value.find('{{')].strip()
-                    result.append(Annotation(anno_id, key=anno.key, value=value))
-            elif anno.key != ANNO_UNCERTAIN_ROW_PROV:
-                result.append(anno)
-        return result
+        return annotations.values()
 
-    def reader(self):
-        """Get reader for the dataset to access the dataset rows.
+    def reader(self, offset=0, limit=-1):
+        """Get reader for the dataset to access the dataset rows. The optional
+        offset amd limit parameters are used to retrieve only a subset of
+        rows.
+
+        Parameters
+        ----------
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
 
         Returns
         -------
-        vizier.datastore.reader.DatasetReader
+        vizier.datastore.mimir.MimirDatasetReader
         """
-        return MimirDatasetReader(self.table_name, self.columns, self.row_ids)
+        return MimirDatasetReader(
+            table_name=self.table_name,
+            columns=self.columns,
+            row_ids=self.row_ids,
+            offset=offset,
+            limit=limit,
+            annotations=self.annotations
+        )
 
     def to_file(self, filename):
         """Write dataset to file. The default serialization format is Yaml.
@@ -374,7 +383,7 @@ class MimirDatasetHandle(DatasetHandle):
 
 class MimirDatasetReader(DatasetReader):
     """Dataset reader for Mimir datasets."""
-    def __init__(self, table_name, columns, row_ids):
+    def __init__(self, table_name, columns, row_ids, offset=0, limit=-1, annotations=None):
         """Initialize information about the delimited file and the file format.
 
         Parameters
@@ -385,13 +394,38 @@ class MimirDatasetReader(DatasetReader):
             List of descriptors for columns in the database
         row_ids: list(int)
             Sort order for rows in the dataset
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
         """
         self.table_name = table_name
         self.columns = columns
-        # Convert row id list into row position index
+        self.annotations = annotations if not annotations is None else DatasetMetadata()
+        # Convert row id list into row position index. Depending on whether
+        # offset or limit parameters are given we also limit the entries in the
+        # dictionary. The internal flag .is_range_query keeps track of whether
+        # offset or limit where given (True) or not (False). This information is
+        # later used to generate the query for the database.
         self.row_ids = dict()
-        for i in range(len(row_ids)):
-            self.row_ids[row_ids[i]] = i
+        if offset > 0 or limit > 0:
+            skip = offset
+            count = 0
+            for row_id in row_ids:
+                if skip > 0:
+                    skip -= 1
+                else:
+                    self.row_ids[row_id] = count
+                    count += 1
+                    if limit > 0 and count >= limit:
+                        break
+            self.is_range_query = True
+        else:
+            for i in range(len(row_ids)):
+                self.row_ids[row_ids[i]] = i
+            self.is_range_query = False
         # Keep an in-memory copy of the dataset rows when open
         self.is_open = False
         self.read_index = None
@@ -420,12 +454,8 @@ class MimirDatasetReader(DatasetReader):
         if self.is_open:
             if self.read_index < len(self.rows):
                 row = self.rows[self.read_index]
-                row_id = int(row[self.col_map[ROW_ID]])
-                values = [
-                    row[self.col_map[col.name_in_rdb]] for col in self.columns
-                ]
                 self.read_index += 1
-                return DatasetRow(row_id, values)
+                return row
             self.close()
         raise StopIteration
 
@@ -435,16 +465,19 @@ class MimirDatasetReader(DatasetReader):
 
         Returns
         -------
-        vizier.datastore.reader.InMemDatasetReader
+        vizier.datastore.reader.MimirDatasetReader
         """
         # Query the database to retrieve dataset rows if reader is not already
         # open
         if not self.is_open:
             # Query the database to get the list of rows. Sort rows according to
             # order in row_ids and return a InMemReader
-            sql = get_select_query(self.table_name, self.columns)
+            sql = get_select_query(self.table_name, columns=self.columns)
+            #if self.is_range_query:
+            #    ids = [str(row_id) for row_id in self.row_ids]
+            #    sql += ' WHERE ' + ROW_ID + ' IN (' + ','.join(ids) + ')'
             rs = json.loads(
-                mimir._mimir.vistrailsQueryMimirJson(sql, False, False)
+                mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
             )
             # Initialize mapping of column rdb names to index positions in
             # dataset rows
@@ -455,10 +488,34 @@ class MimirDatasetReader(DatasetReader):
             # Initialize rows (make sure to sort them according to order in
             # row_ids list), read index and open flag
             rowid_idx = self.col_map[ROW_ID]
-            self.rows = sorted(
-                rs['data'],
-                key=lambda row: self.row_ids[int(row[rowid_idx])]
-            )
+            # Filter rows if this is a range query (needed until IN works)
+            if self.is_range_query:
+                rs_rows = list()
+                for row in rs['data']:
+                    if int(row[rowid_idx]) in self.row_ids:
+                        rs_rows.append(row)
+            else:
+                rs_rows = rs['data']
+            self.rows = list()
+            for row_index in range(len(rs_rows)):
+                row = rs_rows[row_index]
+                row_id = int(row[self.col_map[ROW_ID]])
+                values = [None] * len(self.columns)
+                row_annos = [False] * len(values)
+                for i in range(len(self.columns)):
+                    col = self.columns[i]
+                    col_index = self.col_map[col.name_in_rdb]
+                    values[i] = row[col_index]
+                    has_anno = self.annotations.has_cell_annotation(
+                        col.identifier,
+                        row_id
+                    )
+                    if not has_anno:
+                        # Check if the cell taint is true
+                        has_anno = rs['col_taint'][row_index][col_index]
+                    row_annos[i] = has_anno
+                self.rows.append(DatasetRow(row_id, values, annotations=row_annos))
+            self.rows.sort(key=lambda row: self.row_ids[row.identifier])
             self.read_index = 0
             self.is_open = True
         return self
@@ -530,7 +587,8 @@ class MimirDataStore(DataStore):
             writer = csv.writer(f_out, quoting=csv.QUOTE_MINIMAL)
             writer.writerow([ROW_ID] + [col.name_in_rdb for col in db_columns])
             for row in rows:
-                writer.writerow([str(row.identifier)] + row.values)
+                record = [str(row.identifier)] + encode_values(row.values)
+                writer.writerow(record)
                 db_row_ids.append(row.identifier)
         # Load CSV file using Mimirs loadCSV method.
         table_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
@@ -717,8 +775,7 @@ class MimirDataStore(DataStore):
 
     def register_dataset(
         self, table_name, columns, row_ids, column_counter=None,
-        row_counter=None, annotations=None, update_rows=False,
-        update_annotations=True
+        row_counter=None, annotations=None, update_rows=False
     ):
         """Create a new record for a database table or view. Note that this
         method does not actually create the table or view in the database but
@@ -744,43 +801,26 @@ class MimirDataStore(DataStore):
         update_rows: bool, optional
             Flag indicating that the number of rows may have changed and the
             list of row identifier therefore needs to be checked.
-        update_annotations: bool, optional
-            Flag indicating whether the metadata in the given dataset is correct
-            (False) or needs to be adjusted (True). The former is the case for
-            VizUAL MOVE and RENAME_COLUMN operations.
 
         Returns
         -------
         vizier.datastore.mimir.MimirDatasetHandle
         """
-        # Query the database to get schema information and row ids if necessary
-        sql = get_select_query(table_name, columns)
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, False))
-        # Create a mapping from database column names to column types. This
-        # mapping is then used to update the data type information for all
-        # column descriptors. We also keep track of the index of the columns
-        # in the mimir database schema because the order of columns in the
-        # schema that the user sees and the internal schema for Mimir might
-        # differ (required to update row ids and annotations)
-        mimir_schema = dict()
-        for i in range(len(rs['schema'])):
-            col = rs['schema'][i]
-            # Add dictionary containing type and index information
-            mimir_schema[col['name']] = {'type': col['base_type'], 'index': i}
-        for col in columns:
-            col.data_type = mimir_schema[col.name_in_rdb]['type']
-        # Create column for row Identifier
-        rowid_column = MimirDatasetColumn(
-            name_in_dataset=ROW_ID,
-            data_type=mimir_schema[ROW_ID]['type']
-        )
-        # Update row identifier if flag is set to true
+        # Depending on whether we need to update row ids we either query the
+        # database or just get the schema. In either case mimir_schema will
+        # contain a the returned Mimir schema information.
+        sql = get_select_query(table_name, columns=columns)
+        mimir_schema = json.loads(mimir._mimir.getSchema(sql))
         if update_rows:
-            # Get list of row identifier in current dataset
+            sql = get_select_query(table_name)
+            rs = json.loads(
+                mimir._mimir.vistrailsQueryMimirJson(sql, False, False)
+            )
+            # Get list of row identifier in current dataset. Row ID's are
+            # expected to be the only values in the returned result set.
             dataset_row_ids = set()
-            rowid_idx = mimir_schema[ROW_ID]['index']
             for row in rs['data']:
-                dataset_row_ids.add(int(row[rowid_idx]))
+                dataset_row_ids.add(int(row[0]))
             modified_row_ids = list()
             # Remove row id's that are no longer in the data.
             for row_id in row_ids:
@@ -792,27 +832,19 @@ class MimirDataStore(DataStore):
                     modified_row_ids.append(row_id)
             # Replace row ids with modified list
             row_ids = modified_row_ids
-        # Update annotations if flag is set
-        if annotations is None:
-            annotations = DatasetMetadata()
-        if update_annotations:
-            # Update information about row and cell uncertainty. If a row or
-            # cell is uncertain add an annotation if it does not exists. If the
-            # row/cell is certain remove existing uncertainty annotation.
-            rowid_idx = mimir_schema[ROW_ID]['index']
-            for i in range(len(rs['data'])):
-                row = rs['data'][i]
-                row_id = int(row[rowid_idx])
-                # Uncertainty information for row cells
-                col_taint = rs['col_taint'][i]
-                for col in columns:
-                    anno = annotations.for_cell(col.identifier, row_id)
-                    certain = col_taint[mimir_schema[col.name_in_rdb]['index']]
-                    update_uncertainty_annotation(
-                        annotations=anno,
-                        is_certain=certain,
-                        row_prov=rs['prov'][i]
-                    )
+        # Create a mapping of column name (in database) to column type. This
+        # mapping is then used to update the data type information for all
+        # column descriptors.
+        col_types = dict()
+        for col in mimir_schema:
+            col_types[col['name']] = col['base_type']
+        for col in columns:
+            col.data_type = col_types[col.name_in_rdb]
+        # Create column for row Identifier
+        rowid_column = MimirDatasetColumn(
+            name_in_dataset=ROW_ID,
+            data_type=col_types[ROW_ID]
+        )
         # Set column counter to max column id + 1 if None
         if column_counter is None:
             column_counter = max_column_id(columns) + 1
@@ -937,7 +969,7 @@ def create_missing_key_view(dataset, lens_name, key_column):
     return view_name, dataset.row_counter + len(case_conditions)
 
 
-def get_select_query(table_name, columns):
+def get_select_query(table_name, columns=None):
     """Get SQL query to select a full dataset with columns in order of their
     appearance as defined in the given column list. The first column will be
     the ROW ID.
@@ -946,15 +978,18 @@ def get_select_query(table_name, columns):
     ----------
     table_name: string
         Name of the database table or view
-    columns: list(vizier.datastore.mimir.MimirDatasetColumn)
+    columns: list(vizier.datastore.mimir.MimirDatasetColumn), optional
         List of columns in the dataset
 
     Returns
     -------
     str
     """
-    col_list = ','.join([col.name_in_rdb for col in columns])
-    return 'SELECT ' + ROW_ID + ',' + col_list + ' FROM ' + table_name
+    if not columns is None:
+        col_list = ','.join([col.name_in_rdb for col in columns])
+        return 'SELECT ' + ROW_ID + ',' + col_list + ' FROM ' + table_name
+    else:
+        return 'SELECT ' + ROW_ID + ' FROM ' + table_name
 
 
 def get_tempfile():
@@ -967,46 +1002,3 @@ def get_tempfile():
     """
     tmp_prefix = 'DS_' + get_unique_identifier()
     return tempfile.mkstemp(suffix='.csv', prefix=tmp_prefix)[1]
-
-
-def update_uncertainty_annotation(annotations, is_certain=None, row_prov=0):
-    """Update uncertainity annotation for a dataset object. Add a new annotation
-    ff the object is uncertain and no annotations exist. If the object is
-    certain remove any existing uncertainty annotation for the object.
-
-    Parameters
-    ----------
-    annotations: dict
-        vizier.datastore.metadata.ObjectMetadataSet
-    is_certain: bool
-        String representation of boolean uncertainty flag.
-    row_prov: int
-        Row identifier needed to query reson using _mimir.explainCell()
-    """
-    certain = (is_certain)
-    if certain:
-        # Remove any previous uncertainty annotations
-        annotations.remove_all([ANNO_UNCERTAIN, ANNO_UNCERTAIN_ROW_PROV])
-    elif not certain:
-        # Ensure that ANNO_UNCERTAIN is 'true'
-        anno = annotations.find_one(ANNO_UNCERTAIN)
-        if not anno is None:
-            if anno.value != 'true':
-                annotations.update(
-                    identifier=anno.identifier,
-                    key=ANNO_UNCERTAIN,
-                    value='true'
-                )
-        else:
-            annotations.add(ANNO_UNCERTAIN, 'true')
-        # Set ANNO_UNCERTAIN_ROW_PROV to row_prov
-        anno = annotations.find_one(ANNO_UNCERTAIN_ROW_PROV)
-        if not anno is None:
-            if anno.value != row_prov:
-                annotations.update(
-                    identifier=anno.identifier,
-                    key=ANNO_UNCERTAIN_ROW_PROV,
-                    value=row_prov
-                )
-        else:
-            annotations.add(ANNO_UNCERTAIN_ROW_PROV, row_prov)

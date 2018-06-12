@@ -82,7 +82,7 @@ class TestMimirAnnotations(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         annos = ds.get_annotations(column_id=1, row_id=2)
-        self.assertEquals(len(annos), 2)
+        self.assertEquals(len(annos), 1)
         for anno in annos:
             self.assertEquals(anno.key, 'mimir:uncertain')
         mimir.finalize()

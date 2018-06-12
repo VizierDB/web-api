@@ -91,7 +91,9 @@ class DefaultViztrailsEngine(WorkflowEngine):
             outputs = cell.get_output('output')
         except Exception as ex:
             outputs = ModuleOutputs()
-            outputs.stderr(content=PLAIN_TEXT(str(ex)))
+            template = "{0}:{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            outputs.stderr(content=PLAIN_TEXT(message))
         # Return new module. Copies current state of the datastore mapping.
         return ModuleHandle(
             module.identifier,

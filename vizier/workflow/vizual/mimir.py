@@ -289,8 +289,7 @@ class MimirVizualEngine(DefaultVizualEngine):
                 row_ids=dataset.row_ids,
                 column_counter=dataset.column_counter,
                 row_counter=dataset.row_counter,
-                annotations=dataset.annotations,
-                update_annotations=False
+                annotations=dataset.annotations
             )
             return 1, ds.identifier
         else:
@@ -337,8 +336,7 @@ class MimirVizualEngine(DefaultVizualEngine):
                 row_ids=dataset.row_ids,
                 column_counter=dataset.column_counter,
                 row_counter=dataset.row_counter,
-                annotations=dataset.annotations,
-                update_annotations=False
+                annotations=dataset.annotations
             )
             return 1, ds.identifier
         else:
@@ -388,8 +386,7 @@ class MimirVizualEngine(DefaultVizualEngine):
                 row_ids=dataset.row_ids,
                 column_counter=dataset.column_counter,
                 row_counter=dataset.row_counter,
-                annotations=dataset.annotations,
-                update_annotations=False
+                annotations=dataset.annotations
             )
             return 1, ds.identifier
         else:

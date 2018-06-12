@@ -171,7 +171,7 @@ class TestWebServiceAPI(unittest.TestCase):
         self.validate_keys(modules, ['modules', 'project', 'links'])
         self.validate_project_descriptor(modules['project'])
         for m in modules['modules']:
-            self.validate_keys(m, ['type', 'id', 'name', 'arguments'])
+            self.validate_keys(m, ['type', 'id', 'name', 'arguments'], optional_keys=['group'])
             arg_keys = ['id', 'label', 'name', 'datatype', 'index', 'required']
             for arg in m['arguments']:
                 self.assertTrue(len(arg) >= len(arg_keys))
@@ -337,11 +337,11 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_workflow_descriptor(wf)
 
     def validate_dataset_handle(self, ds):
-        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'annotatedCells', 'rowcount'])
+        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'rowcount'])
         for col in ds['columns']:
             self.validate_keys(col, ['id', 'name'])
         for row in ds['rows']:
-            self.validate_keys(row, ['id', 'index', 'values'])
+            self.validate_keys(row, ['id', 'index', 'values', 'annotations'])
         self.validate_links(ds['links'], ['self', 'download', 'annotations', 'pagefirst', 'pagefirstanno'])
 
     def validate_dataset_annotations(self, ds_id, column_id=-1, row_id=-1, expected=dict()):
@@ -373,10 +373,10 @@ class TestWebServiceAPI(unittest.TestCase):
         for fh in fl['files']:
             self.validate_file_handle(fh)
 
-    def validate_keys(self, obj, keys):
+    def validate_keys(self, obj, keys, optional_keys=list()):
         if len(obj) > len(keys):
             for key in obj:
-                self.assertTrue(key in keys, msg='Invalid key ' + key)
+                self.assertTrue(key in keys or key in optional_keys, msg='Invalid key ' + key)
         else:
             for key in keys:
                 self.assertTrue(key in obj, msg='Missing key ' + key)

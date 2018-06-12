@@ -33,8 +33,9 @@ rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, True, True))
 
 print json.dumps(rs, indent=4, sort_keys=True)
 
-buf = mimir._mimir.explainCell('SELECT AGE FROM ' + lens_name + ' WHERE NAME = \'Claudia\'', 0, '3')
+buf = mimir._mimir.explainCell('SELECT AGE FROM ' + lens_name + ' WHERE NAME = \'Claudia\'', 0, '')
 
+print buf
 for i in range(buf.size()):
     print buf.array()[i]
 

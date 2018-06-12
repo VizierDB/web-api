@@ -45,3 +45,10 @@
 ### 0.4.1 - 2018-06-07
 
 * Add GEOCODE lens
+
+
+### 0.4.2. - 2018-06-12
+
+* Push pagination queries to datastore
+* Avoid materializing Mimir annotations in dataset metadata
+* Encode special characters as unicode in dataset creation 

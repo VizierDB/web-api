@@ -102,14 +102,45 @@ class InMemDatasetHandle(DatasetHandle):
         annos = self.annotations.for_object(column_id=column_id, row_id=row_id)
         return annos.values()
 
-    def reader(self):
-        """Get reader for the dataset to access the dataset rows.
+    def reader(self, offset=0, limit=-1):
+        """Get reader for the dataset to access the dataset rows. The optional
+        offset amd limit parameters are used to retrieve only a subset of
+        rows.
+
+        Parameters
+        ----------
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
 
         Returns
         -------
-        vizier.datastore.reader.DatasetReader
+        vizier.datastore.reader.InMemDatasetReader
         """
-        return InMemDatasetReader(self.datarows)
+        # Select the set of dataset rows for the reader depending on whether
+        # offset or limit arguments are given.
+        if offset > 0 or limit > 0:
+            rows = list()
+            skip = offset
+            for row in self.datarows:
+                if skip > 0:
+                    skip -= 1
+                else:
+                    rows.append(row)
+                    # Update cell annotation flags
+                    for i in range(len(self.columns)):
+                        col = self.columns[i]
+                        has_anno = self.annotations.has_cell_annotation(
+                            col.identifier,
+                            row.identifier
+                        )
+                        row.cell_annotations[i] = has_anno
+                    if limit > 0 and len(rows) >= limit:
+                        break
+        else:
+            rows = self.datarows
+        return InMemDatasetReader(rows)
 
 
 class InMemDataStore(DataStore):

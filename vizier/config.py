@@ -308,7 +308,7 @@ class APIDefaults(object):
     def __init__(self):
         """Initialize default values."""
         self.row_limit = -1
-        self.max_row_limit = 100
+        self.max_row_limit = 25
 
     def from_dict(self, doc):
         """Initialize from dictionary."""

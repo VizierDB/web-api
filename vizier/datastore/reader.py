@@ -172,18 +172,31 @@ class DefaultJsonDatasetReader(DatasetReader):
             ]
         }
     """
-    def __init__(self, filename, compressed=False):
+    def __init__(self, filename, columns=None, compressed=False, offset=0, limit=-1, annotations=None):
         """Initialize information about the Json file.
 
         Parameters
         ----------
         filename: string
             Path to the file on disk
+        columns: list(vizier.datastore.base.DatasetColumn), optional
+            List of columns. It is expected that each column has a unique
+            identifier.
         compressed: bool, optional
             Flag indicating if the file is compressed (gzip)
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
+        annotations: vizier.datastore.metadata.DatasetMetadata, optional
+            Annotations for dataset components
         """
         self.filename = filename
+        self.columns = columns
         self.compressed = compressed
+        self.offset = offset
+        self.limit = limit
+        self.annotations = annotations
         # Variables that maintain the internal state of the reader, i.e., the
         # opened file and the list of rows (in original Json format). If the
         # is_open flag is True the file handle (fd) and row list and read index
@@ -216,6 +229,16 @@ class DefaultJsonDatasetReader(DatasetReader):
         if self.is_open:
             if self.read_index < len(self.rows):
                 row = DatasetRow.from_dict(self.rows[self.read_index])
+                # Set the annotation flags in the dataset row
+                if not self.annotations is None:
+                    for i in range(len(self.columns)):
+                        col = self.columns[i]
+                        has_anno = self.annotations.has_cell_annotation(
+                            col.identifier,
+                            row.identifier
+                        )
+                        if has_anno:
+                            row.cell_annotations[i] = True
                 self.read_index += 1
                 return row
         raise StopIteration
@@ -234,8 +257,22 @@ class DefaultJsonDatasetReader(DatasetReader):
                 self.fh = gzip.open(self.filename, 'rb')
             else:
                 self.fh = open(self.filename, 'r')
-            # Read the Json file and get the array of rows
-            self.rows = json.loads(self.fh.read())['rows']
+            # Read the Json file and get the array of rows. Depending on whether
+            # offset or limit arguments were given we may select only a subset
+            # of the rows in the file.
+            ds_rows = json.loads(self.fh.read())['rows']
+            if self.offset > 0 or self.limit > 0:
+                self.rows = list()
+                skip = self.offset
+                for row in ds_rows:
+                    if skip > 0:
+                        skip -= 1
+                    else:
+                        self.rows.append(row)
+                        if self.limit > 0 and len(self.rows) >= self.limit:
+                            break
+            else:
+                self.rows = ds_rows
             self.read_index = 0
             self.is_open = True
         return self

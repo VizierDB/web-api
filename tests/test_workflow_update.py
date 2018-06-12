@@ -62,7 +62,7 @@ class TestWorkflowUpdates(unittest.TestCase):
         )
 
     def tearDown(self):
-        """Clean-up by dropping the MongoDB colelction used by the engine.
+        """Clean-up by dropping the MongoDB collection used by the engine.
         """
         # Delete directories
         for d in [DATASTORE_DIR, FILESERVER_DIR, VIZTRAILS_DIR]:

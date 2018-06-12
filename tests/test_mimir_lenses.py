@@ -135,7 +135,7 @@ class TestMimirLenses(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         if wf.has_error:
             print wf.modules[-1].stderr[0]
-        self.assertEquals(wf.modules[-1].command_text.upper(), 'GEOCODE HOUSE_NUMBER(STRNUMBER),STREET(STRNAME),CITY(CITY),STATE(STATE) PEOPLE USING GOOGLE')
+        self.assertEquals(wf.modules[-1].command_text.upper(), 'GEOCODE HOUSE_NUMBER=STRNUMBER,STREET=STRNAME,CITY=CITY,STATE=STATE PEOPLE USING GOOGLE')
         self.assertFalse(wf.has_error)
         self.assertEquals(len(wf.modules), 2)
         # Get dataset
@@ -196,6 +196,8 @@ class TestMimirLenses(unittest.TestCase):
             names.add(row.get_value('name'))
         self.assertTrue(1 in empids)
         self.assertTrue(2 in rowids)
+        self.assertTrue('Alice' in names)
+        self.assertTrue('Carla' in names)
         # Test error case and command text
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,

@@ -1149,7 +1149,6 @@ definitions:
             - rows
             - offset
             - rowcount
-            - annotatedCells
             - links
         properties:
             id:
@@ -1166,15 +1165,6 @@ definitions:
                 type: integer
             rowcount:
                 type: integer
-            annotatedCells:
-                type: array
-                items:
-                    type: object
-                    properties:
-                        column:
-                            type: integer
-                        row:
-                            type: integer
             links:
                 type: array
                 items:
@@ -1197,6 +1187,7 @@ definitions:
             - id
             - index
             - values
+            - annotations
         properties:
             id:
                 type: integer
@@ -1206,6 +1197,10 @@ definitions:
                 type: array
                 items:
                     type: string
+            annotations:
+                type: array
+                items:
+                    type: boolean
     FileDescriptor:
         type: object
         description: Basic file information

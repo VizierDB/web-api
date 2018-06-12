@@ -125,15 +125,9 @@ class DatasetHandle(object):
         # Collect rows in result list. Skip first rows if offset is greater than
         # zero
         rows = list()
-        skip = offset
-        with self.reader() as reader:
+        with self.reader(offset=offset, limit=limit) as reader:
             for row in reader:
-                if skip > 0:
-                    skip -= 1
-                else:
-                    rows.append(row)
-                    if limit > 0 and len(rows) >= limit:
-                        break
+                rows.append(row)
         return rows
 
     @abstractmethod
@@ -177,8 +171,17 @@ class DatasetHandle(object):
                 return col
 
     @abstractmethod
-    def reader(self):
-        """Get reader for the dataset to access the dataset rows.
+    def reader(self, offset=0, limit=-1):
+        """Get reader for the dataset to access the dataset rows. The optional
+        offset amd limit parameters are used to retrieve only a subset of
+        rows.
+
+        Parameters
+        ----------
+        offset: int, optional
+            Number of rows at the beginning of the list that are skipped.
+        limit: int, optional
+            Limits the number of rows that are returned.
 
         Returns
         -------
@@ -251,7 +254,7 @@ class DatasetRow(object):
     values : list(string)
         List of column values in the row
     """
-    def __init__(self, identifier=None, values=None):
+    def __init__(self, identifier=None, values=None, annotations=None):
         """Initialize the row object.
 
         Parameters
@@ -263,6 +266,7 @@ class DatasetRow(object):
         """
         self.identifier = identifier if not identifier is None else -1
         self.values = values
+        self.cell_annotations = annotations if not annotations is None else [False] * len(values)
 
     @staticmethod
     def from_dict(obj):
@@ -272,7 +276,10 @@ class DatasetRow(object):
         -------
         vizier.datastore.base.DatasetRow
         """
-        return DatasetRow(int(obj['id']), obj['values'])
+        return DatasetRow(
+            int(obj['id']),
+            obj['values']
+        )
 
     def to_dict(self):
         """Dictionary serialization of the dataset row object.
@@ -281,7 +288,10 @@ class DatasetRow(object):
         -------
         dict
         """
-        return {'id': self.identifier, 'values': self.values}
+        return {
+            'id': self.identifier,
+            'values': encode_values(self.values)
+        }
 
 
 # ------------------------------------------------------------------------------
@@ -490,6 +500,32 @@ class DataStore(VizierSystemComponent):
 #
 # ------------------------------------------------------------------------------
 
+def encode_values(values):
+    """Encode a given list of cell values into utf-8 format.
+
+    Parameters
+    ----------
+    values: list(string)
+
+    Returns
+    -------
+    list(string)
+    """
+    result = list()
+    for val in values:
+        if isinstance(val, basestring):
+            try:
+                result.append(val.encode('utf-8'))
+            except UnicodeDecodeError as ex:
+                try:
+                    result.append(val.decode('cp1252').encode('utf-8'))
+                except UnicodeDecodeError as ex:
+                    result.append(val.decode('latin1').encode('utf-8'))
+        else:
+            result.append(val)
+    return result
+
+
 def collabel_2_index(label):
     """Convert a column label into a column index (based at 0), e.g., 'A'-> 1,
     'B' -> 2, ..., 'AA' -> 27, etc.
@@ -555,11 +591,11 @@ def get_column_index(columns, column_id):
                 if name_index == -1:
                     name_index = i
                 else:
-                    # Multiple columns with the same name exist. SIgnal that
-                    # no unique column was found.
-                    name_index = -1
+                    # Multiple columns with the same name exist. Signal that
+                    # no unique column was found by setting name_index to -1.
+                    name_index = -2
                     break
-        if name_index == -1:
+        if name_index < 0:
             # Check whether column_id is a column label that is within the
             # range of the dataset schema
             label_index = collabel_2_index(column_id)
@@ -568,9 +604,12 @@ def get_column_index(columns, column_id):
                     name_index = label_index - 1
         # Return index of column with matching name or label if there exists
         # a unique solution. Otherwise raise exception.
-        if name_index != -1:
+        if name_index >= 0:
             return name_index
-        raise ValueError('unknown column \'' + str(column_id) + '\'')
+        elif name_index == -1:
+            raise ValueError('unknown column \'' + str(column_id) + '\'')
+        else:
+            raise ValueError('not a unique column name \'' + str(column_id) + '\'')
 
 
 def get_index_for_column(dataset, col_id):

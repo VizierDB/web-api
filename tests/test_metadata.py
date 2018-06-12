@@ -103,10 +103,6 @@ class TestDatasetMetadata(unittest.TestCase):
         cell_anno = meta.for_cell(1, 1)
         self.assertEquals(cell_anno.size(), 1)
         self.assertEquals(cell_anno.find_one('title').value, 'Nonsense')
-        annotated_cells = ds_meta.cells_with_annotations()
-        self.assertEquals(len(annotated_cells), 1)
-        self.assertEquals(annotated_cells[0]['column'], 1)
-        self.assertEquals(annotated_cells[0]['row'], 1)
 
     def test_update_statements(self):
         """Test update annotation statements."""

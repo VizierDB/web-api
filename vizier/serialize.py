@@ -247,14 +247,21 @@ def DATASET(dataset, rows, config, urls, offset=0, limit=-1):
     dict
     """
     dataset_id = dataset.identifier
+    # Serialize rows. The default dictionary representation for a row does
+    # not include the row index position nor the annotation information.
+    annotated_rows = list()
+    for row in rows:
+        obj = row.to_dict()
+        obj['index'] = len(annotated_rows) + offset
+        obj['annotations'] = row.cell_annotations
+        annotated_rows.append(obj)
     # Serialize the dataset schema and cells
     obj = {
         'id' : dataset_id,
         'columns' : [col.to_dict() for col in dataset.columns],
-        'rows': rows,
+        'rows': annotated_rows,
         'offset': offset,
-        'rowcount': dataset.row_count,
-        'annotatedCells': dataset.annotations.cells_with_annotations()
+        'rowcount': dataset.row_count
     }
     # Add references if dataset exists
     obj[JSON_REFERENCES] = [
