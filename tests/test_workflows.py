@@ -169,7 +169,7 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        col_age = ds.get_column_by_name('Age')
+        col_age = ds.column_by_name('Age')
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.update_cell(DS_NAME, col_age.identifier, 0, '28')
@@ -218,7 +218,7 @@ class TestWorkflows(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        col_age = ds.get_column_by_name('Age')
+        col_age = ds.column_by_name('Age')
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.update_cell(DS_NAME, col_age.identifier, 0, '28')
@@ -278,7 +278,7 @@ class TestWorkflows(unittest.TestCase):
         #print '(4) Set age to 28'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.update_cell(DS_NAME, ds.get_column_by_name('Age').identifier, 1, '28')
+            command=cmd.update_cell(DS_NAME, ds.column_by_name('Age').identifier, 1, '28')
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
@@ -288,7 +288,7 @@ class TestWorkflows(unittest.TestCase):
         #print '(5) Change Alice to Bob'
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.update_cell(DS_NAME, ds.get_column_by_name('Name').identifier, 0, 'Bob')
+            command=cmd.update_cell(DS_NAME, ds.column_by_name('Name').identifier, 0, 'Bob')
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)

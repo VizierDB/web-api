@@ -5,6 +5,7 @@ import unittest
 
 import vistrails.packages.mimir.init as mimir
 
+from vizier.datastore.base import DatasetColumn
 from vizier.datastore.client import DatasetClient
 from vizier.datastore.federated import FederatedDataStore
 from vizier.datastore.fs import FileSystemDataStore
@@ -132,6 +133,9 @@ class TestDataStore(unittest.TestCase):
         self.set_up(store_type)
         self.dataset_read()
         self.tear_down(store_type)
+        self.set_up(store_type)
+        self.dataset_column_index()
+        self.tear_down(store_type)
 
     def datastore_init(self, store_type):
         """Test initalizing a datastore with existing datasets."""
@@ -143,6 +147,21 @@ class TestDataStore(unittest.TestCase):
             self.db = FileSystemDataStore(DATASTORE_DIRECTORY)
         elif store_type == MIMIR_DATASTORE:
             self.db = MimirDataStore(DATASTORE_DIRECTORY)
+
+    def dataset_column_index(self):
+        """Test the column by id index of the dataset handle."""
+        self.setup_fileserver()
+        ds = self.db.load_dataset(self.fileserver.upload_file(CSV_FILE))
+        # Ensure that the project data has three columns and two rows
+        self.assertEquals(ds.column_by_id(0).name.upper(), 'NAME')
+        self.assertEquals(ds.column_by_id(1).name.upper(), 'AGE')
+        self.assertEquals(ds.column_by_id(2).name.upper(), 'SALARY')
+        with self.assertRaises(ValueError):
+            ds.column_by_id(5)
+        ds.columns.append(DatasetColumn(identifier=5, name='NEWNAME'))
+        self.assertEquals(ds.column_by_id(5).name.upper(), 'NEWNAME')
+        with self.assertRaises(ValueError):
+            ds.column_by_id(4)
 
     def dataset_life_cycle(self):
         """Test create and delete dataset."""

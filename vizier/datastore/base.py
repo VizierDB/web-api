@@ -80,6 +80,56 @@ class DatasetHandle(object):
         # Set the dataset annotations. If no annotations were given
         # create an empty annotation set
         self.annotations = annotations if not annotations is None else DatasetMetadata()
+        # Create an internal index of columns by identifier
+        self.column_id_index = dict()
+        for col in self.columns:
+            self.column_id_index[col.identifier] = col
+
+    def column_by_id(self, identifier):
+        """Get the column with the given identifier.
+
+        Raises ValueError if no column with the given indentifier exists.
+
+        Parameters
+        ----------
+        identifier: int
+            Unique column identifier
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetColumn
+        """
+        if identifier in self.column_id_index:
+            return self.column_id_index[identifier]
+        else:
+            # The column id index might be out of data. Search for column in
+            # column list
+            for col in self.columns:
+                if col.identifier == identifier:
+                    return col
+        raise ValueError('unknown column \'' + str(identifier) + '\'')
+
+    def column_by_name(self, name, ignore_case=True):
+        """Returns the first column with a matching name. The result is None if
+        no matching column is found.
+
+        Parameters
+        ----------
+        name: string
+            Column name
+        ignore_case: bool, optional
+            Ignore case in name comparison if True
+
+        Returns
+        -------
+        vizier.datastore.base.DatasetColumn
+        """
+        for col in self.columns:
+            if ignore_case:
+                if name.upper() == col.name.upper():
+                    return col
+            elif name == col.name:
+                return col
 
     def column_index(self, column_id):
         """Get position of a given column in the dataset schema. The given
@@ -147,28 +197,6 @@ class DatasetHandle(object):
         list(vizier.datastore.metadata.Annotation)
         """
         raise NotImplementedError
-
-    def get_column_by_name(self, name, ignore_case=True):
-        """Returns the first column with a matching name. The result is None if
-        no matching column is found.
-
-        Parameters
-        ----------
-        name: string
-            Column name
-        ignore_case: bool, optional
-            Ignore case in name comparison if True
-
-        Returns
-        -------
-        vizier.datastore.base.DatasetColumn
-        """
-        for col in self.columns:
-            if ignore_case:
-                if name.upper() == col.name.upper():
-                    return col
-            elif name == col.name:
-                return col
 
     @abstractmethod
     def reader(self, offset=0, limit=-1):

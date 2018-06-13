@@ -79,7 +79,7 @@ class TestMimirLenses(unittest.TestCase):
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
-        col_age = ds.get_column_by_name('Age')
+        col_age = ds.column_by_name('Age')
         self.assertFalse(wf.has_error)
         # Missing Value Lens
         self.db.append_workflow_module(
@@ -126,10 +126,10 @@ class TestMimirLenses(unittest.TestCase):
             command=cmd.mimir_geocode(
                 DS_NAME,
                 'GOOGLE',
-                house_nr=ds.get_column_by_name('STRNUMBER').identifier,
-                street=ds.get_column_by_name('STRNAME').identifier,
-                city=ds.get_column_by_name('CITY').identifier,
-                state=ds.get_column_by_name('STATE').identifier
+                house_nr=ds.column_by_name('STRNUMBER').identifier,
+                street=ds.column_by_name('STRNAME').identifier,
+                city=ds.column_by_name('CITY').identifier,
+                state=ds.column_by_name('STATE').identifier
             )
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
@@ -176,7 +176,7 @@ class TestMimirLenses(unittest.TestCase):
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_key_repair(DS_NAME, ds1.get_column_by_name('Empid').identifier)
+            command=cmd.mimir_key_repair(DS_NAME, ds1.column_by_name('Empid').identifier)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
@@ -225,7 +225,7 @@ class TestMimirLenses(unittest.TestCase):
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_missing_value(DS_NAME, ds.get_column_by_name('AGE').identifier)
+            command=cmd.mimir_missing_value(DS_NAME, ds.column_by_name('AGE').identifier)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         self.assertFalse(wf.has_error)
@@ -249,7 +249,7 @@ class TestMimirLenses(unittest.TestCase):
             viztrail_id=vt.identifier,
             command=cmd.mimir_missing_value(
                 DS_NAME,
-                ds.get_column_by_name('AGE').identifier,
+                ds.column_by_name('AGE').identifier,
                 constraint='> 30')
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
@@ -340,8 +340,8 @@ class TestMimirLenses(unittest.TestCase):
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_picker(DS_NAME, [
-                {'pickFrom': ds.get_column_by_name('Age').identifier},
-                {'pickFrom': ds.get_column_by_name('Salary').identifier}
+                {'pickFrom': ds.column_by_name('Age').identifier},
+                {'pickFrom': ds.column_by_name('Salary').identifier}
             ])
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
@@ -359,8 +359,8 @@ class TestMimirLenses(unittest.TestCase):
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_picker(DS_NAME, [
-                {'pickFrom': ds.get_column_by_name('Age').identifier},
-                {'pickFrom': ds.get_column_by_name('Salary').identifier}
+                {'pickFrom': ds.column_by_name('Age').identifier},
+                {'pickFrom': ds.column_by_name('Salary').identifier}
             ],
             pick_as='My Column')
         )
@@ -377,8 +377,8 @@ class TestMimirLenses(unittest.TestCase):
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
             command=cmd.mimir_picker(DS_NAME, [
-                {'pickFrom': ds.get_column_by_name('Age').identifier},
-                {'pickFrom': ds.get_column_by_name('PICK_ONE_AGE_SALARY').identifier}
+                {'pickFrom': ds.column_by_name('Age').identifier},
+                {'pickFrom': ds.column_by_name('PICK_ONE_AGE_SALARY').identifier}
             ],
             pick_as='My Column')
         )

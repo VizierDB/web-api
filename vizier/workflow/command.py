@@ -40,6 +40,7 @@ PARA_CHART_TYPE = 'chartType'
 PARA_CHART_GROUPED = 'chartGrouped'
 PARA_CITY = 'city'
 PARA_COLUMN = 'column'
+PARA_COLUMNS = 'columns'
 PARA_CONSTRAINT = 'constraint'
 PARA_DATASET = 'dataset'
 PARA_FILE = 'file'
@@ -48,6 +49,7 @@ PARA_HOUSE_NUMBER = 'strnumber'
 PARA_LABEL = 'label'
 PARA_MAKE_CERTAIN = 'makeInputCertain'
 PARA_NAME = 'name'
+PARA_ORDER = 'order'
 PARA_PERCENT_CONFORM = 'percentConform'
 PARA_PICKAS = 'pickAs'
 PARA_PICKFROM = 'pickFrom'
@@ -62,6 +64,15 @@ PARA_STREET = 'strname'
 PARA_TYPE = 'type'
 PARA_VALUE = 'value'
 PARA_XAXIS = 'xaxis'
+# Concatenation of parameter kets
+PARA_COLUMNS_COLUMN = PARA_COLUMNS + '_' + PARA_COLUMN
+PARA_COLUMNS_ORDER = PARA_COLUMNS + '_' + PARA_ORDER
+PARA_COLUMNS_RENAME = PARA_COLUMNS + '_' + PARA_NAME
+
+
+"""Values for sort order."""
+SORT_ASC = 'A-Z'
+SORT_DESC = 'Z-A'
 
 
 def para_column(index, parent=None):
@@ -214,8 +225,10 @@ VIZUAL_INS_ROW = 'INSERT_ROW'
 VIZUAL_LOAD = 'LOAD'
 VIZUAL_MOV_COL = 'MOVE_COLUMN'
 VIZUAL_MOV_ROW = 'MOVE_ROW'
+VIZUAL_PROJECTION = 'PROJECTION'
 VIZUAL_REN_COL = 'RENAME_COLUMN'
 VIZUAL_REN_DS = 'RENAME_DATASET'
+VIZUAL_SORT = 'SORT_DATASET'
 VIZUAL_UPD_CELL = 'UPDATE_CELL'
 
 """Mimir lens specification schema."""
@@ -542,6 +555,33 @@ VIZUAL_COMMANDS = {
             PARA_POSITION: para_position(2)
         }
     },
+    VIZUAL_PROJECTION: {
+        MODULE_NAME: 'Filter Columns',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            PARA_COLUMNS: parameter_specification(
+                PARA_COLUMNS,
+                'Columns',
+                DT_GROUP,
+                1
+            ),
+            PARA_COLUMNS_COLUMN: parameter_specification(
+                PARA_COLUMNS_COLUMN,
+                'Column',
+                DT_COLUMN_ID,
+                2,
+                parent=PARA_COLUMNS
+            ),
+            PARA_COLUMNS_RENAME: parameter_specification(
+                PARA_COLUMNS_RENAME,
+                'Rename as ...',
+                DT_STRING,
+                3,
+                parent=PARA_COLUMNS,
+                required=False
+            )
+        }
+    },
     VIZUAL_REN_COL: {
         MODULE_NAME: 'Rename Column',
         MODULE_ARGUMENTS: {
@@ -564,6 +604,34 @@ VIZUAL_COMMANDS = {
                 'New Dataset Name',
                 DT_STRING,
                 1
+            )
+        }
+    },
+    VIZUAL_SORT: {
+        MODULE_NAME: 'Sort Dataset',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            PARA_COLUMNS: parameter_specification(
+                PARA_COLUMNS,
+                'Columns',
+                DT_GROUP,
+                1
+            ),
+            PARA_COLUMNS_COLUMN: parameter_specification(
+                PARA_COLUMNS_COLUMN,
+                'Column',
+                DT_COLUMN_ID,
+                2,
+                parent=PARA_COLUMNS
+            ),
+            PARA_COLUMNS_ORDER: parameter_specification(
+                PARA_COLUMNS_ORDER,
+                'Order',
+                DT_STRING,
+                3,
+                values=[SORT_ASC, SORT_DESC],
+                parent=PARA_COLUMNS,
+                required=False
             )
         }
     },

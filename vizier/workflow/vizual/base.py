@@ -86,6 +86,35 @@ class VizualEngine(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
+    def filter_columns(self, identifier, columns, names):
+        """Dataset projection operator. Returns a copy of the dataset with the
+        given identifier that contains only those columns listed in columns.
+        The list of names contains optional new names for the filtered columns.
+        A value of None in names indicates that the name of the corresponding
+        column is not changed.
+
+        Returns the number of rows in the dataset and the identifier of the
+        projected dataset.
+
+        Raises ValueError if no dataset with given identifier exists or if any
+        of the filter columns are unknown.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        columns: list(int)
+            List of column identifier for columns in the result.
+        names: list(string)
+            Optional new names for filtered columns.
+
+        Returns
+        -------
+        int, string
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def insert_column(self, identifier, position, name=None):
         """Insert column with given name at given position in dataset.
 
@@ -226,6 +255,36 @@ class VizualEngine(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
+    def sort_dataset(self, identifier, columns, reversed):
+        """Sort the dataset with the given identifier according to the order by
+        statement. The order by statement is a pair of lists. The first list
+        contains the identifier of columns to sort on. The second list contains
+        boolean flags, one for each entry in columns, indicating whether sort
+        order is revered for the corresponding column or not.
+
+        Returns the number of rows in the dataset and the identifier of the
+        sorted dataset.
+
+        Raises ValueError if no dataset with given identifier exists or if any
+        of the columns in the order by clause are unknown.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        columns: list(int)
+            List of column identifier for sort columns.
+        reversed: list(bool)
+            Flags indicating whether the sort order of the corresponding column
+            is reveresed.
+
+        Returns
+        -------
+        int, string
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def update_cell(self, identifier, column, row, value):
         """Update a cell in a given dataset.
 
@@ -353,6 +412,67 @@ class DefaultVizualEngine(VizualEngine):
             annotations=dataset.annotations
         )
         return 1, ds.identifier
+
+    def filter_columns(self, identifier, columns, names):
+        """Dataset projection operator. Returns a copy of the dataset with the
+        given identifier that contains only those columns listed in columns.
+        The list of names contains optional new names for the filtered columns.
+        A value of None in names indicates that the name of the corresponding
+        column is not changed.
+
+        Returns the number of rows in the dataset and the identifier of the
+        projected dataset.
+
+        Raises ValueError if no dataset with given identifier exists or if any
+        of the filter columns are unknown.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        columns: list(int)
+            List of column identifier for columns in the result.
+        names: list(string)
+            Optional new names for filtered columns.
+
+        Returns
+        -------
+        int, string
+        """
+        # Get dataset. Raise exception if dataset is unknown
+        dataset = self.datastore.get_dataset(identifier)
+        if dataset is None:
+            raise ValueError('unknown dataset \'' + identifier + '\'')
+        # The schema of the new dataset only contains the columns in the given
+        # list. Keep track of their index positions to filter values.
+        schema = list()
+        val_filter = list()
+        for i in range(len(columns)):
+            col_idx = get_index_for_column(dataset, columns[i])
+            col = dataset.columns[col_idx]
+            if not names[i] is None:
+                schema.append(
+                    DatasetColumn(identifier=col.identifier, name=names[i])
+                )
+            else:
+                schema.append(col)
+            val_filter.append(col_idx)
+        # Create a list of projected rows
+        rows = list()
+        for row in dataset.fetch_rows():
+            values = list()
+            for v_idx in val_filter:
+                values.append(row.values[v_idx])
+            rows.append(DatasetRow(identifier=row.identifier, values=values))
+        # Store updated dataset to get new identifier
+        ds = self.datastore.create_dataset(
+            columns=schema,
+            rows=rows,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations.filter_columns(columns)
+        )
+        return len(rows), ds.identifier
 
     def insert_column(self, identifier, position, name):
         """Insert column with given name at given position in dataset.
@@ -613,6 +733,57 @@ class DefaultVizualEngine(VizualEngine):
             return 1, ds.identifier
         else:
             return 0, identifier
+
+    def sort_dataset(self, identifier, columns, reversed):
+        """Sort the dataset with the given identifier according to the order by
+        statement. The order by statement is a pair of lists. The first list
+        contains the identifier of columns to sort on. The second list contains
+        boolean flags, one for each entry in columns, indicating whether sort
+        order is revered for the corresponding column or not.
+
+        Returns the number of rows in the database and the identifier of the
+        sorted dataset.
+
+        Raises ValueError if no dataset with given identifier exists or if any
+        of the columns in the order by clause are unknown.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        columns: list(int)
+            List of column identifier for sort columns.
+        reversed: list(bool)
+            Flags indicating whether the sort order of the corresponding column
+            is reveresed.
+
+        Returns
+        -------
+        int, string
+        """
+        # Get dataset. Raise exception if dataset is unknown
+        dataset = self.datastore.get_dataset(identifier)
+        if dataset is None:
+            raise ValueError('unknown dataset \'' + identifier + '\'')
+        # Fetch the full set of rows
+        rows = dataset.fetch_rows()
+        # Sort multiple times, ones for each of the sort columns (in reverse
+        # order of appearance in the order by clause)
+        for i in range(len(columns)):
+            l_idx = len(columns) - (i + 1)
+            col_id = columns[l_idx]
+            col_idx = get_index_for_column(dataset, col_id)
+            reverse = reversed[l_idx]
+            rows.sort(key=lambda row: row.values[col_idx], reverse=reverse)
+        # Store updated dataset to get new identifier
+        ds = self.datastore.create_dataset(
+            columns=dataset.columns,
+            rows=rows,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
+        )
+        return len(rows), ds.identifier
 
     def update_cell(self, identifier, column, row, value):
         """Update a cell in a given dataset.

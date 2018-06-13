@@ -11,6 +11,7 @@ from vizier.workflow.vizual.mimir import MimirVizualEngine
 DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
 CSV_FILE = './data/dataset.csv'
+SORT_FILE = './data/dataset_for_sort.csv'
 
 ENGINEENV_DEFAULT = 'default'
 ENGINEENV_MIMIR = 'mimir'
@@ -29,20 +30,20 @@ class TestVizualEngine(unittest.TestCase):
         if os.path.isdir(FILESERVER_DIR):
             shutil.rmtree(FILESERVER_DIR)
         # Setup project repository
-        fs = DefaultFileServer(FILESERVER_DIR)
+        self.fs = DefaultFileServer(FILESERVER_DIR)
         if engine == ENGINEENV_DEFAULT:
             self.datastore = FileSystemDataStore(DATASTORE_DIR)
             self.vizual = DefaultVizualEngine(
                 self.datastore,
-                fs
+                self.fs
             )
         elif engine == ENGINEENV_MIMIR:
             self.datastore = MimirDataStore(DATASTORE_DIR)
             self.vizual = MimirVizualEngine(
                 self.datastore,
-                fs
+                self.fs
             )
-        self.file = fs.upload_file(CSV_FILE)
+        self.file = self.fs.upload_file(CSV_FILE)
 
     def tear_down(self, engine):
         """Clean-up by dropping file server directory.
@@ -76,6 +77,8 @@ class TestVizualEngine(unittest.TestCase):
         self.move_row(engine)
         self.rename_column(engine)
         self.update_cell(engine)
+        self.filter_columns(engine)
+        self.sort_dataset(engine)
         self.sequence_of_steps(engine)
 
     def delete_column(self, engine):
@@ -88,7 +91,7 @@ class TestVizualEngine(unittest.TestCase):
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
         # Delete Age column
-        col_id = ds.get_column_by_name('AGE').identifier
+        col_id = ds.column_by_name('AGE').identifier
         col_count, id1 = self.vizual.delete_column(ds.identifier, col_id)
         del col_ids[1]
         # Result should indicate that one column was deleted. The identifier of
@@ -174,6 +177,26 @@ class TestVizualEngine(unittest.TestCase):
         # Ensure exception is thrown if row index is out of bounds
         with self.assertRaises(ValueError):
             self.vizual.delete_row(ds.identifier, 100)
+        self.tear_down(engine)
+
+    def filter_columns(self, engine):
+        """Test projection of a dataset."""
+        self.set_up(engine)
+        # Create a new dataset
+        ds = self.vizual.load_dataset(self.file.identifier)
+        count, ds_id = self.vizual.filter_columns(ds.identifier, [2, 0], ['BD', None])
+        ds = self.datastore.get_dataset(ds_id)
+        self.assertEquals(len(ds.columns), 2)
+        self.assertEquals(ds.columns[0].identifier, 2)
+        self.assertEquals(ds.columns[0].name.upper(), 'BD')
+        self.assertEquals(ds.columns[1].identifier, 0)
+        self.assertEquals(ds.columns[1].name.upper(), 'NAME')
+        rows = ds.fetch_rows()
+        self.assertEquals(rows[0].values, ['35K', 'Alice'])
+        self.assertEquals(rows[1].values, ['30K', 'Bob'])
+        with self.assertRaises(ValueError):
+            self.vizual.filter_columns(ds.identifier, [0, 1], ['BD', None])
+
         self.tear_down(engine)
 
     def insert_column(self, engine):
@@ -334,7 +357,7 @@ class TestVizualEngine(unittest.TestCase):
         c = col_ids[0]
         del col_ids[0]
         col_ids.insert(1, c)
-        col_count, id1 = self.vizual.move_column(ds.identifier, ds.get_column_by_name('Name').identifier, 1)
+        col_count, id1 = self.vizual.move_column(ds.identifier, ds.column_by_name('Name').identifier, 1)
         self.assertEquals(col_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
@@ -360,7 +383,7 @@ class TestVizualEngine(unittest.TestCase):
         c = col_ids[1]
         del col_ids[1]
         col_ids.append(c)
-        col_count, id2 = self.vizual.move_column(id1, ds.get_column_by_name('Salary').identifier, 1)
+        col_count, id2 = self.vizual.move_column(id1, ds.column_by_name('Salary').identifier, 1)
         ds = self.datastore.get_dataset(id2)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Age'.upper())
@@ -385,9 +408,9 @@ class TestVizualEngine(unittest.TestCase):
             self.vizual.move_column(id2, 40, 1)
         # Raise error if target position is out of bounds
         with self.assertRaises(ValueError):
-            self.vizual.move_column(id2, ds.get_column_by_name('Name').identifier, -1)
+            self.vizual.move_column(id2, ds.column_by_name('Name').identifier, -1)
         with self.assertRaises(ValueError):
-            self.vizual.move_column(id2, ds.get_column_by_name('Name').identifier, 4)
+            self.vizual.move_column(id2, ds.column_by_name('Name').identifier, 4)
         self.tear_down(engine)
 
     def move_row(self, engine):
@@ -484,14 +507,14 @@ class TestVizualEngine(unittest.TestCase):
         col_ids = [col.identifier for col in ds.columns]
         row_ids = [row.identifier for row in ds_rows]
         # Rename first column to Firstname
-        col_count, id1 = self.vizual.rename_column(ds.identifier, ds.get_column_by_name('Name').identifier, 'Firstname')
+        col_count, id1 = self.vizual.rename_column(ds.identifier, ds.column_by_name('Name').identifier, 'Firstname')
         self.assertEquals(col_count, 1)
         self.assertNotEquals(id1, ds.identifier)
         ds = self.datastore.get_dataset(id1)
         self.assertEquals(ds.columns[0].name.upper(), 'Firstname'.upper())
         self.assertEquals(ds.columns[1].name.upper(), 'Age'.upper())
         self.assertEquals(ds.columns[2].name.upper(), 'Salary'.upper())
-        col_count, id2 = self.vizual.rename_column(id1, ds.get_column_by_name('Age').identifier, 'BDate')
+        col_count, id2 = self.vizual.rename_column(id1, ds.column_by_name('Age').identifier, 'BDate')
         ds = self.datastore.get_dataset(id2)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds.columns[0].name.upper(), 'Firstname'.upper())
@@ -520,25 +543,25 @@ class TestVizualEngine(unittest.TestCase):
         ds = self.datastore.get_dataset(ds_id)
         count, ds_id = self.vizual.insert_column(ds_id, 3, 'HDate')
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('HDate').identifier, 0, '180')
+        count, ds_id = self.vizual.update_cell(ds_id, ds.column_by_name('HDate').identifier, 0, '180')
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('HDate').identifier, 1, '160')
+        count, ds_id = self.vizual.update_cell(ds_id, ds.column_by_name('HDate').identifier, 1, '160')
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.rename_column(ds_id, ds.get_column_by_name('HDate').identifier, 'Height')
+        count, ds_id = self.vizual.rename_column(ds_id, ds.column_by_name('HDate').identifier, 'Height')
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Height').identifier, 2, '170')
+        count, ds_id = self.vizual.update_cell(ds_id, ds.column_by_name('Height').identifier, 2, '170')
         ds = self.datastore.get_dataset(ds_id)
         count, ds_id = self.vizual.move_row(ds_id, 1, 2)
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Name').identifier, 2, 'Carla')
+        count, ds_id = self.vizual.update_cell(ds_id, ds.column_by_name('Name').identifier, 2, 'Carla')
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Age').identifier, 2, '45')
+        count, ds_id = self.vizual.update_cell(ds_id, ds.column_by_name('Age').identifier, 2, '45')
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.update_cell(ds_id, ds.get_column_by_name('Salary').identifier, 2, '56K')
+        count, ds_id = self.vizual.update_cell(ds_id, ds.column_by_name('Salary').identifier, 2, '56K')
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.move_column(ds_id, ds.get_column_by_name('Salary').identifier, 4)
+        count, ds_id = self.vizual.move_column(ds_id, ds.column_by_name('Salary').identifier, 4)
         ds = self.datastore.get_dataset(ds_id)
-        count, ds_id = self.vizual.delete_column(ds_id, ds.get_column_by_name('Age').identifier)
+        count, ds_id = self.vizual.delete_column(ds_id, ds.column_by_name('Age').identifier)
         ds = self.datastore.get_dataset(ds_id)
         count, ds_id = self.vizual.delete_row(ds_id, 0)
         ds = self.datastore.get_dataset(ds_id)
@@ -554,6 +577,36 @@ class TestVizualEngine(unittest.TestCase):
         self.assertEquals(len(ds_rows), 1)
         self.assertEquals(ds_rows[0].values, ['Carla', '160', '56K'])
         self.assertEquals(ds_rows[0].identifier, 2)
+        self.tear_down(engine)
+
+    def sort_dataset(self, engine):
+        """Test sorting a dataset."""
+        self.set_up(engine)
+        # Create a new dataset
+        fh = self.fs.upload_file(SORT_FILE)
+        ds = self.vizual.load_dataset(fh.identifier)
+        count, ds_id = self.vizual.sort_dataset(ds.identifier, [1, 2, 0], [False, False, True])
+        ds = self.datastore.get_dataset(ds_id)
+        rows = ds.fetch_rows()
+        names = ['Alice', 'Bob', 'Dave', 'Gertrud', 'Frank']
+        result = list()
+        for row in rows:
+            name = row.values[0]
+            if name in names:
+                result.append(name)
+        for i in range(len(names)):
+            self.assertEquals(names[i], result[i])
+        count, ds_id = self.vizual.sort_dataset(ds.identifier, [2, 1, 0], [True, False, True])
+        ds = self.datastore.get_dataset(ds_id)
+        rows = ds.fetch_rows()
+        names = ['Gertrud', 'Frank', 'Bob', 'Alice', 'Dave']
+        result = list()
+        for row in rows:
+            name = row.values[0]
+            if name in names:
+                result.append(name)
+        for i in range(len(names)):
+            self.assertEquals(names[i], result[i])
         self.tear_down(engine)
 
     def update_cell(self, engine):
@@ -574,7 +627,7 @@ class TestVizualEngine(unittest.TestCase):
         ds = self.datastore.get_dataset(id1)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds_rows[0].values[0], 'MyValue')
-        upd_rows, id2 = self.vizual.update_cell(id1, ds.get_column_by_name('Name').identifier, 0, 'AValue')
+        upd_rows, id2 = self.vizual.update_cell(id1, ds.column_by_name('Name').identifier, 0, 'AValue')
         ds = self.datastore.get_dataset(id2)
         ds_rows = ds.fetch_rows()
         self.assertEquals(ds_rows[0].values[0], 'AValue')
@@ -586,7 +639,7 @@ class TestVizualEngine(unittest.TestCase):
         for i in range(len(ds.columns)):
             self.assertEquals(ds.columns[i].identifier, col_ids[i])
         # Set value to None
-        upd_rows, id3 = self.vizual.update_cell(id2, ds.get_column_by_name('Name').identifier, 0, None)
+        upd_rows, id3 = self.vizual.update_cell(id2, ds.column_by_name('Name').identifier, 0, None)
         ds = self.datastore.get_dataset(id3)
         ds_rows = ds.fetch_rows()
         self.assertIsNone(ds_rows[0].values[0])

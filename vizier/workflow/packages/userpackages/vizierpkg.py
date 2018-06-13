@@ -11,7 +11,6 @@ import vistrails.packages.mimir.init as mimir
 
 from vizier.core.util import is_valid_name, get_unique_identifier
 from vizier.datastore.fs import FileSystemDataStore
-from vizier.datastore.base import get_index_for_column
 from vizier.datastore.mem import VolatileDataStore
 from vizier.datastore.metadata import DatasetMetadata
 from vizier.datastore.mimir import COL_PREFIX, ROW_ID
@@ -149,8 +148,7 @@ class MimirLens(Module):
             column_names = list()
             for col in get_argument(cmd.PARA_SCHEMA, args):
                 c_col = get_argument(cmd.PARA_PICKFROM, col, as_int=True)
-                c_idx = get_index_for_column(dataset, c_col)
-                column = dataset.columns[c_idx]
+                column = dataset.column_by_id(c_col)
                 pick_from.append(column.name_in_rdb)
                 column_names.append(column.name.upper().replace(' ', '_'))
             # Add result column to dataset schema
@@ -693,6 +691,25 @@ class VizualCell(NotCacheable, Module):
             col_count, ds_id = v_eng.move_row(ds, c_row, c_pos)
             vizierdb.set_dataset_identifier(ds_name, ds_id)
             outputs.stdout(content=PLAIN_TEXT(str(col_count) + ' row moved'))
+        elif name == cmd.VIZUAL_PROJECTION:
+            # Get the name of the dataset and the list of columns to filter
+            # as well as the optional new column name.
+            ds_name = get_argument(cmd.PARA_DATASET, args).lower()
+            ds = vizierdb.get_dataset_identifier(ds_name)
+            columns = list()
+            names = list()
+            for col in get_argument(cmd.PARA_COLUMNS, args):
+                f_col = get_argument(cmd.PARA_COLUMNS_COLUMN, col, as_int=True)
+                columns.append(f_col)
+                col_name = None
+                if cmd.PARA_COLUMNS_RENAME in col:
+                    col_name = get_argument(cmd.PARA_COLUMNS_RENAME, col)
+                if col_name == '':
+                    col_name = None
+                names.append(col_name)
+            _, ds_id = v_eng.filter_columns(ds, columns, names)
+            vizierdb.set_dataset_identifier(ds_name, ds_id)
+            outputs.stdout(content=PLAIN_TEXT(str(len(columns)) + ' column(s) filtered'))
         elif name == cmd.VIZUAL_REN_COL:
             # Get dataset name, column specification, and new column nmae.
             # Raise exception if the specified dataset does not exist.
@@ -721,6 +738,24 @@ class VizualCell(NotCacheable, Module):
             vizierdb.remove_dataset_identifier(ds_name)
             vizierdb.set_dataset_identifier(new_name, ds)
             outputs.stdout(content=PLAIN_TEXT('1 dataset renamed'))
+        elif name == cmd.VIZUAL_SORT:
+            # Get the name of the dataset and the list of columns to sort on
+            # as well as the optional sort order.
+            ds_name = get_argument(cmd.PARA_DATASET, args).lower()
+            ds = vizierdb.get_dataset_identifier(ds_name)
+            columns = list()
+            reversed = list()
+            for col in get_argument(cmd.PARA_COLUMNS, args):
+                s_col = get_argument(cmd.PARA_COLUMNS_COLUMN, col, as_int=True)
+                columns.append(s_col)
+                sort_order = get_argument(cmd.PARA_COLUMNS_ORDER, col)
+                if sort_order == cmd.SORT_DESC:
+                    reversed.append(True)
+                else:
+                    reversed.append(False)
+            count, ds_id = v_eng.sort_dataset(ds, columns, reversed)
+            vizierdb.set_dataset_identifier(ds_name, ds_id)
+            outputs.stdout(content=PLAIN_TEXT(str(count) + ' row(s) sorted'))
         elif name == cmd.VIZUAL_UPD_CELL:
             # Get dataset name, cell coordinates, and update value. Raise
             # exception if the specified dataset does not exist.
@@ -836,6 +871,25 @@ class VizualCell(NotCacheable, Module):
                 'TO POSITION',
                 str(get_argument(cmd.PARA_POSITION, args, default_value='?'))
             ])
+        elif name == cmd.VIZUAL_PROJECTION:
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            filter_columns = list()
+            for col in get_argument(cmd.PARA_COLUMNS, args, default_value=list()):
+                col_id = get_argument(
+                    cmd.PARA_COLUMNS_COLUMN, col, default_value='?'
+                )
+                col_name = get_column_name(ds_name, col_id, vizierdb)
+                col_name = format_str(col_name)
+                new_name = get_argument(cmd.PARA_COLUMNS_RENAME, col)
+                if new_name != '':
+                    col_name += ' AS ' + format_str(new_name)
+                filter_columns.append(col_name)
+            return ' '.join([
+                'FILTER COLUMNS',
+                ', '.join(filter_columns),
+                'FROM',
+                format_str(ds_name.lower())
+            ])
         elif name == cmd.VIZUAL_REN_COL:
             # RENAME COLUMN <name> IN <dataset> TO <name>
             ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
@@ -856,6 +910,25 @@ class VizualCell(NotCacheable, Module):
                 format_str(ds_name.lower()),
                 'TO',
                 format_str(get_argument(cmd.PARA_NAME, args, default_value='?'))
+            ])
+        elif name == cmd.VIZUAL_SORT:
+            ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
+            sort_columns = list()
+            for col in get_argument(cmd.PARA_COLUMNS, args, default_value=list()):
+                col_id = get_argument(
+                    cmd.PARA_COLUMNS_COLUMN, col, default_value='?'
+                )
+                col_name = get_column_name(ds_name, col_id, vizierdb)
+                col_name = format_str(col_name)
+                sort_order = get_argument(cmd.PARA_COLUMNS_ORDER, col)
+                if sort_order != '':
+                    col_name += ' (' + sort_order + ')'
+                sort_columns.append(col_name)
+            return ' '.join([
+                'SORT',
+                format_str(ds_name.lower()),
+                'BY',
+                ', '.join(sort_columns)
             ])
         elif name == cmd.VIZUAL_UPD_CELL:
             # UPDATE <dataset> SET [<column>,<row>] = <value>
@@ -907,8 +980,7 @@ def add_data_series(view, series_spec, dataset, prefix=cmd.PARA_SERIES, default_
     col_id = get_argument(prefix + '_' + cmd.PARA_COLUMN, series_spec, as_int=True)
     # Get column index to ensure that the column exists. Will raise
     # an exception if c_name does not specify a valid column.
-    col_idx = get_index_for_column(dataset, col_id)
-    c_name = dataset.columns[col_idx].name
+    c_name = dataset.column_by_id(col_id).name
     if prefix + '_' + cmd.PARA_LABEL in series_spec:
         s_label = str(series_spec[prefix + '_' + cmd.PARA_LABEL])
         if s_label.strip() == '':
@@ -1052,7 +1124,7 @@ def get_column_argument(dataset, args, key, optional=False):
     if optional and not key in args:
         return None
     c_col = get_argument(key, args, as_int=True)
-    return dataset.columns[get_index_for_column(dataset, c_col)]
+    return dataset.column_by_id(c_col)
 
 
 def get_column_name(ds_name, column_id, vizierdb):

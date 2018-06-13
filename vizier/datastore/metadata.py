@@ -331,6 +331,33 @@ class DatasetMetadata(object):
             }
         )
 
+    def filter_columns(self, columns):
+        """Return a copy of the dataset metadata that only contains annotations
+        for columns in the given list.
+
+        Parameters
+        ----------
+        columns: list(int)
+
+        Returns
+        ------
+        vizier.database.metadata.DatasetMetadata
+        """
+        column_annotations = dict()
+        for col_id in self.column_annotations:
+            if col_id in columns:
+                column_annotations[col_id] = self.column_annotations[col_id]
+        cell_annotations = dict()
+        for key in self.cell_annotations:
+            col_id = DatasetMetadata.cell_key_serializer(key)['column']
+            if col_id in columns:
+                cell_annotations[key] = self.cell_annotations[key]
+        return DatasetMetadata(
+            column_annotations=column_annotations,
+            row_annotations=self.row_annotations,
+            cell_annotations=cell_annotations
+        )
+
     def for_cell(self, column_id, row_id):
         """Get object metadata set for a dataset cell.
 
@@ -464,7 +491,6 @@ class DatasetMetadata(object):
         if cell_id in self.cell_annotations:
             return len(self.cell_annotations[cell_id]) > 0
         return False
-
 
     def to_dict(self):
         """Get a dictionary serialization of all object annotations.

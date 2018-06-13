@@ -77,7 +77,7 @@ class TestMimirAnnotations(unittest.TestCase):
         # Missing Value Lens
         self.db.append_workflow_module(
             viztrail_id=vt.identifier,
-            command=cmd.mimir_missing_value(DS_NAME, ds.get_column_by_name('AGE').identifier)
+            command=cmd.mimir_missing_value(DS_NAME, ds.column_by_name('AGE').identifier)
         )
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])

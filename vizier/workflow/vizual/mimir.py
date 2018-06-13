@@ -6,6 +6,7 @@ via VizUAL commands.
 from abc import abstractmethod
 import csv
 import gzip
+import json
 
 import vistrails.packages.mimir.init as mimir
 
@@ -131,6 +132,67 @@ class MimirVizualEngine(DefaultVizualEngine):
             annotations=dataset.annotations
         )
         return 1, ds.identifier
+
+    def filter_columns(self, identifier, columns, names):
+        """Dataset projection operator. Returns a copy of the dataset with the
+        given identifier that contains only those columns listed in columns.
+        The list of names contains optional new names for the filtered columns.
+        A value of None in names indicates that the name of the corresponding
+        column is not changed.
+
+        Returns the number of rows in the dataset and the identifier of the
+        projected dataset.
+
+        Raises ValueError if no dataset with given identifier exists or if any
+        of the filter columns are unknown.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        columns: list(int)
+            List of column identifier for columns in the result.
+        names: list(string)
+            Optional new names for filtered columns.
+
+        Returns
+        -------
+        int, string
+        """
+        # Get dataset. Raise exception if dataset is unknown
+        dataset = self.datastore.get_dataset(identifier)
+        if dataset is None:
+            raise ValueError('unknown dataset \'' + identifier + '\'')
+        # The schema of the new dataset only contains the columns in the given
+        # list. A column might need to be renamed.
+        schema = list()
+        col_list = [ROW_ID]
+        for i in range(len(columns)):
+            col_idx = get_index_for_column(dataset, columns[i])
+            col = dataset.columns[col_idx]
+            if not names[i] is None:
+                schema.append(
+                    MimirDatasetColumn(
+                        identifier=col.identifier,
+                        name_in_dataset=names[i],
+                        name_in_rdb=col.name_in_rdb
+                    )
+                )
+            else:
+                schema.append(col)
+            col_list.append(col.name_in_rdb)
+        sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
+        view_name = mimir._mimir.createView(dataset.table_name, sql)
+        # Store updated dataset information with new identifier
+        ds = self.datastore.register_dataset(
+            table_name=view_name,
+            columns=schema,
+            row_ids=dataset.row_ids,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations.filter_columns(columns)
+        )
+        return len(dataset.row_ids), ds.identifier
 
     def insert_column(self, identifier, position, name):
         """Insert column with given name at given position in dataset.
@@ -392,6 +454,66 @@ class MimirVizualEngine(DefaultVizualEngine):
         else:
             return 0, identifier
 
+    def sort_dataset(self, identifier, columns, reversed):
+        """Sort the dataset with the given identifier according to the order by
+        statement. The order by statement is a pair of lists. The first list
+        contains the identifier of columns to sort on. The second list contains
+        boolean flags, one for each entry in columns, indicating whether sort
+        order is revered for the corresponding column or not.
+
+        Returns the number of rows in the database and the identifier of the
+        sorted dataset.
+
+        Raises ValueError if no dataset with given identifier exists or if any
+        of the columns in the order by clause are unknown.
+
+        Parameters
+        ----------
+        identifier: string
+            Unique dataset identifier
+        columns: list(int)
+            List of column identifier for sort columns.
+        reversed: list(bool)
+            Flags indicating whether the sort order of the corresponding column
+            is reveresed.
+
+        Returns
+        -------
+        int, string
+        """
+        # Get dataset. Raise exception if dataset is unknown
+        dataset = self.datastore.get_dataset(identifier)
+        if dataset is None:
+            raise ValueError('unknown dataset \'' + identifier + '\'')
+        # Create order by clause based on columns and reversed flags
+        order_by_clause = list()
+        for i in range(len(columns)):
+            col_id = columns[i]
+            stmt = dataset.column_by_id(col_id).name_in_rdb
+            if reversed[i]:
+                stmt += ' DESC'
+            order_by_clause.append(stmt)
+        # Query the row ids in the database sorted by the given order by clause
+        sql = 'SELECT ' + ROW_ID + ' FROM ' + dataset.table_name + ' ORDER BY '
+        sql += ','.join(order_by_clause)
+        rs = json.loads(
+            mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
+        )
+        # The result contains the sorted list of row ids
+        rows = list()
+        for row in rs['data']:
+            rows.append(row[0])
+        # Register new dataset with only a modified list of row identifier
+        ds = self.datastore.register_dataset(
+            table_name=dataset.table_name,
+            columns=dataset.columns,
+            row_ids=rows,
+            column_counter=dataset.column_counter,
+            row_counter=dataset.row_counter,
+            annotations=dataset.annotations
+        )
+        return len(rows), ds.identifier
+
     def update_cell(self, identifier, column, row, value):
         """Update a cell in a given dataset.
 
@@ -445,11 +567,6 @@ class MimirVizualEngine(DefaultVizualEngine):
                 col_list.append(col.name_in_rdb)
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
         view_name = mimir._mimir.createView(dataset.table_name, sql)
-        # Clear dataset annotations for the updated value. Currently disabled
-        #dataset.annotations.clear_cell(
-        #    dataset.columns[col_index].identifier,
-        #    row_id
-        #)
         # Store updated dataset information with new identifier
         ds = self.datastore.register_dataset(
             table_name=view_name,
