@@ -337,11 +337,11 @@ class TestWebServiceAPI(unittest.TestCase):
             self.validate_workflow_descriptor(wf)
 
     def validate_dataset_handle(self, ds):
-        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'rowcount'])
+        self.validate_keys(ds, ['id', 'columns', 'rows', 'links', 'offset', 'rowcount', 'annotatedCells'])
         for col in ds['columns']:
             self.validate_keys(col, ['id', 'name'])
         for row in ds['rows']:
-            self.validate_keys(row, ['id', 'index', 'values', 'annotations'])
+            self.validate_keys(row, ['id', 'index', 'values'])
         self.validate_links(ds['links'], ['self', 'download', 'annotations', 'pagefirst', 'pagefirstanno'])
 
     def validate_dataset_annotations(self, ds_id, column_id=-1, row_id=-1, expected=dict()):

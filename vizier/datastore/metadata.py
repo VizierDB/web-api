@@ -461,7 +461,9 @@ class DatasetMetadata(object):
         bool
         """
         cell_id = DatasetMetadata.get_cell_key(column_id, row_id)
-        return cell_id in self.cell_annotations
+        if cell_id in self.cell_annotations:
+            return len(self.cell_annotations[cell_id]) > 0
+        return False
 
 
     def to_dict(self):

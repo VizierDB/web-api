@@ -11,7 +11,7 @@ import vistrails.packages.mimir.init as mimir
 from vizier.config import ExecEnv, FileServerConfig
 from vizier.config import ENGINEENV_MIMIR
 from vizier.datastore.client import DatasetClient
-from vizier.datastore.mimir import MimirDataStore
+from vizier.datastore.mimir import MimirDataStore, ANNO_UNCERTAIN
 from vizier.filestore.base import DefaultFileServer
 from vizier.workflow.base import DEFAULT_BRANCH
 from vizier.workflow.engine.viztrails import DefaultViztrailsEngine
@@ -82,9 +82,9 @@ class TestMimirAnnotations(unittest.TestCase):
         wf = self.db.get_workflow(viztrail_id=vt.identifier)
         ds = self.datastore.get_dataset(wf.modules[-1].datasets[DS_NAME])
         annos = ds.get_annotations(column_id=1, row_id=2)
-        self.assertEquals(len(annos), 1)
+        self.assertEquals(len(annos), 2)
         for anno in annos:
-            self.assertEquals(anno.key, 'mimir:uncertain')
+            self.assertEquals(anno.key, ANNO_UNCERTAIN)
         mimir.finalize()
 
 

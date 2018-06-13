@@ -249,19 +249,26 @@ def DATASET(dataset, rows, config, urls, offset=0, limit=-1):
     dataset_id = dataset.identifier
     # Serialize rows. The default dictionary representation for a row does
     # not include the row index position nor the annotation information.
-    annotated_rows = list()
+    serialized_rows = list()
+    annotated_cells = list()
     for row in rows:
         obj = row.to_dict()
-        obj['index'] = len(annotated_rows) + offset
-        obj['annotations'] = row.cell_annotations
-        annotated_rows.append(obj)
+        obj['index'] = len(serialized_rows) + offset
+        serialized_rows.append(obj)
+        for i in range(len(dataset.columns)):
+            if row.cell_annotations[i] == True:
+                annotated_cells.append({
+                    'column': dataset.columns[i].identifier,
+                    'row': row.identifier
+                })
     # Serialize the dataset schema and cells
     obj = {
         'id' : dataset_id,
         'columns' : [col.to_dict() for col in dataset.columns],
-        'rows': annotated_rows,
+        'rows': serialized_rows,
         'offset': offset,
-        'rowcount': dataset.row_count
+        'rowcount': dataset.row_count,
+        'annotatedCells': annotated_cells
     }
     # Add references if dataset exists
     obj[JSON_REFERENCES] = [

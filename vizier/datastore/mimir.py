@@ -24,7 +24,6 @@ from vizier.datastore.reader import DatasetReader
 
 """Mimir annotation keys."""
 ANNO_UNCERTAIN = 'mimir:uncertain'
-ANNO_UNCERTAIN_ROW_PROV = 'mimir:uncertain:rowProv'
 
 """Value casts for SQL update statements."""
 CAST_TRUE = 'CAST(1 AS BOOL)'
@@ -313,24 +312,29 @@ class MimirDatasetHandle(DatasetHandle):
             sql = 'SELECT ' + column.name_in_rdb + ' '
             sql += 'FROM ' + self.table_name + ' '
             sql += 'WHERE ' + ROW_ID + ' = ' + str(row_id)
-            row_prov = annotations.find_one(ANNO_UNCERTAIN_ROW_PROV)
-            buffer = mimir._mimir.explainCell(sql, 0, '')
-            for i in range(buffer.size()):
-                value = str(buffer.array()[i])
-                # Remove references to lenses
-                while 'LENS_' in value:
-                    start_pos = value.find('LENS_')
-                    end_pos = value.find('.', start_pos)
-                    if end_pos > start_pos:
-                        value = value[:start_pos] + value[end_pos + 1:]
-                    else:
-                        value = value[:start_pos]
-                # Replace references to column name
-                value = value.replace(column.name_in_rdb, column.name)
-                # Remove content in double square brackets
-                if '{{' in value:
-                    value = value[:value.find('{{')].strip()
-                annotations.add(ANNO_UNCERTAIN, value)
+            rs = json.loads(
+                mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
+            )
+            has_reasons = not rs['col_taint'][0][0]
+            if has_reasons:
+                row_prov = str(rs['prov'][0])
+                buffer = mimir._mimir.explainCell(sql, 0, row_prov)
+                for i in range(buffer.size()):
+                    value = str(buffer.array()[i])
+                    # Remove references to lenses
+                    while 'LENS_' in value:
+                        start_pos = value.find('LENS_')
+                        end_pos = value.find('.', start_pos)
+                        if end_pos > start_pos:
+                            value = value[:start_pos] + value[end_pos + 1:]
+                        else:
+                            value = value[:start_pos]
+                    # Replace references to column name
+                    value = value.replace(column.name_in_rdb, column.name)
+                    # Remove content in double square brackets
+                    if '{{' in value:
+                        value = value[:value.find('{{')].strip()
+                    annotations.add(ANNO_UNCERTAIN, value)
         else:
             raise ValueError('invalid component identifier')
         return annotations.values()
@@ -512,7 +516,7 @@ class MimirDatasetReader(DatasetReader):
                     )
                     if not has_anno:
                         # Check if the cell taint is true
-                        has_anno = rs['col_taint'][row_index][col_index]
+                        has_anno = not rs['col_taint'][row_index][col_index]
                     row_annos[i] = has_anno
                 self.rows.append(DatasetRow(row_id, values, annotations=row_annos))
             self.rows.sort(key=lambda row: self.row_ids[row.identifier])
