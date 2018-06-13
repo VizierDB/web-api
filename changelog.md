@@ -51,4 +51,9 @@
 
 * Push pagination queries to datastore
 * Avoid materializing Mimir annotations in dataset metadata
-* Encode special characters as unicode in dataset creation 
+* Encode special characters as unicode in dataset creation
+
+
+### 0.4.3. - 2018-06-13
+
+* Add VizUAL Sort and Filter Columns commands 

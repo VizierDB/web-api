@@ -1,3 +1,19 @@
+# Copyright (C) 2018 New York University
+#                    University at Buffalo,
+#                    Illinois Institute of Technology.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Specifications for supported workflow module types."""
 
 from vizier.workflow.module import ModuleSpecification
@@ -512,6 +528,7 @@ VIZUAL_COMMANDS = {
     },
     VIZUAL_DROP_DS: {
         MODULE_NAME: 'Drop Dataset',
+        MODULE_GROUP: 'dataset',
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0)
         }
@@ -533,7 +550,7 @@ VIZUAL_COMMANDS = {
     },
     VIZUAL_LOAD: {
         MODULE_NAME: 'Load Dataset',
-        MODULE_GROUP: 'load',
+        MODULE_GROUP: 'dataset',
         MODULE_ARGUMENTS: {
             PARA_FILE: parameter_specification(PARA_FILE, 'File', DT_FILE_ID, 0),
             PARA_NAME: parameter_specification(PARA_NAME, 'Dataset Name', DT_STRING, 1)
@@ -597,6 +614,7 @@ VIZUAL_COMMANDS = {
     },
     VIZUAL_REN_DS: {
         MODULE_NAME: 'Rename Dataset',
+        MODULE_GROUP: 'dataset',
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
             PARA_NAME: parameter_specification(
@@ -609,6 +627,7 @@ VIZUAL_COMMANDS = {
     },
     VIZUAL_SORT: {
         MODULE_NAME: 'Sort Dataset',
+        MODULE_GROUP: 'dataset',
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
             PARA_COLUMNS: parameter_specification(
