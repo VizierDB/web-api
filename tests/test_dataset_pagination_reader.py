@@ -14,6 +14,7 @@ from vizier.workflow.vizual.mimir import MimirVizualEngine
 
 
 CSV_FILE = './data/dataset_7rows.csv'
+TSV_FILE = './data/pd5h-92mc.tsv'
 
 DATASTORE_DIR = './env/ds'
 FILESERVER_DIR = './env/fs'
@@ -89,6 +90,25 @@ class TestDatasetPaginationReader(unittest.TestCase):
         rows = ds.fetch_rows(offset=6, limit=3)
         self.assertEquals(len(rows), 1)
         self.assertEquals(rows[0].values[0], 'Gertrud')
+        # Test larger dataset with deletes
+        ds = self.vizual.load_dataset(self.fs.upload_file(TSV_FILE).identifier)
+        rows = ds.fetch_rows(offset=0, limit=10)
+        self.assertEquals(len(rows), 10)
+        self.assertEquals([r.identifier for r in rows], [0,1,2,3,4,5,6,7,8,9])
+        _, id1 = self.vizual.delete_row(ds.identifier, 2) # ID=2
+        _, id2 = self.vizual.delete_row(id1, 4) # ID=5
+        ds = self.datastore.get_dataset(id2)
+        rows = ds.fetch_rows(offset=0, limit=10)
+        self.assertEquals([r.identifier for r in rows], [0,1,3,4,6,7,8,9,10,11])
+        _, id1 = self.vizual.move_row(ds.identifier, 9, 1) # ID=11
+        _, id2 = self.vizual.move_row(id1, 9, 1) # ID=10
+        ds = self.datastore.get_dataset(id2)
+        rows = ds.fetch_rows(offset=1, limit=10)
+        self.assertEquals([r.identifier for r in rows], [10,11,1,3,4,6,7,8,9,12])
+        rows = ds.fetch_rows(offset=2, limit=10)
+        self.assertEquals([r.identifier for r in rows], [11,1,3,4,6,7,8,9,12,13])
+        rows = ds.fetch_rows(offset=3, limit=10)
+        self.assertEquals([r.identifier for r in rows], [1,3,4,6,7,8,9,12,13,14])
         self.tear_down(engine)
 
 

@@ -648,9 +648,12 @@ VIZUAL_COMMANDS = {
                 'Order',
                 DT_STRING,
                 3,
-                values=[SORT_ASC, SORT_DESC],
+                values=[
+                    {'value': SORT_ASC, 'isDefault': True},
+                    SORT_DESC
+                ],
                 parent=PARA_COLUMNS,
-                required=False
+                required=True
             )
         }
     },

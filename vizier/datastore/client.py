@@ -49,23 +49,16 @@ class DatasetClient(object):
             Handle to the dataset for which this is a client. If None this is a
             new dataset.
         """
+        self.dataset = dataset
+        # Delay fetching rows for now
+        self._rows = None
         if not dataset is None:
             self.identifier = dataset.identifier
             self.columns = dataset.columns
-            self.rows = list()
-            for row in dataset.fetch_rows():
-                # Create mutable dataset row and set reference to this dataset
-                # for updates
-                self.rows.append(MutableDatasetRow(
-                    identifier=row.identifier,
-                    values=row.values,
-                    dataset=self
-                ))
             self.annotations = dataset.annotations
         else:
             self.identifier = None
             self.columns = list()
-            self.rows = list()
             self.annotations = DatasetMetadata()
 
     def column_index(self, column_id):
@@ -167,7 +160,6 @@ class DatasetClient(object):
                 values = [None] * len(self.columns),
                 dataset=self
             )
-
         if not position is None:
             self.rows.insert(position, row)
         else:
@@ -218,6 +210,29 @@ class DatasetClient(object):
             self.columns.insert(position, self.columns.pop(source_idx))
             for row in self.rows:
                 row.values.insert(position, row.values.pop(source_idx))
+
+    @property
+    def rows(self):
+        """Fetch rows on demand.
+
+        Returns
+        -------
+        list(vizier.datastore.client.MutableDatasetRow)
+        """
+        if self._rows is None:
+            self._rows = list()
+            if not self.dataset is None:
+                for row in self.dataset.fetch_rows():
+                    # Create mutable dataset row and set reference to this dataset
+                    # for updates
+                    self._rows.append(
+                        MutableDatasetRow(
+                            identifier=row.identifier,
+                            values=row.values,
+                            dataset=self
+                        )
+                    )
+        return self._rows
 
 
 class MutableDatasetRow(DatasetRow):

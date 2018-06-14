@@ -31,7 +31,7 @@ from StringIO import StringIO
 import vistrails.packages.mimir.init as mimir
 
 from vizier.core.system import build_info
-from vizier.core.util import get_unique_identifier
+from vizier.core.util import get_unique_identifier, min_max
 from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, encode_values, max_column_id
 from vizier.datastore.metadata import Annotation, DatasetMetadata, ObjectMetadataSet
@@ -140,6 +140,16 @@ class MimirDatasetColumn(DatasetColumn):
             doc['dataType']
         )
 
+    def is_numeric(self):
+        """Flag indicating if the data type of this column is numeric, i.e.,
+        integer or real.
+
+        Returns
+        -------
+        bool
+        """
+        return self.data_type.lower() in ['int', 'real']
+
     def to_dict(self):
         """Get dictionary serialization for dataset column object.
 
@@ -177,7 +187,7 @@ class MimirDatasetColumn(DatasetColumn):
         # convert the given argument to check whether it actually is a numeric
         # value. Note that we always return a string beacuse the result is
         # intended to be concatenated as part of a SQL query string.
-        if self.data_type.lower() in ['int', 'real']:
+        if self.is_numeric():
             try:
                 int(value)
                 return str(value)
@@ -375,6 +385,7 @@ class MimirDatasetHandle(DatasetHandle):
             table_name=self.table_name,
             columns=self.columns,
             row_ids=self.row_ids,
+            rowid_column_numeric=self.rowid_column.is_numeric(),
             offset=offset,
             limit=limit,
             annotations=self.annotations
@@ -403,7 +414,7 @@ class MimirDatasetHandle(DatasetHandle):
 
 class MimirDatasetReader(DatasetReader):
     """Dataset reader for Mimir datasets."""
-    def __init__(self, table_name, columns, row_ids, offset=0, limit=-1, annotations=None):
+    def __init__(self, table_name, columns, row_ids, rowid_column_numeric=True, offset=0, limit=-1, annotations=None):
         """Initialize information about the delimited file and the file format.
 
         Parameters
@@ -414,6 +425,9 @@ class MimirDatasetReader(DatasetReader):
             List of descriptors for columns in the database
         row_ids: list(int)
             Sort order for rows in the dataset
+        rowid_column_numeric: bool, optional
+            Flag indicating if the ROW ID column is numeric (necessary when
+            generating the WHERE clause for pagination queries).
         offset: int, optional
             Number of rows at the beginning of the list that are skipped.
         limit: int, optional
@@ -423,6 +437,7 @@ class MimirDatasetReader(DatasetReader):
         """
         self.table_name = table_name
         self.columns = columns
+        self.rowid_column_numeric = rowid_column_numeric
         self.annotations = annotations if not annotations is None else DatasetMetadata()
         # Convert row id list into row position index. Depending on whether
         # offset or limit parameters are given we also limit the entries in the
@@ -493,9 +508,10 @@ class MimirDatasetReader(DatasetReader):
             # Query the database to get the list of rows. Sort rows according to
             # order in row_ids and return a InMemReader
             sql = get_select_query(self.table_name, columns=self.columns)
-            #if self.is_range_query:
-            #    ids = [str(row_id) for row_id in self.row_ids]
-            #    sql += ' WHERE ' + ROW_ID + ' IN (' + ','.join(ids) + ')'
+            if self.is_range_query and self.rowid_column_numeric:
+                min_id, max_id = min_max(self.row_ids.keys())
+                sql += ' WHERE ' + ROW_ID + ' >= ' + str(min_id)
+                sql += ' AND ' + ROW_ID + ' <= ' + str(max_id)
             rs = json.loads(
                 mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
             )

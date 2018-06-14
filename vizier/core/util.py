@@ -108,3 +108,26 @@ def is_valid_name(name):
         elif not c in ['_', '-', ' ']:
             return False
     return (allnums > 0)
+
+
+def min_max(values):
+    """Return the min and the max value from a list of values.
+
+    Parameters
+    ----------
+    values: list(scalar)
+        List of values from a type for which '<' and '>' are defined.
+
+    Returns
+    -------
+    scalar, scalar
+    """
+    if len(values) == 0:
+        return None, None
+    min_val = max_val = values[0]
+    for i in range(1, len(values)):
+        if min_val > values[i]:
+            min_val = values[i]
+        if max_val < values[i]:
+            max_val = values[i]
+    return min_val, max_val
