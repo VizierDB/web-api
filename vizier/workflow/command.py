@@ -60,6 +60,7 @@ PARA_COLUMNS = 'columns'
 PARA_CONSTRAINT = 'constraint'
 PARA_DATASET = 'dataset'
 PARA_FILE = 'file'
+PARA_FILEID = 'fileid'
 PARA_GEOCODER = 'geocoder'
 PARA_HOUSE_NUMBER = 'strnumber'
 PARA_LABEL = 'label'
@@ -99,7 +100,13 @@ def para_column(index, parent=None):
     -------
     dict
     """
-    return parameter_specification(PARA_COLUMN, 'Column', DT_COLUMN_ID, index, parent=parent)
+    return parameter_specification(
+        PARA_COLUMN,
+        name='Column',
+        data_type=DT_COLUMN_ID,
+        index=index,
+        parent=parent
+    )
 
 
 def para_dataset(index):
@@ -110,7 +117,12 @@ def para_dataset(index):
     -------
     dict
     """
-    return parameter_specification(PARA_DATASET, 'Dataset', DT_DATASET_ID, index)
+    return parameter_specification(
+        PARA_DATASET,
+        name='Dataset',
+        data_type=DT_DATASET_ID,
+        index=index
+    )
 
 
 def para_make_input_certain(index):
@@ -122,9 +134,9 @@ def para_make_input_certain(index):
     """
     return parameter_specification(
         PARA_MAKE_CERTAIN,
-        'Make Input Certain',
-        DT_BOOL,
-        index,
+        name='Make Input Certain',
+        data_type=DT_BOOL,
+        index=index,
         required=False
     )
 
@@ -136,7 +148,12 @@ def para_position(index):
     -------
     dict
     """
-    return parameter_specification(PARA_POSITION, 'Position', DT_INT, index)
+    return parameter_specification(
+        PARA_POSITION,
+        name='Position',
+        data_type=DT_INT,
+        index=index
+    )
 
 
 def para_row(index):
@@ -147,12 +164,17 @@ def para_row(index):
     -------
     dict
     """
-    return parameter_specification(PARA_ROW, 'Row', DT_ROW_INDEX, index)
+    return parameter_specification(
+        PARA_ROW,
+        name='Row',
+        data_type=DT_ROW_INDEX,
+        index=index
+    )
 
 
 def parameter_specification(
-        identifier, name, data_type, index, label=None, required=True,
-        values=None, parent=None
+        identifier, name=None, data_type=None, index=0, label=None, required=True,
+        values=None, parent=None, hidden=False
     ):
     """Create a dictionary that contains a module parameter specification.
 
@@ -184,7 +206,8 @@ def parameter_specification(
         'name': name,
         'datatype': data_type,
         'index': index,
-        'required': required
+        'required': required,
+        'hidden': hidden
     }
     if not label is None:
         para['label'] = label
@@ -263,37 +286,37 @@ MIMIR_LENSES = {
             PARA_DATASET: para_dataset(0),
             PARA_HOUSE_NUMBER: parameter_specification(
                 PARA_HOUSE_NUMBER,
-                'House Nr.',
-                DT_COLUMN_ID,
-                1,
+                name='House Nr.',
+                data_type=DT_COLUMN_ID,
+                index=1,
                 required=False
             ),
             PARA_STREET: parameter_specification(
                 PARA_STREET,
-                'Street',
-                DT_COLUMN_ID,
-                2,
+                name='Street',
+                data_type=DT_COLUMN_ID,
+                index=2,
                 required=False
             ),
             PARA_CITY: parameter_specification(
                 PARA_CITY,
-                'City',
-                DT_COLUMN_ID,
-                3,
+                name='City',
+                data_type=DT_COLUMN_ID,
+                index=3,
                 required=False
             ),
             PARA_STATE: parameter_specification(
                 PARA_STATE,
-                'State',
-                DT_COLUMN_ID,
-                4,
+                name='State',
+                data_type=DT_COLUMN_ID,
+                index=4,
                 required=False
             ),
             PARA_GEOCODER: parameter_specification(
                 PARA_GEOCODER,
-                'Geocoder',
-                DT_STRING,
-                5,
+                name='Geocoder',
+                data_type=DT_STRING,
+                index=5,
                 values=['GOOGLE', 'OSM']
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(6)
@@ -314,9 +337,9 @@ MIMIR_LENSES = {
             PARA_COLUMN: para_column(1),
             PARA_CONSTRAINT: parameter_specification(
                 PARA_CONSTRAINT,
-                'Constraint',
-                DT_STRING,
-                2,
+                name='Constraint',
+                data_type=DT_STRING,
+                index=2,
                 required=False
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(3)
@@ -336,22 +359,22 @@ MIMIR_LENSES = {
             PARA_DATASET: para_dataset(0),
             PARA_SCHEMA: parameter_specification(
                 PARA_SCHEMA,
-                'Columns',
-                DT_GROUP,
-                1
+                name='Columns',
+                data_type=DT_GROUP,
+                index=1
             ),
             PARA_PICKFROM: parameter_specification(
                 PARA_PICKFROM,
-                'Pick From',
-                DT_COLUMN_ID,
-                2,
+                name='Pick From',
+                data_type=DT_COLUMN_ID,
+                index=2,
                 parent=PARA_SCHEMA
             ),
             PARA_PICKAS: parameter_specification(
                 PARA_PICKAS,
-                'Pick As',
-                DT_STRING,
-                3,
+                name='Pick As',
+                data_type=DT_STRING,
+                index=3,
                 required=False
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(4)
@@ -363,30 +386,30 @@ MIMIR_LENSES = {
             PARA_DATASET: para_dataset(0),
             PARA_SCHEMA: parameter_specification(
                 PARA_SCHEMA,
-                'Schema',
-                DT_GROUP,
-                1
+                name='Schema',
+                data_type=DT_GROUP,
+                index=1
             ),
             PARA_COLUMN: parameter_specification(
                 PARA_COLUMN,
-                'Column Name',
-                DT_STRING,
-                2,
+                name='Column Name',
+                data_type=DT_STRING,
+                index=2,
                 parent=PARA_SCHEMA
             ),
             PARA_TYPE: parameter_specification(
                 PARA_TYPE,
-                'Data Type',
-                DT_STRING,
-                3,
+                name='Data Type',
+                data_type=DT_STRING,
+                index=3,
                 values=['int', 'varchar'],
                 parent=PARA_SCHEMA
             ),
             PARA_RESULT_DATASET: parameter_specification(
                 PARA_RESULT_DATASET,
-                'Store Result As ...',
-                DT_STRING,
-                4
+                name='Store Result As ...',
+                data_type=DT_STRING,
+                index=4
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(5)
         }
@@ -397,9 +420,9 @@ MIMIR_LENSES = {
             PARA_DATASET: para_dataset(0),
             PARA_PERCENT_CONFORM: parameter_specification(
                 PARA_PERCENT_CONFORM,
-                'Percent Conform',
-                DT_DECIMAL,
-                1
+                name='Percent Conform',
+                data_type=DT_DECIMAL,
+                index=1
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(2)
         }
@@ -412,70 +435,75 @@ PLOT_COMMANDS = {
         MODULE_NAME: 'Simple Chart',
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
-            PARA_NAME: parameter_specification(PARA_NAME, 'Chart Name', DT_STRING, 1),
+            PARA_NAME: parameter_specification(
+                PARA_NAME,
+                name='Chart Name',
+                data_type=DT_STRING,
+                index=1
+            ),
             PARA_SERIES: parameter_specification(
                 PARA_SERIES,
-                'Data Series',
-                DT_GROUP,
-                2
+                name='Data Series',
+                data_type=DT_GROUP,
+                index=2
             ),
             PARA_SERIES + '_' + PARA_COLUMN: parameter_specification(
                 PARA_SERIES + '_' + PARA_COLUMN,
-                'Column',
-                DT_COLUMN_ID,
-                3,
+                name='Column',
+                data_type=DT_COLUMN_ID,
+                index=3,
                 parent=PARA_SERIES
             ),
             PARA_SERIES + '_' + PARA_RANGE: parameter_specification(
                 PARA_SERIES + '_' + PARA_RANGE,
-                'Range',
-                DT_STRING,
-                4,
+                name='Range',
+                data_type=DT_STRING,
+                index=4,
                 parent=PARA_SERIES,
                 required=False
             ),
             PARA_SERIES + '_' + PARA_LABEL: parameter_specification(
                 PARA_SERIES + '_' + PARA_LABEL,
-                'Label',
-                DT_STRING,
-                5,
+                name='Label',
+                data_type=DT_STRING,
+                index=5,
                 parent=PARA_SERIES,
                 required=False
             ),
             PARA_XAXIS: parameter_specification(
                 PARA_XAXIS,
-                'X-Axis',
-                DT_AS_ROW,
-                6,
+                name='X-Axis',
+                data_type=DT_AS_ROW,
+                index=6,
                 required=False
             ),
             PARA_XAXIS + '_' + PARA_COLUMN: parameter_specification(
                 PARA_XAXIS + '_' + PARA_COLUMN,
-                'Column',
-                DT_COLUMN_ID,
-                7,
+                name='Column',
+                data_type=DT_COLUMN_ID,
+                index=7,
                 parent=PARA_XAXIS,
                 required=False
             ),
             PARA_XAXIS + '_' + PARA_RANGE: parameter_specification(
                 PARA_XAXIS + '_' + PARA_RANGE,
-                'Range',
-                DT_STRING,
-                8,
+                name='Range',
+                data_type=DT_STRING,
+                index=8,
                 parent=PARA_XAXIS,
                 required=False
             ),
             PARA_CHART: parameter_specification(
                 PARA_CHART,
-                'Chart',
-                DT_AS_ROW,
-                9
+                name='Chart',
+                data_type=DT_AS_ROW,
+                index=9
             ),
             PARA_CHART_TYPE: parameter_specification(
                 PARA_CHART_TYPE,
-                'Type',
-                DT_STRING,
-                10,
+                name='Type',
+                data_type=DT_STRING,
+                index=10,
                 values=[
                     'Area Chart',
                     {'value': 'Bar Chart', 'isDefault': True},
@@ -486,9 +514,9 @@ PLOT_COMMANDS = {
             ),
             PARA_CHART_GROUPED: parameter_specification(
                 PARA_CHART_GROUPED,
-                'Grouped',
-                DT_BOOL,
-                11,
+                name='Grouped',
+                data_type=DT_BOOL,
+                index=11,
                 parent=PARA_CHART
             )
         }
@@ -502,9 +530,9 @@ PYTHON_COMMANDS = {
         MODULE_ARGUMENTS: {
             PYTHON_SOURCE: parameter_specification(
                 PYTHON_SOURCE,
-                'Python Code',
-                DT_PYTHON_CODE,
-                0
+                name='Python Code',
+                data_type=DT_PYTHON_CODE,
+                index=0
             )
         }
     }
@@ -538,7 +566,12 @@ VIZUAL_COMMANDS = {
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
             PARA_POSITION: para_position(2),
-            PARA_NAME: parameter_specification(PARA_NAME, 'Column Name', DT_STRING, 1)
+            PARA_NAME: parameter_specification(
+                PARA_NAME,
+                name='Column Name',
+                data_type=DT_STRING,
+                index=1
+            )
         }
     },
     VIZUAL_INS_ROW: {
@@ -552,8 +585,18 @@ VIZUAL_COMMANDS = {
         MODULE_NAME: 'Load Dataset',
         MODULE_GROUP: 'dataset',
         MODULE_ARGUMENTS: {
-            PARA_FILE: parameter_specification(PARA_FILE, 'File', DT_FILE_ID, 0),
-            PARA_NAME: parameter_specification(PARA_NAME, 'Dataset Name', DT_STRING, 1)
+            PARA_NAME: parameter_specification(
+                PARA_NAME,
+                name='Dataset Name',
+                data_type=DT_STRING,
+                index=0
+            ),
+            PARA_FILE: parameter_specification(
+                PARA_FILE,
+                name='Source File',
+                data_type=DT_FILE_ID,
+                index=1
+            )
         }
     },
     VIZUAL_MOV_COL: {
@@ -578,22 +621,22 @@ VIZUAL_COMMANDS = {
             PARA_DATASET: para_dataset(0),
             PARA_COLUMNS: parameter_specification(
                 PARA_COLUMNS,
-                'Columns',
-                DT_GROUP,
-                1
+                name='Columns',
+                data_type=DT_GROUP,
+                index=1
             ),
             PARA_COLUMNS_COLUMN: parameter_specification(
                 PARA_COLUMNS_COLUMN,
-                'Column',
-                DT_COLUMN_ID,
-                2,
+                name='Column',
+                data_type=DT_COLUMN_ID,
+                index=2,
                 parent=PARA_COLUMNS
             ),
             PARA_COLUMNS_RENAME: parameter_specification(
                 PARA_COLUMNS_RENAME,
-                'Rename as ...',
-                DT_STRING,
-                3,
+                name='Rename as ...',
+                data_type=DT_STRING,
+                index=3,
                 parent=PARA_COLUMNS,
                 required=False
             )
@@ -606,9 +649,9 @@ VIZUAL_COMMANDS = {
             PARA_COLUMN: para_column(1),
             PARA_NAME: parameter_specification(
                 PARA_NAME,
-                'New Column Name',
-                DT_STRING,
-                2
+                name='New Column Name',
+                data_type=DT_STRING,
+                index=2
             )
         }
     },
@@ -619,9 +662,9 @@ VIZUAL_COMMANDS = {
             PARA_DATASET: para_dataset(0),
             PARA_NAME: parameter_specification(
                 PARA_NAME,
-                'New Dataset Name',
-                DT_STRING,
-                1
+                name='New Dataset Name',
+                data_type=DT_STRING,
+                index=1
             )
         }
     },
@@ -632,22 +675,22 @@ VIZUAL_COMMANDS = {
             PARA_DATASET: para_dataset(0),
             PARA_COLUMNS: parameter_specification(
                 PARA_COLUMNS,
-                'Columns',
-                DT_GROUP,
-                1
+                name='Columns',
+                data_type=DT_GROUP,
+                index=1
             ),
             PARA_COLUMNS_COLUMN: parameter_specification(
                 PARA_COLUMNS_COLUMN,
-                'Column',
-                DT_COLUMN_ID,
-                2,
+                name='Column',
+                data_type=DT_COLUMN_ID,
+                index=2,
                 parent=PARA_COLUMNS
             ),
             PARA_COLUMNS_ORDER: parameter_specification(
                 PARA_COLUMNS_ORDER,
-                'Order',
-                DT_STRING,
-                3,
+                name='Order',
+                data_type=DT_STRING,
+                index=3,
                 values=[
                     {'value': SORT_ASC, 'isDefault': True},
                     SORT_DESC
@@ -665,9 +708,9 @@ VIZUAL_COMMANDS = {
             PARA_ROW: para_row(2),
             PARA_VALUE: parameter_specification(
                 PARA_VALUE,
-                'Value',
-                DT_STRING,
-                3,
+                name='Value',
+                data_type=DT_STRING,
+                index=3,
                 required=False
             )
         }
@@ -1110,7 +1153,7 @@ def insert_row(dataset_name, position):
     )
 
 
-def load_dataset(file_id, dataset_name):
+def load_dataset(file_id, dataset_name, filename=None, url=None):
     """Load dataset from file. Expects file identifier and new dataset name.
 
     Parameters
@@ -1119,16 +1162,25 @@ def load_dataset(file_id, dataset_name):
         Unique file identifier
     dataset_name: string
         Name for the new dataset
+    filename: string, optional
+        Optional name of the source file
+    url: string, optional
+        Optional Url of the source file
 
     Returns
     -------
     vizier.workflow.module.ModuleSpecification
     """
+    file = {'fileid': file_id}
+    if not filename is None:
+        file['filename'] = filename
+    if not url is None:
+        file['url'] = url
     return ModuleSpecification(
         PACKAGE_VIZUAL,
         VIZUAL_LOAD,
         {
-            PARA_FILE : file_id,
+            PARA_FILE : file,
             PARA_NAME: dataset_name
         }
     )

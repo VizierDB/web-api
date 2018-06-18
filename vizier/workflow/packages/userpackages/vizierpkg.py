@@ -667,7 +667,7 @@ class VizualCell(NotCacheable, Module):
             # arguments. Raise exception if a dataset with the specified
             # name already exsists in the project or if the given name is
             # not a valid dataset name
-            ds_file = get_argument(cmd.PARA_FILE, args)
+            ds_file = get_argument(cmd.PARA_FILE, args)[cmd.PARA_FILEID]
             ds_name = get_argument(cmd.PARA_NAME, args).lower()
             if vizierdb.has_dataset_identifier(ds_name):
                 raise ValueError('dataset \'' + ds_name + '\' exists')
@@ -855,14 +855,18 @@ class VizualCell(NotCacheable, Module):
             ])
         elif name == cmd.VIZUAL_LOAD:
             # LOAD DATASET <dataset> FROM FILE <name>
-            file_id = get_argument(cmd.PARA_FILE, args, default_value='?')
+            file_info = get_argument(cmd.PARA_FILE, args, default_value='?')
+            if isinstance(file_info, dict):
+                file_id = file_info[cmd.PARA_FILEID]
+            else:
+                file_id = file_info
             ds_name = get_argument(cmd.PARA_NAME, args, default_value='?')
             f_handle = vizierdb.vizual.fileserver.get_file(file_id)
             return ' '.join([
                 'LOAD DATASET',
                 format_str(ds_name),
                 'FROM FILE',
-                f_handle.name if not f_handle is None else '?'
+                f_handle.source if not f_handle is None else '?'
             ])
         elif name == cmd.VIZUAL_MOV_COL:
             # MOVE COLUMN <name> IN <dataset> TO POSITION <index>

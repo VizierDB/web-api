@@ -92,10 +92,6 @@ class TestFileServer(unittest.TestCase):
         self.assertEquals(f.name, 'somename')
         f = self.db.rename_file(f.identifier, 'somename')
         self.assertEquals(f.name, 'somename')
-        f2 = self.db.upload_file(CSV_FILE)
-        with self.assertRaises(ValueError):
-            self.db.rename_file(f2.identifier, 'somename')
-
 
     def test_upload_file(self):
         """Test file upload."""
@@ -103,8 +99,7 @@ class TestFileServer(unittest.TestCase):
         self.assertEquals(f.columns, 3)
         self.assertEquals(f.rows, 2)
         self.assertEquals(f.name, 'dataset.csv')
-        with self.assertRaises(ValueError):
-            self.db.upload_file(CSV_FILE)
+
 
 if __name__ == '__main__':
     unittest.main()

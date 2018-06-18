@@ -111,14 +111,8 @@ class TestWebServiceAPI(unittest.TestCase):
         self.assertIsNone(self.api.get_file('invalid id'))
         self.assertIsNone(self.api.get_file('f0f0f0f0f0f0f0f0f0f0f0f0'))
         self.validate_file_listing(self.api.list_files(), 1)
-        # Upload another file. Raises an exception if it is the same file
-        with self.assertRaises(ValueError):
-            self.api.upload_file(CSV_FILE)
         self.api.upload_file(TSV_FILE)
         self.validate_file_listing(self.api.list_files(), 2)
-        # Rename file. Error if it is remaned to an existing file
-        with self.assertRaises(ValueError):
-            self.api.rename_file(fh, 'dataset.tsv')
         self.validate_file_handle(self.api.rename_file(fh['id'], 'myfile'))
         self.validate_file_listing(self.api.list_files(), 2)
         self.assertIsNone(self.api.rename_file('invalid id', 'afile'))

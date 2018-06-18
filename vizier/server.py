@@ -24,8 +24,9 @@ import gzip
 import os
 import StringIO
 import shutil
-import tempfile
 from werkzeug.utils import secure_filename
+import tempfile
+import urllib2
 import yaml
 
 from vizier.api import VizierWebService
@@ -134,20 +135,44 @@ def upload_file():
     """Upload CSV file (POST) - Upload a CSV or TSV file containing a full
     dataset.
     """
-    # Make sure that the post request has the file part
-    if 'file' not in request.files:
-        raise InvalidRequest('no file argument in request')
-    file = request.files['file']
-    # A browser may submit a empty part without filename
-    if file.filename == '':
-        raise InvalidRequest('empty file name')
-    # Save uploaded file to temp directory
-    temp_dir = tempfile.mkdtemp()
-    filename = secure_filename(file.filename)
-    upload_file = os.path.join(temp_dir, filename)
-    file.save(upload_file)
+    # The upload request may contain a file object or an Url from where to
+    # download the data.
+    if request.files and 'file' in request.files:
+        file = request.files['file']
+        # A browser may submit a empty part without filename
+        if file.filename == '':
+            raise InvalidRequest('empty file name')
+        # Save uploaded file to temp directory
+        temp_dir = tempfile.mkdtemp()
+        filename = secure_filename(file.filename)
+        upload_file = os.path.join(temp_dir, filename)
+        file.save(upload_file)
+        prov = {'filename': file.filename}
+    elif request.json and 'url' in request.json:
+        obj = validate_json_request(request, required=['url'])
+        url = obj['url']
+        # Save uploaded file to temp directory
+        temp_dir = tempfile.mkdtemp()
+        try:
+            response = urllib2.urlopen(url)
+            filename = get_download_filename(url, response.info())
+            upload_file = os.path.join(temp_dir, secure_filename(filename))
+            mode = 'w'
+            if filename.endswith('.gz'):
+                mode += 'b'
+            with open(upload_file, mode) as f:
+                f.write(response.read())
+        except Exception as ex:
+            shutil.rmtree(temp_dir)
+            raise InvalidRequest(str(ex))
+        if os.stat(upload_file).st_size > config.fileserver.max_file_size:
+            shutil.rmtree(temp_dir)
+            raise InvalidRequest('file size exceeds limit')
+        prov = {'url': url}
+    else:
+        raise InvalidRequest('no file or url specified in request')
     try:
-        result = jsonify(api.upload_file(upload_file)), 201
+        result = jsonify(api.upload_file(upload_file, provenance=prov)), 201
         shutil.rmtree(temp_dir)
         return result
     except ValueError as ex:
@@ -989,6 +1014,33 @@ def internal_error(exception):
 #
 # ------------------------------------------------------------------------------
 
+def get_download_filename(url, info):
+    """Extract a file name from a given Url or request info header.
+
+    Parameters
+    ----------
+    url: string
+        Url that was opened using urllib2.urlopen
+    info: dict
+        Header information returned by urllib2.urlopen
+
+    Returns
+    -------
+    string
+    """
+    # Try to extract the filename from the Url first
+    filename = url[url.rfind('/') + 1:]
+    if '.' in filename:
+        return filename
+    else:
+        if 'Content-Disposition' in info:
+            content = info['Content-Disposition']
+            if 'filename="' in content:
+                filename = content[content.rfind('filename="') + 11:]
+                return filename[:filename.find('"')]
+    return 'download'
+
+
 def validate_json_request(request, required=None, optional=None):
     """Validate the body of the given request. Ensures that the request contains
     a Json object and that this object contains at least the required keys and
@@ -1029,6 +1081,7 @@ def validate_json_request(request, required=None, optional=None):
         if not key in possible_keys:
             raise InvalidRequest('unknown element \'' + key + '\'')
     return obj
+
 
 # ------------------------------------------------------------------------------
 #

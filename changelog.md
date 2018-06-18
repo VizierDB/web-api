@@ -47,13 +47,18 @@
 * Add GEOCODE lens
 
 
-### 0.4.2. - 2018-06-12
+### 0.4.2 - 2018-06-12
 
 * Push pagination queries to datastore
 * Avoid materializing Mimir annotations in dataset metadata
 * Encode special characters as unicode in dataset creation
 
 
-### 0.4.3. - 2018-06-13
+### 0.4.3 - 2018-06-13
 
-* Add VizUAL Sort and Filter Columns commands 
+* Add VizUAL Sort and Filter Columns commands
+
+
+### 0.4.4 - 2018-06-18
+
+* Upload files from URL 

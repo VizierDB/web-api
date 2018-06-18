@@ -34,8 +34,10 @@ from vizier.core.timestamp import get_current_time, to_datetime
 FH_COLUMNS = 'columns'
 FH_COMPRESSED = 'compressed'
 FH_DELIMITER = 'delimiter'
+FH_FILENAME = 'filename'
 FH_ROWS = 'rows'
 FH_UPLOAD_NAME = 'uploadName'
+FH_URL = 'url'
 
 
 class FileHandle(object):
@@ -199,6 +201,22 @@ class FileHandle(object):
             return open(self.filepath, 'r')
 
     @property
+    def source(self):
+        """Get provenance information about the file source. A file may either
+        be uploaded from local disk or downloaded from an Url.
+
+        Returns
+        -------
+        string
+        """
+        if FH_URL in self.properties:
+            return self.properties[FH_URL]
+        elif FH_FILENAME in self.properties:
+            return self.properties[FH_FILENAME]
+        else:
+            return self.name
+            
+    @property
     def rows(self):
         """Return the number of rows in the file (if it was parsed
         successfully as a CSV/TSV file).
@@ -311,8 +329,6 @@ class FileServer(VizierSystemComponent):
         """Rename file with given identifier. Returns the file handle for the
         renamed file or None if no such file existed.
 
-        Raises ValueError if a another file with the given name already exists.
-
         Parameters
         ----------
         identifier: string
@@ -327,14 +343,15 @@ class FileServer(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def upload_file(self, filename):
-        """Upload a new file. Will raise a ValueError if a file with the given
-        name already exists.
+    def upload_file(self, filename, provenance=None):
+        """Upload a new file.
 
         Parameters
         ----------
         filename: string
             Path to file on disk
+        provenance: dict, optional
+            Optional file provenance information
 
         Returns
         -------
@@ -456,8 +473,6 @@ class DefaultFileServer(FileServer):
         """Rename file with given identifier. Returns the file handle for the
         renamed file or None if no such file existed.
 
-        Raises ValueError if a another file with the given name already exists.
-
         Parameters
         ----------
         identifier: string
@@ -475,31 +490,25 @@ class DefaultFileServer(FileServer):
                 fh.name = name
                 fh.last_modified_at = get_current_time()
                 f_handle = fh
-            elif fh.identifier != identifier and fh.name == name and fh.active:
-                # Raise ValueError if a file with the given name already exists
-                raise ValueError('file \'' + name + '\' already exists')
         if not f_handle is None:
             self.write_index(self.files)
         return f_handle
 
-    def upload_file(self, filename):
-        """Upload a new file. Will raise a ValueError if a file with the given
-        name already exists.
+    def upload_file(self, filename, provenance=None):
+        """Upload a new file.
 
         Parameters
         ----------
         filename: string
             Path to file on disk
+        provenance: dict, optional
+            Optional file provenance information
 
         Returns
         -------
         FileHandle
         """
         name = os.path.basename(filename).lower()
-        # Raise ValueError if a file with the given name already exists
-        for fh in self.files.values():
-            if fh.name == name and fh.active:
-                raise ValueError('file \'' + name + '\' already exists')
         # Determine the file type based on the file name suffix. If the file
         # type is unknoen reader will be None
         csvfile = None
@@ -534,7 +543,11 @@ class DefaultFileServer(FileServer):
             delimiter = '\t'
         # Parse csv file to get column and row statistics (and to ensure that
         # the file parses).
-        properties = {FH_UPLOAD_NAME: os.path.basename(filename)}
+        if not provenance is None:
+            properties = dict(provenance)
+        else:
+            properties = dict()
+        properties[FH_UPLOAD_NAME] =  os.path.basename(filename)
         if not reader is None and not csvfile is None:
             columns = -1
             rows = 0

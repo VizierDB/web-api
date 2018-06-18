@@ -165,7 +165,7 @@ class TestValidateCommand(unittest.TestCase):
         obj = cmd.insert_row('dataset', 1)
         cmd.validate_command(self.command_repository, obj)
         # LOAD DATASET
-        obj = cmd.load_dataset('file', 'dataset')
+        obj = cmd.load_dataset('file', 'dataset', filename='My File')
         cmd.validate_command(self.command_repository, obj)
         # MOVE COLUMN
         obj = cmd.move_column('dataset', 'A', 2)

@@ -38,6 +38,14 @@ pyCode: Multi-line text string (Python Code)
 rowid: Positive integer referencing a row in a dataset
 string: Arbitrary character sequence
 ```
+The **fileid** argument has the following structure:
+
+```
+fileid: string
+filename: string or url: string
+```
+
+If a *filename* is given this indicates that the file has been uploaded from local disk. A *url* indicates that the file was downloaded from the specified Url.
 
 When submitting a module specification as part of a HTTP request each element in **arguments** is expected to contain pairs of argument identifier and (primitive) values. If an argument definition contains a list of elements the request is expected to submit a list of Json objects that contain one identifier and value for each object in the argument specification.
 
@@ -189,7 +197,7 @@ arguments:
 type: 'vizual'
 id: 'LOAD'
 arguments
-    file: 'Unique file identifier'
+    file: {fileid: 'Unique file identifier', 'filename': optional, 'url': optional}
     name: 'Dataset name'
 ```
 
