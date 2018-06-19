@@ -1044,7 +1044,8 @@ def WORKFLOW_HANDLE(viztrail, workflow, config, urls, dataset_cache, read_only=F
             for out in module.stdout:
                 if out['type'] == O_CHARTVIEW:
                     view = ChartViewHandle.from_dict(out['data'])
-                    state_charts[view.chart_name] = view
+                    if not view.chart_name in state_charts:
+                        state_charts[view.chart_name] = view
         for name in state_charts:
             view = state_charts[name]
             if view.dataset_name in state_datasets:
