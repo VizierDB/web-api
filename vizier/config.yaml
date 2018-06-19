@@ -23,6 +23,8 @@ viztrails:
 fileserver:
     directory: '../.vizierdb/filestore'
     max_file_size: 16777216
+settings:
+    log_engine: false
 name: 'Vizier Web API'
 debug: True
 logs: '../.vizierdb/logs'

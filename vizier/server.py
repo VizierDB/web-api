@@ -31,6 +31,7 @@ import yaml
 
 from vizier.api import VizierWebService
 from vizier.config import AppConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
+from vizier.core.util import LOGGER_ENGINE
 from vizier.datastore.federated import FederatedDataStore
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mimir import MimirDataStore
@@ -1102,6 +1103,7 @@ if __name__ == '__main__':
     # Create the directory if it does not exist
     if not os.path.isdir(log_dir):
         os.makedirs(log_dir)
+    # File handle for server logs
     file_handler = RotatingFileHandler(
         os.path.join(log_dir, 'vizier-webapi.log'),
         maxBytes=1024 * 1024 * 100,
@@ -1112,6 +1114,22 @@ if __name__ == '__main__':
         logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     )
     app.logger.addHandler(file_handler)
+    # Logger for monitoring purposes. If the log_engine flag is false use a
+    # null handler.
+    logger = logging.getLogger(LOGGER_ENGINE)
+    if config.settings.log_engine:
+        monitor_handler = RotatingFileHandler(
+            os.path.join(log_dir, 'engine.log'),
+            maxBytes=1024 * 1024 * 100,
+            backupCount=20
+        )
+        monitor_handler.setFormatter(
+            logging.Formatter("%(message)s")
+        )
+        logger.addHandler(monitor_handler)
+    else:
+        logger.addHandler(logging.NullHandler())
+    logger.setLevel(logging.INFO)
     # Load a dummy app at the root URL to give 404 errors.
     # Serve app at APPLICATION_ROOT for localhost development.
     application = DispatcherMiddleware(Flask('dummy_app'), {

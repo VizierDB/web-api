@@ -16,6 +16,8 @@
 
 """Vistrails-type engine."""
 
+import time
+
 from vizier.datastore.mem import VolatileDataStore
 from vizier.serialize import PLAIN_TEXT
 from vizier.workflow.module import ModuleHandle
@@ -27,6 +29,16 @@ import vizier.config as config
 import vizier.workflow.command as cmdtype
 import vizier.workflow.context as ctx
 import vizier.workflow.packages.userpackages.vizierpkg as vizierpkg
+
+# Get the engine monitor logger
+import logging
+from vizier.core.util import LOGGER_ENGINE
+logger = logging.getLogger(LOGGER_ENGINE)
+
+"""Module execution status."""
+ERROR = '0'
+SUCCESS = '1'
+
 
 class DefaultViztrailsEngine(WorkflowEngine):
     """Implementation of the workflow engine using Vistrails modules but not
@@ -73,13 +85,19 @@ class DefaultViztrailsEngine(WorkflowEngine):
             [m.copy() for m in modules]
         )
 
-    def execute_module(self, module, context):
+    def execute_module(self, viztrail_id, branch_id, version, module, context):
         """Execute a given workflow module. Depending on the module command type
         a corresponding Viztrails cell is created and the compute method called.
         Returns a handle to the executed module.
 
         Parameters
         ----------
+        viztrail_id : string
+            Unique viztrail identifier
+        branch_id : string
+            Unique branch identifier for existing branch
+        version: int
+            Unique version identifier for new workflow
         module: vizier.workflow.module.ModuleHandle
             Handle for the input module. A new handle will be returned
         context: dict
@@ -102,6 +120,8 @@ class DefaultViztrailsEngine(WorkflowEngine):
         else:
             raise ValueError('unknown module type \'' + cmd.module_type + '\'')
         # Execute cell and get output
+        status = SUCCESS
+        start_time = time.time()
         try:
             cell.compute()
             outputs = cell.get_output('output')
@@ -110,6 +130,19 @@ class DefaultViztrailsEngine(WorkflowEngine):
             template = "{0}:{1!r}"
             message = template.format(type(ex).__name__, ex.args)
             outputs.stderr(content=PLAIN_TEXT(message))
+            status = ERROR
+        end_time = time.time()
+        # Log execution time information for module
+        logger.info('\t'.join([
+            viztrail_id,
+            branch_id,
+            str(version),
+            str(module.identifier),
+            cmd.module_type,
+            cmd.command_identifier,
+            str(end_time - start_time),
+            status
+        ]))
         # Return new module. Copies current state of the datastore mapping.
         return ModuleHandle(
             module.identifier,
@@ -125,7 +158,7 @@ class DefaultViztrailsEngine(WorkflowEngine):
             command_text=cell.get_output('command')
         )
 
-    def execute_workflow(self, version, modules, modified_index):
+    def execute_workflow(self, viztrail_id, branch_id, version, modules, modified_index):
         """Execute a sequence of modules that define the next version of a given
         workflow in a viztrail. The list of modules is a modified list compared
         to the module in the given workflow. The modified_index points to the
@@ -138,10 +171,12 @@ class DefaultViztrailsEngine(WorkflowEngine):
 
         Parameters
         ----------
+        viztrail_id : string
+            Unique viztrail identifier
+        branch_id : string
+            Unique branch identifier for existing branch
         version: int
             Unique version identifier for new workflow
-        parent_version: int
-            Version number of the parent workflow
         modules: list(vizier.workflow.module.ModuleHandle)
             List of modules for the new workflow versions
         modified_index: int
@@ -194,6 +229,9 @@ class DefaultViztrailsEngine(WorkflowEngine):
                         m_datasets = module.datasets
                         # Re-run the module to update the global state
                         module = self.execute_module(
+                            viztrail_id,
+                            branch_id,
+                            version,
                             module,
                             WorkflowContext(
                                 self.exec_env,
@@ -208,7 +246,13 @@ class DefaultViztrailsEngine(WorkflowEngine):
                         # Copy the module
                         module = module.copy()
                 else:
-                    module = self.execute_module(module, context)
+                    module = self.execute_module(
+                        viztrail_id,
+                        branch_id,
+                        version,
+                        module,
+                        context
+                    )
                 has_error = module.has_error
             wf_modules.append(module)
         # Return handle for new workflow

@@ -19,6 +19,10 @@
 import uuid
 
 
+"""Name of logger used for monitoring workflow engine performance."""
+LOGGER_ENGINE = 'LOGGER_ENGINE'
+
+
 # ------------------------------------------------------------------------------
 # Classes
 # ------------------------------------------------------------------------------

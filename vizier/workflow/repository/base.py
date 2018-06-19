@@ -48,7 +48,7 @@ class ViztrailRepository(VizierSystemComponent):
         super(ViztrailRepository, self).__init__(build)
 
     @abstractmethod
-    def append_workflow_module(self, viztrail_id=None, branch_id=DEFAULT_BRANCH, workflow_version=-1, command=None, before_id=-1):
+    def append_workflow_module(self, viztrail_id, branch_id=DEFAULT_BRANCH, workflow_version=-1, command=None, before_id=-1):
         """Append a module to a workflow in a given viztrail. The module is
         appended to the workflow that is identified by the given version number.
         If the version number is negative the workflow at the branch HEAD is the
@@ -70,7 +70,7 @@ class ViztrailRepository(VizierSystemComponent):
 
         Parameters
         ----------
-        viztrail_id : string, optional
+        viztrail_id : string
             Unique viztrail identifier
         branch_id : string, optional
             Unique branch identifier
@@ -90,7 +90,7 @@ class ViztrailRepository(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def create_branch(self, viztrail_id=None, source_branch=DEFAULT_BRANCH, workflow_version=-1, module_id=-1, properties=None):
+    def create_branch(self, viztrail_id, source_branch=DEFAULT_BRANCH, workflow_version=-1, module_id=-1, properties=None):
         """Create a new workflow branch in a given viztrail. The new branch is
         created from the specified workflow in the source branch starting at
         module module_id. If module_id is negative the new branch starts after
@@ -144,14 +144,14 @@ class ViztrailRepository(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_branch(self, viztrail_id=None, branch_id=None):
+    def delete_branch(self, viztrail_id, branch_id=None):
         """Delete the viztrail branch with the given identifier. Returns the
         modified viztrail handle. The result is None if either the branch or the
         viztrail is unknown.
 
         Parameters
         ----------
-        viztrail_id : string, optional
+        viztrail_id : string
             Unique viztrail identifier
         branch_id: string, optional
             Unique workflow branch identifier
@@ -163,7 +163,7 @@ class ViztrailRepository(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_workflow_module(self, viztrail_id=None, branch_id=DEFAULT_BRANCH, workflow_version=-1, module_id=-1):
+    def delete_workflow_module(self, viztrail_id, branch_id=DEFAULT_BRANCH, workflow_version=-1, module_id=-1):
         """Delete the module with the given identifier in the specified
         workflow. The resulting workflow is execute and the resulting workflow
         will form the new head of the given viztrail branch.
@@ -173,7 +173,7 @@ class ViztrailRepository(VizierSystemComponent):
 
         Parameters
         ----------
-        viztrail_id : string, optional
+        viztrail_id : string
             Unique viztrail identifier
         branch_id: string, optional
             Unique workflow branch identifier
@@ -190,13 +190,13 @@ class ViztrailRepository(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_viztrail(self, viztrail_id=None):
+    def delete_viztrail(self, viztrail_id):
         """Delete the viztrail with given identifier. The result is True if a
         viztrail with the given identifier existed, False otherwise.
 
         Parameters
         ----------
-        viztrail_id : string, optional
+        viztrail_id : string
             Unique viztrail identifier
 
         Returns
@@ -206,13 +206,13 @@ class ViztrailRepository(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def get_viztrail(self, viztrail_id=None):
+    def get_viztrail(self, viztrail_id):
         """Retrieve the viztrail with the given identifier. The result is None
         if no viztrail with given identifier exists.
 
         Parameters
         ----------
-        viztrail_id : string, optional
+        viztrail_id : string
             Unique viztrail identifier
 
         Returns
@@ -222,14 +222,14 @@ class ViztrailRepository(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def get_workflow(self, viztrail_id=None, branch_id=DEFAULT_BRANCH, workflow_version=-1):
+    def get_workflow(self, viztrail_id, branch_id=DEFAULT_BRANCH, workflow_version=-1):
         """Retrieve the workflow at the HEAD of the branch with branch_id in the
         given viztrail. The result is None if the viztrail or branch do not
         exist.
 
         Parameters
         ----------
-        viztrail_id : string, optional
+        viztrail_id : string
             Unique viztrail identifier
         branch_id : string, optional
             Unique branch identifier
@@ -255,7 +255,7 @@ class ViztrailRepository(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def replace_workflow_module(self, viztrail_id=None, branch_id=DEFAULT_BRANCH, workflow_version=-1, module_id=-1, command=None):
+    def replace_workflow_module(self, viztrail_id, branch_id=DEFAULT_BRANCH, workflow_version=-1, module_id=-1, command=None):
         """Replace an existing module in a workflow. The module is replaced in
         the workflow that is identified by the given version number. If the
         version number is negative the workflow at the branch HEAD is the
@@ -269,7 +269,7 @@ class ViztrailRepository(VizierSystemComponent):
 
         Parameters
         ----------
-        viztrail_id : string, optional
+        viztrail_id : string
             Unique viztrail identifier
         branch_id : string, optional
             Unique branch identifier

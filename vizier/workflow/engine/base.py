@@ -83,7 +83,7 @@ class WorkflowEngine(object):
         raise NotImplementedError
 
     @abstractmethod
-    def execute_workflow(self, version, modules, modified_index):
+    def execute_workflow(self, viztrail_id, branch_id, version, modules, modified_index):
         """Execute a sequence of modules that define the next version of a given
         workflow in a viztrail. The list of modules is a modified list compared
         to the module in the given workflow. The modified_index points to the
@@ -96,6 +96,10 @@ class WorkflowEngine(object):
 
         Parameters
         ----------
+        viztrail_id : string
+            Unique viztrail identifier
+        branch_id : string
+            Unique branch identifier for existing branch
         version: int
             Unique version identifier for new workflow
         modules: list(vizier.workflow.module.ModuleHandle)

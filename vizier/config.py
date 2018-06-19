@@ -102,6 +102,8 @@ class AppConfig(object):
         defaults:
             row_limit
             max_row_limit
+        settings:
+            log_engine
         name
         debug
         logs
@@ -135,6 +137,7 @@ class AppConfig(object):
         self.envs = dict()
         self.viztrails = FSObjectConfig(os.path.join(ENV_DIRECTORY, 'wt'))
         self.defaults = APIDefaults()
+        self.settings = APISettings()
         self.name = 'Vizier Web API'
         self.debug = True
         self.logs = os.path.join(ENV_DIRECTORY, 'logs')
@@ -163,6 +166,8 @@ class AppConfig(object):
                 self.viztrails.from_dict(doc['viztrails'])
             if 'defaults' in doc:
                 self.defaults.from_dict(doc['defaults'])
+            if 'settings' in doc:
+                self.settings.from_dict(doc['settings'])
             if 'name' in doc:
                 self.name = doc['name']
             if 'debug' in doc:
@@ -332,6 +337,18 @@ class APIDefaults(object):
             self.row_limit = int(doc['row_limit'])
         if 'max_row_limit' in doc:
             self.max_row_limit = int(doc['max_row_limit'])
+
+
+class APISettings(object):
+    """Collection of default settings for API."""
+    def __init__(self):
+        """Initialize default values."""
+        self.log_engine = False
+
+    def from_dict(self, doc):
+        """Initialize from dictionary."""
+        if 'log_engine' in doc:
+            self.log_engine = doc['log_engine']
 
 
 class FSObjectConfig(object):
