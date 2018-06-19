@@ -230,7 +230,7 @@ class TestFileSystemViztrailRepository(unittest.TestCase):
         self.assertEquals(len(wf.modules[0].stdout), 1)
         self.assertEquals(wf.modules[0].command.module_type, PACKAGE_VIZUAL)
         self.assertEquals(wf.modules[0].command.command_identifier, VIZUAL_LOAD)
-        self.assertEquals(wf.modules[0].command.arguments[PARA_FILE], 'file')
+        self.assertEquals(wf.modules[0].command.arguments[PARA_FILE]['fileid'], 'file')
         self.assertEquals(wf.modules[0].command.arguments[PARA_NAME], 'ds')
         self.assertEquals(len(wf.modules[1].stdout), 2)
         self.assertEquals(wf.modules[1].command.module_type, PACKAGE_PYTHON)

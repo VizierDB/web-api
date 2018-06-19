@@ -237,8 +237,7 @@ class TestMimirLenses(unittest.TestCase):
         self.assertNotEquals(rows[2].values[ds.column_index('Age')], '')
         # Annotations
         annotations = ds.get_annotations(column_id=1, row_id=4)
-        for a in annotations:
-            print a.key + ': ' + a.value
+        self.assertEquals(len(annotations), 2)
         # MISSING VALUE Lens with value constraint
         vt = self.db.create_viztrail(ENGINE_ID, {'name' : 'New Project'})
         self.db.append_workflow_module(

@@ -92,23 +92,16 @@ class DatasetClient(object):
         name: string or int
             Name or index position of the new column
         """
+        # It is important to fetch the rows before the column is deleted.
+        # Otherwise, the list of returned values per row will be missing the
+        # value for the deleted columns (for Mimir datasets).
+        ds_rows = self.rows
         col_index = self.column_index(name)
         # Delete column from schema
-        col_count = str(len(self.columns))
         del self.columns[col_index]
         # Delete all value for the deleted column
-        counts = dict()
-        for row in self.rows:
-            l = len(row.values)
-            if l in counts:
-                counts[l] += 1
-            else:
-                counts[l] = 1
-            if col_index >= len(row.values) :
-                print str(row.identifier) + ' REMOVE ' + str(col_index) + ' FROM ' + str(row.values)
+        for row in ds_rows:
             del row.values[col_index]
-        print col_count
-        print counts
 
     def insert_column(self, name, position=None):
         """Add a new column to the dataset schema.
