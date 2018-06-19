@@ -413,7 +413,6 @@ class VizierWebService(object):
         # Get serialization for project handle.
         return serialize.PROJECT_HANDLE(
             viztrail,
-            self.fileserver.list_files(),
             self.urls,
             branch_id=branch_id,
             version=version
@@ -540,9 +539,8 @@ class VizierWebService(object):
         return serialize.WORKFLOW_UPDATE_RESULT(
             viztrail,
             workflow,
-            dataset_cache=self.get_dataset_handle,
-            files=self.fileserver.list_files(),
             config=self.config,
+            dataset_cache=self.get_dataset_handle,
             urls=self.urls,
             includeDataset=includeDataset,
             dataset_serializer=self.get_dataset
@@ -665,7 +663,6 @@ class VizierWebService(object):
             viztrail,
             workflow,
             dataset_cache=self.get_dataset_handle,
-            files=self.fileserver.list_files(),
             config=self.config,
             urls=self.urls
         )
@@ -903,7 +900,6 @@ class VizierWebService(object):
             viztrail,
             workflow,
             dataset_cache=self.get_dataset_handle,
-            files=self.fileserver.list_files(),
             config=self.config,
             urls=self.urls,
             includeDataset=includeDataset,
@@ -989,7 +985,6 @@ class VizierWebService(object):
             workflow,
             dataset_cache=self.get_dataset_handle,
             config=self.config,
-            files=self.fileserver.list_files(),
             urls=self.urls,
             read_only=(version != -1)
         )

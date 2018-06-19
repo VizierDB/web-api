@@ -94,10 +94,21 @@ class DatasetClient(object):
         """
         col_index = self.column_index(name)
         # Delete column from schema
+        col_count = str(len(self.columns))
         del self.columns[col_index]
         # Delete all value for the deleted column
+        counts = dict()
         for row in self.rows:
+            l = len(row.values)
+            if l in counts:
+                counts[l] += 1
+            else:
+                counts[l] = 1
+            if col_index >= len(row.values) :
+                print str(row.identifier) + ' REMOVE ' + str(col_index) + ' FROM ' + str(row.values)
             del row.values[col_index]
+        print col_count
+        print counts
 
     def insert_column(self, name, position=None):
         """Add a new column to the dataset schema.

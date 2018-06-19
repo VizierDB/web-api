@@ -476,8 +476,8 @@ def DATASET_PAGINATION_URLS(dataset, config, urls, offset=0, limit=None):
     # PREV: If offset is greater than zero allow to fetch previous page
     if not offset is None and offset > 0:
         if max_rows_per_request >= 0:
-            prev_offset = offset - max_rows_per_request
-            if prev_offset >= 0:
+            if offset > 0:
+                prev_offset = max(offset - max_rows_per_request, 0)
                 page_urls.extend(
                     DATASET_PAGE_URLS(
                         dataset,
@@ -699,7 +699,7 @@ def MODULE_SPECIFICATION(module_type, module_id, module_spec):
     return obj
 
 
-def NOTEBOOK_HANDLE(viztrail, workflow, config, files, urls, dataset_cache, read_only=False):
+def NOTEBOOK_HANDLE(viztrail, workflow, config, urls, dataset_cache, read_only=False):
     """Dictionary representaion for a notebook handle.
 
     Parameters
@@ -710,8 +710,6 @@ def NOTEBOOK_HANDLE(viztrail, workflow, config, files, urls, dataset_cache, read
         Workflow handle
     config : vizier.config.AppConfig
         Application configuration parameters
-    files: list(vizier.filestore.base.FileHandle)
-        List of file handles
     urls: vizier.hateoas.UrlFactory
         Factory for resource urls
     dataset_cache: func
@@ -723,7 +721,7 @@ def NOTEBOOK_HANDLE(viztrail, workflow, config, files, urls, dataset_cache, read
     dict
     """
     obj = dict()
-    obj['project'] = PROJECT_HANDLE(viztrail, files, urls)
+    obj['project'] = PROJECT_HANDLE(viztrail, urls)
     obj['workflow'] = WORKFLOW_HANDLE(
         viztrail,
         workflow,
@@ -795,15 +793,13 @@ def PROJECT_DESCRIPTOR(viztrail, urls):
     }
 
 
-def PROJECT_HANDLE(viztrail, files, urls, branch_id=None, version=None):
+def PROJECT_HANDLE(viztrail, urls, branch_id=None, version=None):
     """Dictionary serialization for project handle.
 
     Parameters
     ----------
     viztrail : vizier.workflow.base.ViztrailHandle
         Viztrail handle
-    files: list(vizier.filestore.base.FileHandle)
-        List of file handles
     urls: vizier.hateoas.UrlFactory
         Factory for resource urls
     branch_id: string
@@ -817,11 +813,10 @@ def PROJECT_HANDLE(viztrail, files, urls, branch_id=None, version=None):
     """
     # Get the fundamental project information (descriptor)
     obj = PROJECT_DESCRIPTOR(viztrail, urls)
-    # Add listing of module specifications and available files
+    # Add listing of module specifications
     obj['environment'] = {
         'id': viztrail.env_id,
-        'modules': COMMAND_REPOSITORY(viztrail.command_repository),
-        'files': [{'id': f.identifier, 'name' : f.name} for f in files]
+        'modules': COMMAND_REPOSITORY(viztrail.command_repository)
     }
     # Add branch information and workflow links
     obj['branches'] = []
@@ -1131,7 +1126,7 @@ def WORKFLOW_MODULES(viztrail, workflow, config, urls, dataset_cache, read_only=
 
 
 def WORKFLOW_UPDATE_RESULT(
-    viztrail, workflow, config, files, urls, dataset_cache,
+    viztrail, workflow, config, urls, dataset_cache,
     read_only=False, includeDataset=None, dataset_serializer=None
 ):
     """Dictionary representaion the result of a workflow update operation.
@@ -1152,8 +1147,6 @@ def WORKFLOW_UPDATE_RESULT(
         Workflow handle
     config : vizier.config.AppConfig
         Application configuration parameters
-    files: list(vizier.filestore.base.FileHandle)
-        List of file handles
     urls: vizier.hateoas.UrlFactory
         Factory for resource urls
     dataset_cache: func

@@ -1528,7 +1528,6 @@ definitions:
                 required:
                     - id
                     - modules
-                    - files
                 properties:
                     id:
                         type: string
@@ -1536,10 +1535,6 @@ definitions:
                         type: array
                         items:
                             $ref: "#/definitions/ModuleSpecification"
-                    files:
-                        type: array
-                        items:
-                            $ref: "#/definitions/FileDescriptor"
             branches:
                 type: array
                 items:

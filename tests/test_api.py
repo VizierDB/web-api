@@ -393,9 +393,7 @@ class TestWebServiceAPI(unittest.TestCase):
     def validate_project_handle(self, ph, br_count=1):
         self.validate_keys(ph, ['id', 'environment', 'createdAt', 'lastModifiedAt', 'properties', 'branches', 'links'])
         self.validate_links(ph['links'], ['self', 'delete', 'home', 'update', 'branches', 'environment'])
-        self.validate_keys(ph['environment'], ['id', 'modules', 'files'])
-        for fh in ph['environment']['files']:
-            self.validate_keys(fh, ['id', 'name'])
+        self.validate_keys(ph['environment'], ['id', 'modules'])
         self.assertEquals(len(ph['branches']), br_count)
         for br in ph['branches']:
             self.validate_branch_descriptor(br)
