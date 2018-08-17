@@ -460,4 +460,5 @@ def env_commands(env_id, packages=None):
         # Add Mimir modules if environemt is MIMIR
         if env_id == ENGINEENV_MIMIR:
             commands[cmd.PACKAGE_MIMIR] = cmd.MIMIR_LENSES
+            commands[cmd.PACKAGE_SQL] = cmd.SQL_COMMANDS
     return commands

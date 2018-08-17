@@ -742,69 +742,38 @@ class MimirDataStore(DataStore):
         -------
         vizier.datastore.mimir.MimirDatasetHandle
         """
-        # Create a copy of the original file under a unique name. If the input
-        # file is tab-delimited (and therefore has been successfully parsed on
-        # upload) we create a comma-separated version. Otherwise, we simply copy
-        # the given file.
-        tmp_file = get_tempfile()
-        if f_handle.is_verified_csv and f_handle.delimiter == '\t':
-            if f_handle.compressed:
-                csvfile = gzip.open(f_handle.filepath, 'rb')
-            else:
-                csvfile = open(f_handle.filepath, 'rb')
-            reader = csv.reader(csvfile, delimiter='\t')
-            with open(tmp_file, 'w') as f:
-                writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-                for row in reader:
-                    writer.writerow(row)
-                csvfile.close()
-        else:
-            shutil.copyfile(f_handle.filepath, tmp_file)
+        abspath = (r'%s' % os.getcwd().replace('\\','/') ) + '/' + f_handle.filepath
         # Load dataset and delete temp file
-        init_load_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
-        os.remove(tmp_file)
+        init_load_name = mimir._mimir.loadCSV(abspath, ',', True, True)
         # Retrieve schema information for the created dataset
         sql = 'SELECT * FROM ' + init_load_name
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
-        # Write retieved result to a new temporary file. During output create a
-        # list of column descriptors and row ids.
+        mimirSchema = mimir._mimir.getSchema(sql)
+        
         columns = list()
-        row_ids = list()
-        tmp_file = get_tempfile()
-        with open(tmp_file, 'w') as csvfile:
-            writer = unicodecsv.writer(
-                csvfile,
-                delimiter=',',
-                quotechar='"',
-                quoting=csv.QUOTE_MINIMAL,
-                encoding='utf-8'
+        colSql = 'ROWID() AS '+ROW_ID
+        
+        for col in json.loads(mimirSchema):
+            col_id = len(columns)
+            name_in_dataset = col['name']
+            name_in_rdb = COL_PREFIX + str(col_id)
+            col = MimirDatasetColumn(
+                identifier=col_id,
+                name_in_dataset=name_in_dataset,
+                name_in_rdb=name_in_rdb
             )
-            # Start by creating descriptors for all columns and writing the
-            # header line (out_schema). We add a column to keep track of the
-            # row identifier
-            out_schema = [ROW_ID.upper()]
-            for col in rs['schema']:
-                col_id = len(columns)
-                name_in_dataset = col['name']
-                name_in_rdb = COL_PREFIX + str(col_id)
-                col = MimirDatasetColumn(
-                    identifier=col_id,
-                    name_in_dataset=name_in_dataset,
-                    name_in_rdb=name_in_rdb
-                )
-                columns.append(col)
-                out_schema.append(name_in_rdb)
-            writer.writerow(out_schema)
-            # Output dataset rows. Add unique row identifier for each row.
-            for row in rs['data']:
-                row_id = len(row_ids)
-                row_ids.append(row_id)
-                writer.writerow([str(row_id)] + row)
-        table_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
-        os.remove(tmp_file)
+            colSql = colSql + ', ' + name_in_dataset + ' AS ' + name_in_rdb
+            columns.append(col)
+           
+        sql = 'SELECT '+colSql+' FROM {{input}}'
+        view_name = mimir._mimir.createView(init_load_name, sql)
+        sql = 'SELECT * FROM ' + view_name
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+        
+        row_ids = rs['prov'] #range(len(rs['prov']))   
+        
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
-            table_name=table_name,
+            table_name=view_name,
             columns=columns,
             row_ids=row_ids
         )

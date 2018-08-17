@@ -16,6 +16,7 @@
 
 import copy
 import csv
+import json
 import sys
 import urllib
 
@@ -396,6 +397,76 @@ class MimirLens(Module):
         return 'unknown Mimir lens \'' + str(lens) + '\''
 
 
+class SQLCell(NotCacheable, Module):
+    _input_ports = [
+        ('source', 'basic:String'),
+        ('arguments', 'basic:Dictionary'),
+        ('context', 'basic:Dictionary')
+    ]
+    _output_ports = [
+        ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
+        ('output', 'basic:Dictionary')
+    ]
+
+    def compute(self):
+        # Get SQL source code that is in this cell and the global
+        # variables
+        source = urllib.unquote(self.get_input('source'))
+        args = self.get_input('arguments')
+        context = self.get_input('context')
+        # Get module identifier and VizierDB client for current workflow state
+        module_id = self.moduleInfo['moduleId']
+        vizierdb = get_env(module_id, context)
+        
+        # Module outputs
+        outputs = ModuleOutputs()
+        
+        ds_name = get_argument(cmd.PARA_DATASET, args).lower()
+        dataset_id = vizierdb.get_dataset_identifier(ds_name)
+        dataset = vizierdb.datastore.get_dataset(dataset_id)
+        if dataset is None:
+            raise ValueError('unknown dataset \'' + ds_name + '\'')
+        mimir_table_name = dataset.table_name
+        
+        view_name = mimir._mimir.createView(mimir_table_name, source)
+        
+        sql = 'SELECT * FROM ' + view_name
+        mimirSchema = mimir._mimir.getSchema(sql)
+        
+        columns = list()
+        colSql = 'ROWID() AS '+ROW_ID
+        
+        for col in json.loads(mimirSchema):
+            col_id = len(columns)
+            name_in_dataset = col['name']
+            name_in_rdb = COL_PREFIX + str(col_id)
+            col = MimirDatasetColumn(
+                identifier=col_id,
+                name_in_dataset=name_in_dataset,
+                name_in_rdb=name_in_rdb
+            )
+            colSql = colSql + ', ' + name_in_dataset + ' AS ' + name_in_rdb
+            columns.append(col)
+        
+        # Redirect standard output and standard error
+        ds = vizierdb.datastore.register_dataset(
+                table_name=view_name,
+                columns=columns,
+                row_ids=dataset.row_ids,
+                annotations=dataset.annotations,
+                update_rows=True
+            )
+        print_dataset_schema(outputs, ds_name, ds.columns)
+        vizierdb.set_dataset_identifier(ds_name, ds.identifier)
+        # Propagate potential changes to the dataset mappings
+        propagate_changes(module_id, vizierdb.datasets, context)
+        # Set the module outputs
+        self.set_output('context', context)
+        self.set_output('command', source)
+        self.set_output('output', outputs)
+        
+        
 class PlotCell(NotCacheable, Module):
     """Vistrails module to execute a plot command. Expects a command type (name)
     and a dictionary of arguments that specify the dataset and data series
@@ -515,6 +586,7 @@ class PlotCell(NotCacheable, Module):
             ])
         # Default message for unknown command.
         return 'unknown plot command \'' + str(name) + '\''
+
 
 
 class PythonCell(NotCacheable, Module):

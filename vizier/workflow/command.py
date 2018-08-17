@@ -33,6 +33,7 @@ DT_FILE_ID = 'fileid'
 DT_GROUP = 'group'
 DT_INT = 'int'
 DT_PYTHON_CODE = 'pyCode'
+DT_SQL_CODE = 'sqlCode'
 DT_ROW_INDEX = 'rowidx'
 DT_STRING = 'string'
 
@@ -224,6 +225,7 @@ def parameter_specification(
 
 """Identifier for currently supported module types."""
 PACKAGE_MIMIR = 'mimir'
+PACKAGE_SQL = 'sql'
 PACKAGE_PLOT = 'plot'
 PACKAGE_PYTHON = 'python'
 PACKAGE_SYS = '_sys'
@@ -251,6 +253,12 @@ PYTHON_SOURCE = 'source'
 
 """Identifier for Python commands."""
 PYTHON_CODE = 'CODE'
+
+"""Components for Sql requests."""
+SQL_SOURCE = 'source'
+
+"""Identifier for Sql commands."""
+SQL_CODE = 'CODE'
 
 """Identifier for sysyem commands."""
 SYS_CREATE_BRANCH = 'CREATE_BRANCH'
@@ -425,6 +433,22 @@ MIMIR_LENSES = {
                 index=1
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(2)
+        }
+    }
+}
+
+"""SQL commands."""
+SQL_COMMANDS = {
+    SQL_CODE: {
+        MODULE_NAME: 'SQL Statement',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            SQL_SOURCE: parameter_specification(
+                SQL_SOURCE,
+                name='SQL Code',
+                data_type=DT_SQL_CODE,
+                index=1
+            )
         }
     }
 }
@@ -971,6 +995,32 @@ def mimir_type_inference(dataset_name, percent_conform, make_input_certain=False
             PARA_DATASET : dataset_name,
             PARA_PERCENT_CONFORM: percent_conform,
             PARA_MAKE_CERTAIN: make_input_certain
+        }
+    )
+
+
+# ------------------------------------------------------------------------------
+# SQL
+# ------------------------------------------------------------------------------
+
+def sql_cell(ds_name, source):
+    """Module specification for a SQL cell.
+    Parameters
+    ----------
+    ds_name: string
+        Input dataset name
+    source: string
+        SQL code for cell body
+    Returns
+    -------
+    vizier.workflow.module.ModuleSpecification
+    """
+    return ModuleSpecification(
+        PACKAGE_SQL,
+        SQL_CODE,
+        {
+            PARA_DATASET: ds_name,
+            SQL_SOURCE: source
         }
     )
 
