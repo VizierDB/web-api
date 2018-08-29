@@ -439,6 +439,8 @@ class MimirDatasetReader(DatasetReader):
         self.columns = columns
         self.rowid_column_numeric = rowid_column_numeric
         self.annotations = annotations if not annotations is None else DatasetMetadata()
+        self.offset = offset
+        self.limit = limit
         # Convert row id list into row position index. Depending on whether
         # offset or limit parameters are given we also limit the entries in the
         # dictionary. The internal flag .is_range_query keeps track of whether
@@ -446,20 +448,8 @@ class MimirDatasetReader(DatasetReader):
         # later used to generate the query for the database.
         self.row_ids = dict()
         if offset > 0 or limit > 0:
-            skip = offset
-            count = 0
-            for row_id in row_ids:
-                if skip > 0:
-                    skip -= 1
-                else:
-                    self.row_ids[row_id] = count
-                    count += 1
-                    if limit > 0 and count >= limit:
-                        break
             self.is_range_query = True
         else:
-            for i in range(len(row_ids)):
-                self.row_ids[row_ids[i]] = i
             self.is_range_query = False
         # Keep an in-memory copy of the dataset rows when open
         self.is_open = False
@@ -508,13 +498,12 @@ class MimirDatasetReader(DatasetReader):
             # Query the database to get the list of rows. Sort rows according to
             # order in row_ids and return a InMemReader
             sql = get_select_query(self.table_name, columns=self.columns)
-            if self.is_range_query and self.rowid_column_numeric:
-                min_id, max_id = min_max(self.row_ids.keys())
-                sql += ' WHERE ' + ROW_ID + ' >= ' + str(min_id)
-                sql += ' AND ' + ROW_ID + ' <= ' + str(max_id)
+            if self.is_range_query:
+                sql += ' LIMIT ' + str(self.limit) + ' OFFSET ' + str(self.offset)
             rs = json.loads(
                 mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
             )
+            self.row_ids = rs['prov']
             # Initialize mapping of column rdb names to index positions in
             # dataset rows
             self.col_map = dict()
@@ -525,17 +514,11 @@ class MimirDatasetReader(DatasetReader):
             # row_ids list), read index and open flag
             rowid_idx = self.col_map[ROW_ID]
             # Filter rows if this is a range query (needed until IN works)
-            if self.is_range_query:
-                rs_rows = list()
-                for row in rs['data']:
-                    if int(row[rowid_idx]) in self.row_ids:
-                        rs_rows.append(row)
-            else:
-                rs_rows = rs['data']
+            rs_rows = rs['data']
             self.rows = list()
             for row_index in range(len(rs_rows)):
                 row = rs_rows[row_index]
-                row_id = int(row[self.col_map[ROW_ID]])
+                row_id = str(row[self.col_map[ROW_ID]])
                 values = [None] * len(self.columns)
                 row_annos = [False] * len(values)
                 for i in range(len(self.columns)):
@@ -551,7 +534,7 @@ class MimirDatasetReader(DatasetReader):
                         has_anno = not rs['col_taint'][row_index][col_index]
                     row_annos[i] = has_anno
                 self.rows.append(DatasetRow(row_id, values, annotations=row_annos))
-            self.rows.sort(key=lambda row: self.row_ids[row.identifier])
+            self.rows.sort(key=lambda row: row.identifier)
             self.read_index = 0
             self.is_open = True
         return self
@@ -604,7 +587,7 @@ class MimirDataStore(DataStore):
         # Get unique identifier for new dataset
         identifier = 'DS_' + get_unique_identifier()
         # Write rows to temporary file in CSV format
-        tmp_file = get_tempfile()
+        tmp_file = self.base_dir + '/../filestore/' + identifier
         # Create a list of columns that contain the user-vizible column name and
         # the name in the database
         db_columns = list()
@@ -613,28 +596,31 @@ class MimirDataStore(DataStore):
                 MimirDatasetColumn(
                     identifier=col.identifier,
                     name_in_dataset=col.name,
-                    name_in_rdb=COL_PREFIX + str(len(db_columns))
+                    name_in_rdb=col.name#COL_PREFIX + str(len(db_columns))
                 )
             )
-        # List of row ids in the new dataset
-        db_row_ids = list()
         # Create CSV file for load
         with open(tmp_file, 'w') as f_out:
             writer = csv.writer(f_out, quoting=csv.QUOTE_MINIMAL)
-            writer.writerow([ROW_ID] + [col.name_in_rdb for col in db_columns])
+            writer.writerow([col.name_in_rdb for col in db_columns])
             for row in rows:
-                record = [str(row.identifier)] + encode_values(row.values)
+                record = encode_values(row.values)
                 writer.writerow(record)
-                db_row_ids.append(row.identifier)
         # Load CSV file using Mimirs loadCSV method.
         table_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
-        # Delete temporary files
-        os.remove(tmp_file)
+        colSql = 'ROWID() AS '+ROW_ID+ [', ' + col.name_in_dataset + ' AS ' + col.name_in_rdb for col in db_columns]
+            
+        sql = 'SELECT '+colSql+' FROM {{input}}'
+        view_name = mimir._mimir.createView(table_name, sql)
+        sql = 'SELECT * FROM ' + view_name
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+        # List of row ids in the new dataset
+        row_ids = rs['prov'] #range(len(rs['prov']))   
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
             table_name=table_name,
             columns=db_columns,
-            row_ids=db_row_ids,
+            row_ids=row_ids,
             annotations=annotations
         )
 
@@ -755,7 +741,7 @@ class MimirDataStore(DataStore):
         for col in json.loads(mimirSchema):
             col_id = len(columns)
             name_in_dataset = col['name']
-            name_in_rdb = COL_PREFIX + str(col_id)
+            name_in_rdb = col['name']#COL_PREFIX + str(col_id)
             col = MimirDatasetColumn(
                 identifier=col_id,
                 name_in_dataset=name_in_dataset,

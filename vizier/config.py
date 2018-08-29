@@ -267,7 +267,7 @@ class ExecEnv(object):
         if not packages is None:
             self.packages = packages
         elif self.identifier == ENGINEENV_MIMIR:
-            self.packages = DEFAULT_PACKAGES + [cmd.PACKAGE_MIMIR]
+            self.packages = DEFAULT_PACKAGES + [cmd.PACKAGE_MIMIR] + [cmd.PACKAGE_SQL]
         else:
             self.packages = DEFAULT_PACKAGES
 

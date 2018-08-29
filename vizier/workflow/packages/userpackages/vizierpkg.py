@@ -399,8 +399,8 @@ class MimirLens(Module):
 
 class SQLCell(NotCacheable, Module):
     _input_ports = [
+        ('dataset', 'basic:String'),
         ('source', 'basic:String'),
-        ('arguments', 'basic:Dictionary'),
         ('context', 'basic:Dictionary')
     ]
     _output_ports = [
@@ -412,8 +412,8 @@ class SQLCell(NotCacheable, Module):
     def compute(self):
         # Get SQL source code that is in this cell and the global
         # variables
+        ds_name = self.get_input('dataset')
         source = urllib.unquote(self.get_input('source'))
-        args = self.get_input('arguments')
         context = self.get_input('context')
         # Get module identifier and VizierDB client for current workflow state
         module_id = self.moduleInfo['moduleId']
@@ -421,8 +421,6 @@ class SQLCell(NotCacheable, Module):
         
         # Module outputs
         outputs = ModuleOutputs()
-        
-        ds_name = get_argument(cmd.PARA_DATASET, args).lower()
         dataset_id = vizierdb.get_dataset_identifier(ds_name)
         dataset = vizierdb.datastore.get_dataset(dataset_id)
         if dataset is None:
@@ -432,15 +430,18 @@ class SQLCell(NotCacheable, Module):
         view_name = mimir._mimir.createView(mimir_table_name, source)
         
         sql = 'SELECT * FROM ' + view_name
-        mimirSchema = mimir._mimir.getSchema(sql)
+        mimirSchema = json.loads(mimir._mimir.getSchema(sql))
         
         columns = list()
         colSql = 'ROWID() AS '+ROW_ID
         
-        for col in json.loads(mimirSchema):
+        if mimirSchema[0]['name'] == ROW_ID:
+            mimirSchema = mimirSchema[1:]
+            
+        for col in mimirSchema:
             col_id = len(columns)
             name_in_dataset = col['name']
-            name_in_rdb = COL_PREFIX + str(col_id)
+            name_in_rdb = col['name']#COL_PREFIX + str(col_id)
             col = MimirDatasetColumn(
                 identifier=col_id,
                 name_in_dataset=name_in_dataset,
@@ -449,13 +450,18 @@ class SQLCell(NotCacheable, Module):
             colSql = colSql + ', ' + name_in_dataset + ' AS ' + name_in_rdb
             columns.append(col)
         
+        sql = 'SELECT '+colSql+' FROM {{input}}'
+        view_name = mimir._mimir.createView(view_name, sql)
+        sql = 'SELECT * FROM ' + view_name
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+        
+        row_ids = rs['prov']
+        
         # Redirect standard output and standard error
         ds = vizierdb.datastore.register_dataset(
                 table_name=view_name,
                 columns=columns,
-                row_ids=dataset.row_ids,
-                annotations=dataset.annotations,
-                update_rows=True
+                row_ids=row_ids
             )
         print_dataset_schema(outputs, ds_name, ds.columns)
         vizierdb.set_dataset_identifier(ds_name, ds.identifier)

@@ -30,6 +30,8 @@ import urllib2
 import yaml
 import time
 import uuid
+import sys
+import traceback
 
 
 from vizier.api import VizierWebService
@@ -70,7 +72,10 @@ class LogDuration:
 def timeit(fn):
     def wrapped(*args, **kwargs):
         with LogDuration(fn.__name__) as m:
-            return fn(*args, **kwargs)
+            try:
+                return fn(*args, **kwargs)
+            except:
+                raise InvalidRequest(traceback.format_exc(sys.exc_info())) 
     wrapped.__name__ = 'wrapped_' + fn.__name__
     return wrapped
 
