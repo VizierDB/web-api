@@ -418,16 +418,18 @@ class SQLCell(NotCacheable, Module):
         # Get module identifier and VizierDB client for current workflow state
         module_id = self.moduleInfo['moduleId']
         vizierdb = get_env(module_id, context)
+        mimir_table_names = list()
         
         # Module outputs
         outputs = ModuleOutputs()
-        dataset_id = vizierdb.get_dataset_identifier(ds_name)
-        dataset = vizierdb.datastore.get_dataset(dataset_id)
-        if dataset is None:
-            raise ValueError('unknown dataset \'' + ds_name + '\'')
-        mimir_table_name = dataset.table_name
+        for ds_name_o in vizierdb.datasets:
+            dataset_id = vizierdb.get_dataset_identifier(ds_name_o)
+            dataset = vizierdb.datastore.get_dataset(dataset_id)
+            if dataset is None:
+                raise ValueError('unknown dataset \'' + ds_name_o + '\'')
+            mimir_table_names.append(dataset.table_name)
         
-        view_name = mimir._mimir.createView(mimir_table_name, source)
+        view_name = mimir._mimir.createView(mimir._jvmhelper.to_scala_seq(mimir_table_names), source)
         
         sql = 'SELECT * FROM ' + view_name
         mimirSchema = json.loads(mimir._mimir.getSchema(sql))
