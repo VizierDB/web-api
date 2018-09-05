@@ -19,6 +19,7 @@ import csv
 import json
 import sys
 import urllib
+import traceback
 
 from StringIO import StringIO
 
@@ -412,66 +413,73 @@ class SQLCell(NotCacheable, Module):
     def compute(self):
         # Get SQL source code that is in this cell and the global
         # variables
-        ds_name = self.get_input('dataset')
-        source = urllib.unquote(self.get_input('source'))
-        context = self.get_input('context')
-        # Get module identifier and VizierDB client for current workflow state
-        module_id = self.moduleInfo['moduleId']
-        vizierdb = get_env(module_id, context)
-        mimir_table_names = list()
+        try:
         
-        # Module outputs
-        outputs = ModuleOutputs()
-        for ds_name_o in vizierdb.datasets:
-            dataset_id = vizierdb.get_dataset_identifier(ds_name_o)
-            dataset = vizierdb.datastore.get_dataset(dataset_id)
-            if dataset is None:
-                raise ValueError('unknown dataset \'' + ds_name_o + '\'')
-            mimir_table_names.append(dataset.table_name)
-        
-        view_name = mimir._mimir.createView(mimir._jvmhelper.to_scala_seq(mimir_table_names), source)
-        
-        sql = 'SELECT * FROM ' + view_name
-        mimirSchema = json.loads(mimir._mimir.getSchema(sql))
-        
-        columns = list()
-        colSql = 'ROWID() AS '+ROW_ID
-        
-        if mimirSchema[0]['name'] == ROW_ID:
-            mimirSchema = mimirSchema[1:]
+            ds_name = self.get_input('dataset')
+            source = urllib.unquote(self.get_input('source'))
+            context = self.get_input('context')
+            # Get module identifier and VizierDB client for current workflow state
+            module_id = self.moduleInfo['moduleId']
+            vizierdb = get_env(module_id, context)
+            mimir_table_names = list()
             
-        for col in mimirSchema:
-            col_id = len(columns)
-            name_in_dataset = col['name']
-            name_in_rdb = col['name']#COL_PREFIX + str(col_id)
-            col = MimirDatasetColumn(
-                identifier=col_id,
-                name_in_dataset=name_in_dataset,
-                name_in_rdb=name_in_rdb
-            )
-            colSql = colSql + ', ' + name_in_dataset + ' AS ' + name_in_rdb
-            columns.append(col)
-        
-        sql = 'SELECT '+colSql+' FROM {{input}}'
-        view_name = mimir._mimir.createView(view_name, sql)
-        sql = 'SELECT * FROM ' + view_name
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
-        
-        row_ids = rs['prov']
-        
-        # Redirect standard output and standard error
-        ds = vizierdb.datastore.register_dataset(
-                table_name=view_name,
-                columns=columns,
-                row_ids=row_ids
-            )
-        print_dataset_schema(outputs, ds_name, ds.columns)
-        vizierdb.set_dataset_identifier(ds_name, ds.identifier)
-        # Propagate potential changes to the dataset mappings
-        propagate_changes(module_id, vizierdb.datasets, context)
+            # Module outputs
+            outputs = ModuleOutputs()
+            for ds_name_o in vizierdb.datasets:
+                dataset_id = vizierdb.get_dataset_identifier(ds_name_o)
+                dataset = vizierdb.datastore.get_dataset(dataset_id)
+                if dataset is None:
+                    raise ValueError('unknown dataset \'' + ds_name_o + '\'')
+                mimir_table_names.append(dataset.table_name)
+            
+            view_name = mimir._mimir.createView(mimir._jvmhelper.to_scala_seq(mimir_table_names), source)
+            
+            sql = 'SELECT * FROM ' + view_name
+            mimirSchema = json.loads(mimir._mimir.getSchema(sql))
+            
+            columns = list()
+            colSql = 'ROWID() AS '+ROW_ID
+            
+            if mimirSchema[0]['name'] == ROW_ID:
+                mimirSchema = mimirSchema[1:]
+                
+            for col in mimirSchema:
+                col_id = len(columns)
+                name_in_dataset = col['name']
+                name_in_rdb = col['name']#COL_PREFIX + str(col_id)
+                col = MimirDatasetColumn(
+                    identifier=col_id,
+                    name_in_dataset=name_in_dataset,
+                    name_in_rdb=name_in_rdb
+                )
+                colSql = colSql + ', ' + name_in_dataset + ' AS ' + name_in_rdb
+                columns.append(col)
+            
+            sql = 'SELECT '+colSql+' FROM {{input}}'
+            view_name = mimir._mimir.createView(view_name, sql)
+            sql = 'SELECT * FROM ' + view_name
+            rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+            
+            row_ids = rs['prov']
+            
+            # Redirect standard output and standard error
+            ds = vizierdb.datastore.register_dataset(
+                    table_name=view_name,
+                    columns=columns,
+                    row_ids=row_ids
+                )
+            print_dataset_schema(outputs, ds_name, ds.columns)
+            vizierdb.set_dataset_identifier(ds_name, ds.identifier)
+            # Propagate potential changes to the dataset mappings
+            propagate_changes(module_id, vizierdb.datasets, context)
+        except Exception as ex:
+            template = "{0}:{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            message = message + ': ' + traceback.format_exc(sys.exc_info())
+            outputs.stderr(content=PLAIN_TEXT(message))
         # Set the module outputs
         self.set_output('context', context)
-        self.set_output('command', source)
+        #self.set_output('command', source)
         self.set_output('output', outputs)
         
         

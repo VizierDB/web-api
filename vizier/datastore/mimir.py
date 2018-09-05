@@ -842,7 +842,7 @@ class MimirDataStore(DataStore):
         # Set row counter to max. row id + 1 if None
         if row_counter is None:
             row_counter = -1
-            for row_id in row_ids:
+            for row_id, row_id_str in enumerate(row_ids, start=1):
                 if row_id > row_counter:
                     row_counter = row_id
             row_counter += 1
