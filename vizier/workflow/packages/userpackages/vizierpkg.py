@@ -479,7 +479,7 @@ class SQLCell(NotCacheable, Module):
             outputs.stderr(content=PLAIN_TEXT(message))
         # Set the module outputs
         self.set_output('context', context)
-        #self.set_output('command', source)
+        self.set_output('command', source)
         self.set_output('output', outputs)
         
         

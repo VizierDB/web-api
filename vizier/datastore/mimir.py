@@ -729,6 +729,8 @@ class MimirDataStore(DataStore):
         vizier.datastore.mimir.MimirDatasetHandle
         """
         abspath = (r'%s' % os.getcwd().replace('\\','/') ) + '/' + f_handle.filepath
+        if not f_handle.properties['url'] is None:
+            abspath = f_handle.properties['url']
         # Load dataset and delete temp file
         init_load_name = mimir._mimir.loadCSV(abspath, ',', True, True)
         # Retrieve schema information for the created dataset

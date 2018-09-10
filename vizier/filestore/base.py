@@ -129,7 +129,10 @@ class FileHandle(object):
         -------
         int
         """
-        return os.stat(self.filepath).st_size
+        if os.path.exists(self.filepath):
+            return os.stat().st_size
+        else:
+            return 0
 
     @staticmethod
     def from_dict(doc, func_filepath):
@@ -509,67 +512,17 @@ class DefaultFileServer(FileServer):
         FileHandle
         """
         name = os.path.basename(filename).lower()
-        # Determine the file type based on the file name suffix. If the file
-        # type is unknoen reader will be None
-        csvfile = None
-        reader = None
-        delimiter = None
-        if name.endswith('.csv'):
-            csvfile = open(filename, 'r')
-            reader = csv.reader(
-                csvfile,
-                delimiter=',',
-                quotechar='"',
-                quoting=csv.QUOTE_MINIMAL,
-                skipinitialspace=True
-            )
-            delimiter = ','
-        elif name.endswith('.csv.gz'):
-            csvfile = gzip.open(filename, 'rb')
-            reader = csv.reader(
-                csvfile, delimiter=',',
-                quotechar='"',
-                quoting=csv.QUOTE_MINIMAL,
-                skipinitialspace=True
-            )
-            delimiter = ','
-        elif name.endswith('.tsv'):
-            csvfile = open(filename, 'r')
-            reader = csv.reader(csvfile, delimiter='\t')
-            delimiter = '\t'
-        elif name.endswith('.tsv.gz'):
-            csvfile = gzip.open(filename, 'rb')
-            reader = csv.reader(csvfile, delimiter='\t')
-            delimiter = '\t'
-        # Parse csv file to get column and row statistics (and to ensure that
-        # the file parses).
+        
         if not provenance is None:
             properties = dict(provenance)
         else:
             properties = dict()
         properties[FH_UPLOAD_NAME] =  os.path.basename(filename)
-        if not reader is None and not csvfile is None:
-            columns = -1
-            rows = 0
-            try:
-                for row in reader:
-                    if columns == -1:
-                        columns = len(row)
-                    else:
-                        rows += 1
-                properties[FH_COLUMNS] = columns
-                properties[FH_ROWS] = rows
-                properties[FH_COMPRESSED] = filename.endswith('.gz')
-                properties[FH_DELIMITER] = delimiter
-            except Exception as ex:
-                pass
-            csvfile.close()
+        
         # Create a new unique identifier for the file.
-        identifier = get_unique_identifier()
+        identifier = os.path.basename(filename)
         created_at = get_current_time()
-        output_file = self.get_filepath(identifier)
-        # Copy the uploaded file
-        shutil.copyfile(filename, output_file)
+        output_file = filename
         # Add file to file index
         f_handle = FileHandle(
             identifier,

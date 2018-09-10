@@ -186,40 +186,22 @@ def upload_file():
         if file.filename == '':
             raise InvalidRequest('empty file name')
         # Save uploaded file to temp directory
-        temp_dir = tempfile.mkdtemp()
-        filename = secure_filename(file.filename)
-        upload_file = os.path.join(temp_dir, filename)
+        identifier = api.fileserver.get_unique_identifier()
+        upload_file = api.fileserver.get_filepath(identifier)
         file.save(upload_file)
         prov = {'filename': file.filename}
     elif request.json and 'url' in request.json:
         obj = validate_json_request(request, required=['url'])
         url = obj['url']
         # Save uploaded file to temp directory
-        temp_dir = tempfile.mkdtemp()
-        try:
-            response = urllib2.urlopen(url)
-            filename = get_download_filename(url, response.info())
-            upload_file = os.path.join(temp_dir, secure_filename(filename))
-            mode = 'w'
-            if filename.endswith('.gz'):
-                mode += 'b'
-            with open(upload_file, mode) as f:
-                f.write(response.read())
-        except Exception as ex:
-            shutil.rmtree(temp_dir)
-            raise InvalidRequest(str(ex))
-        if os.stat(upload_file).st_size > config.fileserver.max_file_size:
-            shutil.rmtree(temp_dir)
-            raise InvalidRequest('file size exceeds limit')
+        upload_file = url
         prov = {'url': url}
     else:
         raise InvalidRequest('no file or url specified in request')
     try:
         result = jsonify(api.upload_file(upload_file, provenance=prov)), 201
-        shutil.rmtree(temp_dir)
         return result
     except ValueError as ex:
-        shutil.rmtree(temp_dir)
         raise InvalidRequest(str(ex))
 
 
