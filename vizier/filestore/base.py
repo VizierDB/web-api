@@ -130,7 +130,7 @@ class FileHandle(object):
         int
         """
         if os.path.exists(self.filepath):
-            return os.stat().st_size
+            return os.stat(self.filepath).st_size
         else:
             return 0
 

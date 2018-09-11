@@ -33,7 +33,6 @@ import uuid
 import sys
 import traceback
 
-
 from vizier.api import VizierWebService
 from vizier.config import AppConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
 from vizier.core.util import LOGGER_ENGINE
@@ -44,7 +43,7 @@ from vizier.filestore.base import DefaultFileServer
 from vizier.hateoas import PAGE_LIMIT, PAGE_OFFSET
 from vizier.workflow.module import ModuleSpecification
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
-
+from vizier.core.util import get_unique_identifier 
 
 class LogDuration:
     def __init__(self, funcname):
@@ -186,7 +185,7 @@ def upload_file():
         if file.filename == '':
             raise InvalidRequest('empty file name')
         # Save uploaded file to temp directory
-        identifier = api.fileserver.get_unique_identifier()
+        identifier = get_unique_identifier()
         upload_file = api.fileserver.get_filepath(identifier)
         file.save(upload_file)
         prov = {'filename': file.filename}
