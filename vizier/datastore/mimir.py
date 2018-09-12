@@ -587,10 +587,11 @@ class MimirDataStore(DataStore):
         # Get unique identifier for new dataset
         identifier = 'DS_' + get_unique_identifier()
         # Write rows to temporary file in CSV format
-        tmp_file = self.base_dir + '/../filestore/' + identifier
+        tmp_file = os.path.abspath(self.base_dir + '/../../filestore/files/' + identifier)
         # Create a list of columns that contain the user-vizible column name and
         # the name in the database
         db_columns = list()
+        colSql = 'ROWID() AS '+ROW_ID
         for col in columns:
             db_columns.append(
                 MimirDatasetColumn(
@@ -599,6 +600,7 @@ class MimirDataStore(DataStore):
                     name_in_rdb=col.name#COL_PREFIX + str(len(db_columns))
                 )
             )
+            colSql = colSql + ', ' + col.name + ' AS ' + col.name
         # Create CSV file for load
         with open(tmp_file, 'w') as f_out:
             writer = csv.writer(f_out, quoting=csv.QUOTE_MINIMAL)
@@ -608,7 +610,6 @@ class MimirDataStore(DataStore):
                 writer.writerow(record)
         # Load CSV file using Mimirs loadCSV method.
         table_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
-        colSql = 'ROWID() AS '+ROW_ID+ [', ' + col.name_in_dataset + ' AS ' + col.name_in_rdb for col in db_columns]
             
         sql = 'SELECT '+colSql+' FROM {{input}}'
         view_name = mimir._mimir.createView(table_name, sql)
@@ -618,7 +619,7 @@ class MimirDataStore(DataStore):
         row_ids = rs['prov'] #range(len(rs['prov']))   
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
-            table_name=table_name,
+            table_name=view_name,
             columns=db_columns,
             row_ids=row_ids,
             annotations=annotations

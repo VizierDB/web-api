@@ -639,6 +639,7 @@ class PythonCell(NotCacheable, Module):
         except Exception as ex:
             template = "{0}:{1!r}"
             message = template.format(type(ex).__name__, ex.args)
+            message = message + ': ' + traceback.format_exc(sys.exc_info())
             sys.stderr.write(str(message) + '\n')
         finally:
             sys.stdout = out
