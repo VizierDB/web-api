@@ -36,7 +36,7 @@ from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import MimirDataStore, create_missing_key_view
 from vizier.filestore.base import DefaultFileServer
 from vizier.plot.view import ChartViewHandle
-from vizier.serialize import CHART_VIEW, PLAIN_TEXT
+from vizier.serialize import CHART_VIEW, PLAIN_TEXT, HTML_TEXT
 from vizier.workflow.context import VizierDBClient
 from vizier.workflow.module import ModuleOutputs
 from vizier.workflow.vizual.base import DefaultVizualEngine
@@ -652,6 +652,8 @@ class PythonCell(NotCacheable, Module):
             text = ''.join(text).strip()
             if tag == 'out':
                 outputs.stdout(content=PLAIN_TEXT(text))
+            elif tag == 'html':
+                outputs.stdout(content=HTML_TEXT(text))
             else:
                 outputs.stderr(content=PLAIN_TEXT(text))
         self.set_output('context', context)
