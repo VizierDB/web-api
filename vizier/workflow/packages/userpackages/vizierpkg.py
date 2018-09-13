@@ -651,8 +651,6 @@ class PythonCell(NotCacheable, Module):
         for tag, text in stream:
             text = ''.join(text).strip()
             if tag == 'out':
-                outputs.stdout(content=PLAIN_TEXT(text))
-            elif tag == 'html':
                 outputs.stdout(content=HTML_TEXT(text))
             else:
                 outputs.stderr(content=PLAIN_TEXT(text))
