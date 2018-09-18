@@ -360,8 +360,8 @@ def create_sql_cell(module_id, command, context):
     # Create a new sql cell and set the input ports
     cell = vizierpkg.SQLCell()
     cell.moduleInfo['moduleId'] = module_id
+    cell.set_input_port('output_dataset', InputPort(command.arguments['output_dataset']))
     cell.set_input_port('source', InputPort(command.arguments['source']))
-    cell.set_input_port('dataset', InputPort(command.arguments['dataset']))
     cell.set_input_port('context', InputPort(context))
     return cell
 

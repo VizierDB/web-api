@@ -61,6 +61,7 @@ PARA_COLUMN = 'column'
 PARA_COLUMNS = 'columns'
 PARA_CONSTRAINT = 'constraint'
 PARA_DATASET = 'dataset'
+PARA_OUTPUT_DATASET = 'output_dataset'
 PARA_FILE = 'file'
 PARA_FILEID = 'fileid'
 PARA_GEOCODER = 'geocoder'
@@ -443,7 +444,13 @@ SQL_COMMANDS = {
     SQL_CODE: {
         MODULE_NAME: 'SQL Statement',
         MODULE_ARGUMENTS: {
-            PARA_DATASET: para_dataset(0),
+            PARA_OUTPUT_DATASET: parameter_specification(
+                PARA_OUTPUT_DATASET,
+                name='Output Dataset',
+                data_type=DT_STRING,
+                index=2,
+                required=False
+            ),
             SQL_SOURCE: parameter_specification(
                 SQL_SOURCE,
                 name='SQL Code',
@@ -1005,7 +1012,7 @@ def mimir_type_inference(dataset_name, percent_conform, make_input_certain=False
 # SQL
 # ------------------------------------------------------------------------------
 
-def sql_cell(ds_name, source):
+def sql_cell(output_ds_name, source):
     """Module specification for a SQL cell.
     Parameters
     ----------
@@ -1021,7 +1028,7 @@ def sql_cell(ds_name, source):
         PACKAGE_SQL,
         SQL_CODE,
         {
-            PARA_DATASET: ds_name,
+            PARA_OUTPUT_DATASET: output_ds_name,
             SQL_SOURCE: source
         }
     )

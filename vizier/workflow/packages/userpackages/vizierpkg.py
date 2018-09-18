@@ -400,7 +400,7 @@ class MimirLens(Module):
 
 class SQLCell(NotCacheable, Module):
     _input_ports = [
-        ('dataset', 'basic:String'),
+        ('output_dataset', 'basic:String'),
         ('source', 'basic:String'),
         ('context', 'basic:Dictionary')
     ]
@@ -414,14 +414,13 @@ class SQLCell(NotCacheable, Module):
         # Get SQL source code that is in this cell and the global
         # variables
         try:
-        
-            ds_name = self.get_input('dataset')
             source = urllib.unquote(self.get_input('source'))
+            ds_name = self.get_input('output_dataset')
             context = self.get_input('context')
             # Get module identifier and VizierDB client for current workflow state
             module_id = self.moduleInfo['moduleId']
             vizierdb = get_env(module_id, context)
-            mimir_table_names = list()
+            mimir_table_names = list()   
             
             # Module outputs
             outputs = ModuleOutputs()
@@ -460,18 +459,22 @@ class SQLCell(NotCacheable, Module):
             sql = 'SELECT * FROM ' + view_name
             rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
             
-            row_ids = rs['prov']
-            
-            # Redirect standard output and standard error
-            ds = vizierdb.datastore.register_dataset(
-                    table_name=view_name,
-                    columns=columns,
-                    row_ids=row_ids
-                )
-            print_dataset_schema(outputs, ds_name, ds.columns)
-            vizierdb.set_dataset_identifier(ds_name, ds.identifier)
-            # Propagate potential changes to the dataset mappings
-            propagate_changes(module_id, vizierdb.datasets, context)
+            if ds_name is None or ds_name == '':
+                outputs.stdout(content=PLAIN_TEXT("\n".join(", ".join('' if e is None else str(e) for e in row) for row in rs['data'])))
+                outputs.stdout(content=PLAIN_TEXT(str(len(rs['data'])) + ' row(s)'))
+            else:
+                row_ids = rs['prov']
+                
+                ds = vizierdb.datastore.register_dataset(
+                        table_name=view_name,
+                        columns=columns,
+                        row_ids=row_ids
+                    )
+                print_dataset_schema(outputs, ds_name, ds.columns)
+                outputs.stdout(content=PLAIN_TEXT(str(len(rs['data'])) + ' row(s)'))
+                vizierdb.set_dataset_identifier(ds_name, ds.identifier)
+                # Propagate potential changes to the dataset mappings
+                propagate_changes(module_id, vizierdb.datasets, context)
         except Exception as ex:
             template = "{0}:{1!r}"
             message = template.format(type(ex).__name__, ex.args)
