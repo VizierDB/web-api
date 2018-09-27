@@ -34,6 +34,7 @@ DT_GROUP = 'group'
 DT_INT = 'int'
 DT_PYTHON_CODE = 'pyCode'
 DT_SQL_CODE = 'sqlCode'
+DT_SCALA_CODE = 'scalaCode'
 DT_ROW_INDEX = 'rowidx'
 DT_STRING = 'string'
 
@@ -48,6 +49,7 @@ DATA_TYPES = [
     DT_INT,
     DT_PYTHON_CODE,
     DT_SQL_CODE,
+    DT_SCALA_CODE,
     DT_ROW_INDEX,
     DT_STRING
 ]
@@ -228,6 +230,7 @@ def parameter_specification(
 """Identifier for currently supported module types."""
 PACKAGE_MIMIR = 'mimir'
 PACKAGE_SQL = 'sql'
+PACKAGE_SCALA = 'scala'
 PACKAGE_PLOT = 'plot'
 PACKAGE_PYTHON = 'python'
 PACKAGE_SYS = '_sys'
@@ -261,6 +264,12 @@ SQL_SOURCE = 'source'
 
 """Identifier for Sql commands."""
 SQL_CODE = 'CODE'
+
+"""Components for Sql requests."""
+SCALA_SOURCE = 'source'
+
+"""Identifier for Sql commands."""
+SCALA_CODE = 'CODE'
 
 """Identifier for sysyem commands."""
 SYS_CREATE_BRANCH = 'CREATE_BRANCH'
@@ -456,6 +465,21 @@ SQL_COMMANDS = {
                 name='SQL Code',
                 data_type=DT_SQL_CODE,
                 index=1
+            )
+        }
+    }
+}
+
+"""Scala commands."""
+SCALA_COMMANDS = {
+    SCALA_CODE: {
+        MODULE_NAME: 'Scala Script',
+        MODULE_ARGUMENTS: {
+            SCALA_SOURCE: parameter_specification(
+                SCALA_SOURCE,
+                name='Scala Code',
+                data_type=DT_SCALA_CODE,
+                index=0
             )
         }
     }
@@ -762,6 +786,7 @@ which can be used in vizier workflows.
 AVAILABLE_PACKAGES = {
     PACKAGE_MIMIR: MIMIR_LENSES,
     PACKAGE_SQL: SQL_COMMANDS,
+    PACKAGE_SCALA: SCALA_COMMANDS,
     PACKAGE_PLOT: PLOT_COMMANDS,
     PACKAGE_PYTHON: PYTHON_COMMANDS,
     PACKAGE_VIZUAL: VIZUAL_COMMANDS

@@ -485,6 +485,60 @@ class SQLCell(NotCacheable, Module):
         self.set_output('command', source)
         self.set_output('output', outputs)
         
+
+class ScalaCell(NotCacheable, Module):
+    _input_ports = [
+        ('source', 'basic:String'),
+        ('context', 'basic:Dictionary')
+    ]
+    _output_ports = [
+        ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
+        ('output', 'basic:Dictionary')
+    ]
+
+    def compute(self):
+        # Get Python source code that is execyted in this cell and the global
+        # variables
+        source = urllib.unquote(self.get_input('source'))
+        context = self.get_input('context')
+        # Get module identifier and VizierDB client for current workflow state
+        module_id = self.moduleInfo['moduleId']
+        #vizierdb = get_env(module_id, context)
+        # Get Python variables from context and set the current vizier client
+        #variables = context[ctx.VZRENV_VARS]
+        #variables[ctx.VZRENV_VARS_DBCLIENT] = vizierdb
+        outputs = ModuleOutputs()
+        # Redirect standard output and standard error
+        out = sys.stdout
+        err = sys.stderr
+        stream = []
+        sys.stdout = FakeStream('out', stream)
+        sys.stderr = FakeStream('err', stream)
+        # Run the Pyhton code
+        try:
+            outputs.stdout(content=HTML_TEXT(mimir._mimir.evalScala(source)))
+        except Exception as ex:
+            template = "{0}:{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            message = message + ': ' + traceback.format_exc(sys.exc_info())
+            sys.stderr.write(str(message) + '\n')
+        finally:
+            sys.stdout = out
+            sys.stderr = err
+        # Propagate potential changes to the dataset mappings
+        #propagate_changes(module_id, vizierdb.datasets, context)
+        # Set module outputs
+        for tag, text in stream:
+            text = ''.join(text).strip()
+            if tag == 'out':
+                outputs.stdout(content=HTML_TEXT(text))
+            else:
+                outputs.stderr(content=PLAIN_TEXT(text))
+        self.set_output('context', context)
+        self.set_output('command', source)
+        self.set_output('output', outputs)
+
         
 class PlotCell(NotCacheable, Module):
     """Vistrails module to execute a plot command. Expects a command type (name)
@@ -1301,6 +1355,7 @@ def get_env(module_id, context):
                 datasets = dict()
             break
         prev_map = module_map
+    
     # Get file server and datastore directories
     datastore_dir = context[ctx.VZRENV_ENV][ctx.VZRENV_ENV_DATASTORE]
     fileserver_dir = context[ctx.VZRENV_ENV][ctx.VZRENV_ENV_FILESERVER]
@@ -1312,6 +1367,11 @@ def get_env(module_id, context):
         datastore = FileSystemDataStore(datastore_dir)
     elif env_type == config.ENGINEENV_MIMIR:
         datastore = MimirDataStore(datastore_dir)
+        mimir_table_names = dict()
+        for ds_name_o, dataset_id in datasets.items():
+            dataset = datastore.get_dataset(dataset_id)
+            mimir_table_names[ds_name_o] = dataset.table_name
+        mimir._mimir.registerNameMappings(mimir._jvmhelper.to_scala_map(mimir_table_names))
     if context_type == ctx.CONTEXT_VOLATILE:
         datastore = VolatileDataStore(datastore)
     # Create Viual engine depending on environment type
@@ -1402,4 +1462,4 @@ def propagate_changes(module_id, datasets, context):
 
 
 # Package modules
-_modules = [MimirLens, PythonCell, VizualCell]
+_modules = [MimirLens, SQLCell, ScalaCell, PythonCell, VizualCell]

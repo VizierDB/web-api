@@ -267,7 +267,7 @@ class ExecEnv(object):
         if not packages is None:
             self.packages = packages
         elif self.identifier == ENGINEENV_MIMIR:
-            self.packages = DEFAULT_PACKAGES + [cmd.PACKAGE_MIMIR] + [cmd.PACKAGE_SQL]
+            self.packages = DEFAULT_PACKAGES + [cmd.PACKAGE_MIMIR] + [cmd.PACKAGE_SQL] + [cmd.PACKAGE_SCALA]
         else:
             self.packages = DEFAULT_PACKAGES
 
@@ -461,4 +461,5 @@ def env_commands(env_id, packages=None):
         if env_id == ENGINEENV_MIMIR:
             commands[cmd.PACKAGE_MIMIR] = cmd.MIMIR_LENSES
             commands[cmd.PACKAGE_SQL] = cmd.SQL_COMMANDS
+            commands[cmd.PACKAGE_SCALA] = cmd.SCALA_COMMANDS
     return commands
