@@ -517,7 +517,12 @@ class ScalaCell(NotCacheable, Module):
         sys.stderr = FakeStream('err', stream)
         # Run the Pyhton code
         try:
-            outputs.stdout(content=HTML_TEXT(mimir._mimir.evalScala(source)))
+            evalresp = mimir._mimir.evalScala(source)
+            sys.stderr.write(str(evalresp) + '----------\n')
+            if not evalresp.stdout == '':
+                outputs.stdout(content=HTML_TEXT(evalresp.stdout))
+            if not evalresp.stderr == '':
+                outputs.stderr(content=PLAIN_TEXT(evalresp.stderr))
         except Exception as ex:
             template = "{0}:{1!r}"
             message = template.format(type(ex).__name__, ex.args)
