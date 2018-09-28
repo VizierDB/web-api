@@ -504,7 +504,7 @@ class ScalaCell(NotCacheable, Module):
         context = self.get_input('context')
         # Get module identifier and VizierDB client for current workflow state
         module_id = self.moduleInfo['moduleId']
-        #vizierdb = get_env(module_id, context)
+        vizierdb = get_env(module_id, context)
         # Get Python variables from context and set the current vizier client
         #variables = context[ctx.VZRENV_VARS]
         #variables[ctx.VZRENV_VARS_DBCLIENT] = vizierdb
