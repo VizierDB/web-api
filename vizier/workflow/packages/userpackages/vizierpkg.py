@@ -518,11 +518,12 @@ class ScalaCell(NotCacheable, Module):
         # Run the Pyhton code
         try:
             evalresp = mimir._mimir.evalScala(source)
-            sys.stderr.write(str(evalresp) + '----------\n')
-            if not evalresp.stdout == '':
-                outputs.stdout(content=HTML_TEXT(evalresp.stdout))
-            if not evalresp.stderr == '':
-                outputs.stderr(content=PLAIN_TEXT(evalresp.stderr))
+            ostd = evalresp.stdout()
+            oerr = evalresp.stderr()
+            if not ostd == '':
+                outputs.stdout(content=HTML_TEXT(ostd))
+            if not oerr == '':
+                outputs.stderr(content=PLAIN_TEXT(oerr))
         except Exception as ex:
             template = "{0}:{1!r}"
             message = template.format(type(ex).__name__, ex.args)
