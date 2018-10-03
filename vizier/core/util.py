@@ -135,3 +135,36 @@ def min_max(values):
         if max_val < values[i]:
             max_val = values[i]
     return min_val, max_val
+
+
+import json
+
+def load_json(jsonstr):
+    try:
+        from types import SimpleNamespace as Namespace
+    except ImportError:
+        # Python 2.x fallback
+        from argparse import Namespace
+    return json.loads(jsonstr, object_hook=lambda d: vars(Namespace(**d)))
+
+
+def default_serialize(obj):
+    """JSON serializer for objects not serializable by default json code"""
+
+    if isinstance(obj, date):
+        serial = obj.isoformat()
+        return serial
+
+    if isinstance(obj, time):
+        serial = obj.isoformat()
+        return serial
+
+    return obj.__dict__
+
+
+def serialize(obj):
+    return json.dumps(obj, default=default_serialize)
+
+def dump_json(obj, stream):
+    stream.write(serialize(obj))
+    

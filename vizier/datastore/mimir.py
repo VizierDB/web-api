@@ -27,6 +27,7 @@ import unicodecsv
 import yaml
 
 from yaml import CLoader, CDumper
+from vizier.core.util import dump_json, load_json
 
 from StringIO import StringIO
 
@@ -291,8 +292,12 @@ class MimirDatasetHandle(DatasetHandle):
         -------
         vizier.datastore.base.DatasetHandle
         """
-        with open(filename, 'r') as f:
-            doc = yaml.load(f.read(), Loader=CLoader)
+        try:
+            with open(filename, 'r') as f:
+                doc = load_json(f.read())
+        except:
+            with open(filename, 'r') as f:
+                doc = yaml.load(f.read(), Loader=CLoader)
         return MimirDatasetHandle(
             identifier=doc['id'],
             columns=[MimirDatasetColumn.from_dict(obj) for obj in doc['columns']],
@@ -411,7 +416,8 @@ class MimirDatasetHandle(DatasetHandle):
             'rowCounter': self.row_counter
         }
         with open(filename, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False, Dumper=CDumper)
+            #yaml.dump(doc, f, default_flow_style=False, Dumper=CDumper)
+            dump_json(doc, f)
 
 
 class MimirDatasetReader(DatasetReader):

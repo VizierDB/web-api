@@ -54,6 +54,7 @@ import os
 import yaml
 
 from yaml import CLoader
+from vizier.core.util import dump_json, load_json
 
 import vizier.workflow.command as cmd
 
@@ -152,9 +153,13 @@ class AppConfig(object):
         ]
         for config_file in files:
             if not config_file is None and os.path.isfile(config_file):
-                with open(config_file, 'r') as f:
-                    doc = yaml.load(f.read(), Loader=CLoader)
-                    break
+                try:
+                    with open(config_file, 'r') as f:
+                        doc = load_json(f.read())
+                except:
+                    with open(config_file, 'r') as f:
+                        doc = yaml.load(f.read(), Loader=CLoader)
+                break
         if not doc is None:
             if 'api' in doc:
                 self.api.from_dict(doc['api'])

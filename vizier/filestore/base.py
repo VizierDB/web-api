@@ -24,6 +24,7 @@ import shutil
 import yaml
 
 from yaml import CLoader, CDumper
+from vizier.core.util import dump_json, load_json
 
 from vizier.core.properties import ObjectProperty
 from vizier.core.util import get_unique_identifier
@@ -468,10 +469,16 @@ class DefaultFileServer(FileServer):
         """
         files = dict()
         if os.path.isfile(self.index_file):
-            with open(self.index_file, 'r') as f:
-                for f_desc in yaml.load(f.read(), Loader=CLoader)['files']:
-                    fh = FileHandle.from_dict(f_desc, self.get_filepath)
-                    files[fh.identifier] = fh
+            try:
+                with open(self.index_file, 'r') as f:
+                    for f_desc in load_json(f.read())['files']:
+                        fh = FileHandle.from_dict(f_desc, self.get_filepath)
+                        files[fh.identifier] = fh
+            except:
+                with open(self.index_file, 'r') as f:
+                    for f_desc in yaml.load(f.read(), Loader=CLoader)['files']:
+                        fh = FileHandle.from_dict(f_desc, self.get_filepath)
+                        files[fh.identifier] = fh
         return files
 
     def rename_file(self, identifier, name):
@@ -547,4 +554,5 @@ class DefaultFileServer(FileServer):
         """
         content = {'files' : [fh.to_dict() for fh in files.values()]}
         with open(self.index_file, 'w') as f:
-            yaml.dump(content, f, default_flow_style=False, Dumper=CDumper)
+            #yaml.dump(content, f, default_flow_style=False, Dumper=CDumper)
+            dump_json(content, f)
