@@ -53,6 +53,8 @@ or be located (as file config.yaml) in the current working directory.
 import os
 import yaml
 
+from yaml import CLoader
+
 import vizier.workflow.command as cmd
 
 
@@ -151,7 +153,7 @@ class AppConfig(object):
         for config_file in files:
             if not config_file is None and os.path.isfile(config_file):
                 with open(config_file, 'r') as f:
-                    doc = yaml.load(f.read())
+                    doc = yaml.load(f.read(), Loader=CLoader)
                     break
         if not doc is None:
             if 'api' in doc:

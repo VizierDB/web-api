@@ -26,6 +26,7 @@ from abc import abstractmethod
 import os
 import yaml
 
+from yaml import CLoader, CDumper
 
 class ObjectProperty(object):
     """Object properties are (key, value)-pairs.
@@ -137,7 +138,7 @@ class FilePropertiesHandler(ObjectPropertiesHandler):
                 raise ValueError('missing default properties')
             self.properties = dict(properties)
             with open(self.filename, 'w') as f:
-                yaml.dump(self.properties, f, default_flow_style=False)
+                yaml.dump(self.properties, f, default_flow_style=False, Dumper=CDumper)
         elif not properties is None:
             self.properties = dict(properties)
         else:
@@ -172,7 +173,7 @@ class FilePropertiesHandler(ObjectPropertiesHandler):
         dict
         """
         with open(self.filename, 'r') as f:
-            properties = yaml.load(f.read())
+            properties = yaml.load(f.read(), Loader=CLoader)
         for key in self.properties:
             if not key in properties:
                 properties[key] = self.properties[key]
@@ -206,4 +207,4 @@ class FilePropertiesHandler(ObjectPropertiesHandler):
                 obj_properties[key] = val
         # Write modified properties to file
         with open(self.filename, 'w') as f:
-            yaml.dump(obj_properties, f, default_flow_style=False)
+            yaml.dump(obj_properties, f, default_flow_style=False, Dumper=CDumper)

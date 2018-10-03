@@ -23,6 +23,8 @@ import os
 import shutil
 import yaml
 
+from yaml import CLoader, CDumper
+
 from vizier.core.properties import ObjectProperty
 from vizier.core.util import get_unique_identifier
 from vizier.core.system import build_info, component_descriptor
@@ -467,7 +469,7 @@ class DefaultFileServer(FileServer):
         files = dict()
         if os.path.isfile(self.index_file):
             with open(self.index_file, 'r') as f:
-                for f_desc in yaml.load(f.read())['files']:
+                for f_desc in yaml.load(f.read(), Loader=CLoader)['files']:
                     fh = FileHandle.from_dict(f_desc, self.get_filepath)
                     files[fh.identifier] = fh
         return files
@@ -545,4 +547,4 @@ class DefaultFileServer(FileServer):
         """
         content = {'files' : [fh.to_dict() for fh in files.values()]}
         with open(self.index_file, 'w') as f:
-            yaml.dump(content, f, default_flow_style=False)
+            yaml.dump(content, f, default_flow_style=False, Dumper=CDumper)
