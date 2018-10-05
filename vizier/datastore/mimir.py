@@ -342,18 +342,12 @@ class MimirDatasetHandle(DatasetHandle):
                 if col.identifier == column_id:
                     column = col
                     break
-            sql = 'SELECT ' + column.name_in_rdb + ' '
+            sql = 'SELECT * '
             sql += 'FROM ' + self.table_name + ' '
-            sql += 'WHERE ' + ROW_ID + ' = ' + str(row_id)
-            rs = json.loads(
-                mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
-            )
-            has_reasons = not rs['col_taint'][0][0]
+            buffer = mimir._mimir.explainCell(sql, column.name_in_rdb, str(row_id))
+            has_reasons = buffer.size() > 0
             if has_reasons:
-                row_prov = str(rs['prov'][0])
-                buffer = mimir._mimir.explainCell(sql, 0, row_prov)
-                for i in range(buffer.size()):
-                    value = str(buffer.array()[i])
+                for value in buffer.mkString("-*-*-").split("-*-*-"):
                     # Remove references to lenses
                     while 'LENS_' in value:
                         start_pos = value.find('LENS_')
@@ -542,11 +536,20 @@ class MimirDatasetReader(DatasetReader):
                         has_anno = not rs['col_taint'][row_index][col_index]
                     row_annos[i] = has_anno
                 self.rows.append(DatasetRow(row_id, values, annotations=row_annos))
-            self.rows.sort(key=lambda row: row.identifier)
+            self.rows.sort(key=lambda row: self.sortbyrowid(row.identifier))
             self.read_index = 0
             self.is_open = True
         return self
 
+    def sortbyrowid(self, s):
+        try:
+            return int(s)
+        except ValueError:
+            pass
+        try:
+            return int(s.split(':')[0]) 
+        except:
+            return 0
 
 class MimirDataStore(DataStore):
     """Vizier data store implementation using Mimir.
@@ -621,7 +624,7 @@ class MimirDataStore(DataStore):
             
         sql = 'SELECT '+colSql+' FROM {{input}}'
         view_name = mimir._mimir.createView(table_name, sql)
-        sql = 'SELECT * FROM ' + view_name
+        sql = 'SELECT '+ROW_ID+' FROM ' + view_name
         rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
         # List of row ids in the new dataset
         row_ids = rs['prov'] #range(len(rs['prov']))   
@@ -763,7 +766,7 @@ class MimirDataStore(DataStore):
            
         sql = 'SELECT '+colSql+' FROM {{input}}'
         view_name = mimir._mimir.createView(init_load_name, sql)
-        sql = 'SELECT * FROM ' + view_name
+        sql = 'SELECT '+ROW_ID+' FROM ' + view_name
         rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
         
         row_ids = rs['prov'] #range(len(rs['prov']))   

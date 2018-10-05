@@ -90,6 +90,7 @@ PARA_XAXIS = 'xaxis'
 PARA_COLUMNS_COLUMN = PARA_COLUMNS + '_' + PARA_COLUMN
 PARA_COLUMNS_ORDER = PARA_COLUMNS + '_' + PARA_ORDER
 PARA_COLUMNS_RENAME = PARA_COLUMNS + '_' + PARA_NAME
+PARA_COLUMNS_CONSTRAINT = PARA_COLUMNS + '_' + PARA_CONSTRAINT
 
 
 """Values for sort order."""
@@ -353,12 +354,25 @@ MIMIR_LENSES = {
         MODULE_NAME: 'Missing Value Lens',
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
-            PARA_COLUMN: para_column(1),
-            PARA_CONSTRAINT: parameter_specification(
-                PARA_CONSTRAINT,
+            PARA_COLUMNS: parameter_specification(
+                PARA_COLUMNS,
+                name='Columns',
+                data_type=DT_GROUP,
+                index=1
+            ),
+            PARA_COLUMNS_COLUMN: parameter_specification(
+                PARA_COLUMNS_COLUMN,
+                name='Column',
+                data_type=DT_COLUMN_ID,
+                index=2,
+                parent=PARA_COLUMNS
+            ),
+            PARA_COLUMNS_CONSTRAINT: parameter_specification(
+                PARA_COLUMNS_CONSTRAINT,
                 name='Constraint',
                 data_type=DT_STRING,
-                index=2,
+                index=3,
+                parent=PARA_COLUMNS,
                 required=False
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(3)
@@ -920,7 +934,7 @@ def mimir_missing_key(dataset_name, column, missing_only=None, make_input_certai
     )
 
 
-def mimir_missing_value(dataset_name, column, constraint=None, make_input_certain=False):
+def mimir_missing_value(dataset_name, columns, make_input_certain=False):
     """Create a Mimir Missing Value Lens.
 
     Parameters
@@ -940,11 +954,10 @@ def mimir_missing_value(dataset_name, column, constraint=None, make_input_certai
     """
     args = {
         PARA_DATASET : dataset_name,
-        PARA_COLUMN: column,
+        PARA_COLUMNS: columns,
         PARA_MAKE_CERTAIN: make_input_certain
     }
-    if not constraint is None:
-        args[PARA_CONSTRAINT] = constraint
+    
     return ModuleSpecification(PACKAGE_MIMIR, MIMIR_MISSING_VALUE, args)
 
 

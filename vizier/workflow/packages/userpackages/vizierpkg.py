@@ -155,12 +155,20 @@ class MimirLens(Module):
             params = [ROW_ID, 'MISSING_ONLY(FALSE)']
             update_rows = True
         elif lens == cmd.MIMIR_MISSING_VALUE:
-            column = get_column_argument(dataset, args, cmd.PARA_COLUMN)
-            params = column.name_in_rdb
-            if cmd.PARA_CONSTRAINT in args:
-                params = params + ' ' + str(args[cmd.PARA_CONSTRAINT])
-                params = '\'' + params + '\''
-            params = [params]
+            params = list()            
+            for col in get_argument(cmd.PARA_COLUMNS, args, default_value=[], raise_error=False):
+                f_col = get_column_argument(dataset, col, cmd.PARA_COLUMNS_COLUMN)
+                param = f_col.name_in_rdb
+                col_constraint = None
+                if cmd.PARA_COLUMNS_CONSTRAINT in col:
+                    col_constraint = get_argument(cmd.PARA_COLUMNS_CONSTRAINT, col, raise_error=False)
+                if col_constraint == '':
+                    col_constraint = None
+                if not col_constraint is None:
+                    param = param + ' ' + str(col_constraint)
+                param = '\'' + param + '\''
+                params.append(param)
+        
         elif lens == cmd.MIMIR_PICKER:
             pick_from = list()
             column_names = list()
@@ -339,17 +347,28 @@ class MimirLens(Module):
             return ' '.join(tokens)
         elif lens == cmd.MIMIR_MISSING_VALUE:
             # MISSING VALUES FOR <column> IN <dataset> {WITH CONSTRAINT} <constraint>
-            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            columns = list()
+            constraints = list()
+            for col in get_argument(cmd.PARA_COLUMNS, args, default_value=list()):
+                col_id = get_argument(
+                    cmd.PARA_COLUMNS_COLUMN, col, default_value='?'
+                )
+                col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
+                columns.append(col_name)
+                constraint = get_argument(
+                    cmd.PARA_COLUMNS_CONSTRAINT, col, default_value=None
+                )
+                if not constraint is None:
+                    constraint = col_name + ' ' + constraint
+                    constraints.append(constraint)
             cmd_text = ' '.join([
                 'MISSING VALUES FOR',
-                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                ', '.join(columns),
                 'IN',
                 format_str(ds_name.lower())
             ])
-            if cmd.PARA_CONSTRAINT in args:
-                constraint = args[cmd.PARA_CONSTRAINT]
-                if constraint != '':
-                    cmd_text += ' WITH CONSTRAINT ' + str(constraint)
+            if len(constraints) > 0:
+                cmd_text += ' WITH CONSTRAINTS ' + ', '.join(constraints)
             return cmd_text
         elif lens == cmd.MIMIR_PICKER:
             # PICK FROM <columns> {AS <name>} IN <dataset>
