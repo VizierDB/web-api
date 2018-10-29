@@ -205,7 +205,8 @@ class MimirLens(Module):
             for col in get_argument(cmd.PARA_SCHEMA, args):
                 c_name = get_argument(cmd.PARA_COLUMN, col)
                 c_type = get_argument(cmd.PARA_TYPE, col)
-                params.append('\'' + COL_PREFIX + str(len(column_names)) + ' ' + c_type + '\'')
+                #COL_PREFIX + str(len(column_names))
+                params.append('\'' + c_name + ' ' + c_type + '\'')
                 column_names.append(c_name)
         elif lens == cmd.MIMIR_TYPE_INFERENCE:
             params = [str(get_argument(cmd.PARA_PERCENT_CONFORM, args))]
@@ -243,7 +244,7 @@ class MimirLens(Module):
                 columns.append(MimirDatasetColumn(
                     col_id,
                     c_name,
-                    COL_PREFIX + str(col_id)
+                    c_name #COL_PREFIX + str(col_id)
                 ))
             #ds = vizierdb.datastore.create_dataset(table_name, columns)
             ds = vizierdb.datastore.register_dataset(

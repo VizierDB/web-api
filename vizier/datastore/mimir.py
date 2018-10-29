@@ -309,7 +309,7 @@ class MimirDatasetHandle(DatasetHandle):
             annotations=annotations
         )
 
-    def get_annotations(self, column_id=-1, row_id=-1):
+    def get_annotations(self, column_id=-1, row_id='-1'):
         """Get list of annotations for a dataset component. Expects at least one
         of the given identifier to be a valid identifier (>= 0).
 
