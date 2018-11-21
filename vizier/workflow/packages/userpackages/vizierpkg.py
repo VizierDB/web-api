@@ -107,6 +107,7 @@ class MimirLens(Module):
         outputs = ModuleOutputs()
         store_as_dataset = None
         update_rows = False
+        lens_annotations = []
         # Get dataset. Raise exception if dataset is unknown
         ds_name = get_argument(cmd.PARA_DATASET, args).lower()
         dataset_id = vizierdb.get_dataset_identifier(ds_name)
@@ -145,13 +146,14 @@ class MimirLens(Module):
             params += ['MISSING_ONLY(FALSE)']
             # Need to run this lens twice in order to generate row ids for
             # any potential new tuple
-            mimir_table_name = mimir._mimir.createLens(
+            mimir_lens_response = mimir._mimir.createLens(
                 dataset.table_name,
                 mimir._jvmhelper.to_scala_seq(params),
                 lens,
                 get_argument(cmd.PARA_MAKE_CERTAIN, args),
                 False
             )
+            (mimir_table_name, lens_annotations) = (mimir_lens_response.lensName(), mimir_lens_response.annotations())
             params = [ROW_ID, 'MISSING_ONLY(FALSE)']
             update_rows = True
         elif lens == cmd.MIMIR_MISSING_VALUE:
@@ -220,13 +222,15 @@ class MimirLens(Module):
                 lens
             )
         else:
-            lens_name = mimir._mimir.createLens(
+            mimir_lens_response = mimir._mimir.createLens(
                 mimir_table_name,
                 mimir._jvmhelper.to_scala_seq(params),
                 lens,
                 get_argument(cmd.PARA_MAKE_CERTAIN, args),
                 False
             )
+            (lens_name, lens_annotations) = (mimir_lens_response.lensName(), mimir_lens_response.annotations())
+            
         # Create a view including missing row ids for the result of a
         # MISSING KEY lens
         if lens == cmd.MIMIR_MISSING_KEY:
@@ -266,6 +270,13 @@ class MimirLens(Module):
                 update_rows=update_rows
             )
         print_dataset_schema(outputs, ds_name, ds.columns)
+        #annos_of_interest = list(filter(lambda d: ':META:' not in d['source'], lens_annotations))
+        
+        #annos_to_print = list(map(lambda d: d['english'].replace(lens_name,ds_name), annos_of_interest))  
+        #if len(annos_to_print) > 5:
+        #    annos_to_print = (annos_to_print[:5]).append("...and " + str(len(annos_to_print)-5) + " more")
+        
+        print_lens_annotations(outputs, lens_annotations)
         vizierdb.set_dataset_identifier(ds_name, ds.identifier)
         # Propagate potential changes to the dataset mappings
         propagate_changes(module_id, vizierdb.datasets, context)
@@ -1457,6 +1468,19 @@ def print_dataset_schema(outputs, name, columns):
             text += ','
         outputs.stdout(content=PLAIN_TEXT(text))
     outputs.stdout(content=PLAIN_TEXT(')'))
+    
+def print_lens_annotations(outputs, annotations):
+    """Add annotation infromation for given lens to cell output.
+
+    Parameters
+    ----------
+    outputs: vizier.workflow.module.ModuleOutputs
+        Cell outputt streams
+    annotations: dict
+        Annotations from first 200 rows of queried lens
+    """
+    outputs.stdout(content=PLAIN_TEXT("Repairs in first 200 rows: " + annotations))
+    #outputs.stdout(content=PLAIN_TEXT(json.dumps(annotations, indent=2, sort_keys=True)))
 
 
 def propagate_changes(module_id, datasets, context):

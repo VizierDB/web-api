@@ -573,6 +573,7 @@ class MimirDataStore(DataStore):
             Name of the directory where metadata is stored
         """
         super(MimirDataStore, self).__init__(build_info('MimirDataStore'))
+        self.bad_col_names = {"ABORT":"`ABORT`", "ACTION":"`ACTION`", "ADD":"`ADD`", "AFTER":"`AFTER`", "ALL":"`ALL`", "ALTER":"`ALTER`", "ANALYZE":"`ANALYZE`", "AND":"`AND`", "AS":"`AS`", "ASC":"`ASC`", "ATTACH":"`ATTACH`", "AUTOINCREMENT":"`AUTOINCREMENT`", "BEFORE":"`BEFORE`", "BEGIN":"`BEGIN`", "BETWEEN":"`BETWEEN`", "BY":"`BY`", "CASCADE":"`CASCADE`", "CASE":"`CASE`", "CAST":"`CAST`", "CHECK":"`CHECK`", "COLLATE":"`COLLATE`", "COLUMN":"`COLUMN`", "COMMIT":"`COMMIT`", "CONFLICT":"`CONFLICT`", "CONSTRAINT":"`CONSTRAINT`", "CREATE":"`CREATE`", "CROSS":"`CROSS`", "CURRENT":"`CURRENT`", "CURRENT_DATE":"`CURRENT_DATE`", "CURRENT_TIME":"`CURRENT_TIME`", "CURRENT_TIMESTAMP":"`CURRENT_TIMESTAMP`", "DATABASE":"`DATABASE`", "DEFAULT":"`DEFAULT`", "DEFERRABLE":"`DEFERRABLE`", "DEFERRED":"`DEFERRED`", "DELETE":"`DELETE`", "DESC":"`DESC`", "DETACH":"`DETACH`", "DISTINCT":"`DISTINCT`", "DO":"`DO`", "DROP":"`DROP`", "EACH":"`EACH`", "ELSE":"`ELSE`", "END":"`END`", "ESCAPE":"`ESCAPE`", "EXCEPT":"`EXCEPT`", "EXCLUSIVE":"`EXCLUSIVE`", "EXISTS":"`EXISTS`", "EXPLAIN":"`EXPLAIN`", "FAIL":"`FAIL`", "FILTER":"`FILTER`", "FOLLOWING":"`FOLLOWING`", "FOR":"`FOR`", "FOREIGN":"`FOREIGN`", "FROM":"`FROM`", "FULL":"`FULL`", "GLOB":"`GLOB`", "GROUP":"`GROUP`", "HAVING":"`HAVING`", "IF":"`IF`", "IGNORE":"`IGNORE`", "IMMEDIATE":"`IMMEDIATE`", "IN":"`IN`", "INDEX":"`INDEX`", "INDEXED":"`INDEXED`", "INITIALLY":"`INITIALLY`", "INNER":"`INNER`", "INSERT":"`INSERT`", "INSTEAD":"`INSTEAD`", "INTERSECT":"`INTERSECT`", "INTO":"`INTO`", "IS":"`IS`", "ISNULL":"`ISNULL`", "JOIN":"`JOIN`", "KEY":"`KEY`", "LEFT":"`LEFT`", "LIKE":"`LIKE`", "LIMIT":"`LIMIT`", "MATCH":"`MATCH`", "NATURAL":"`NATURAL`", "NO":"`NO`", "NOT":"`NOT`", "NOTHING":"`NOTHING`", "NOTNULL":"`NOTNULL`", "NULL":"`NULL`", "OF":"`OF`", "OFFSET":"`OFFSET`", "ON":"`ON`", "OR":"`OR`", "ORDER":"`ORDER`", "OUTER":"`OUTER`", "OVER":"`OVER`", "PARTITION":"`PARTITION`", "PLAN":"`PLAN`", "PRAGMA":"`PRAGMA`", "PRECEDING":"`PRECEDING`", "PRIMARY":"`PRIMARY`", "QUERY":"`QUERY`", "RAISE":"`RAISE`", "RANGE":"`RANGE`", "RECURSIVE":"`RECURSIVE`", "REFERENCES":"`REFERENCES`", "REGEXP":"`REGEXP`", "REINDEX":"`REINDEX`", "RELEASE":"`RELEASE`", "RENAME":"`RENAME`", "REPLACE":"`REPLACE`", "RESTRICT":"`RESTRICT`", "RIGHT":"`RIGHT`", "ROLLBACK":"`ROLLBACK`", "ROW":"`ROW`", "ROWS":"`ROWS`", "SAVEPOINT":"`SAVEPOINT`", "SELECT":"`SELECT`", "SET":"`SET`", "TABLE":"`TABLE`", "TEMP":"`TEMP`", "TEMPORARY":"`TEMPORARY`", "THEN":"`THEN`", "TO":"`TO`", "TRANSACTION":"`TRANSACTION`", "TRIGGER":"`TRIGGER`", "UNBOUNDED":"`UNBOUNDED`", "UNION":"`UNION`", "UNIQUE":"`UNIQUE`", "UPDATE":"`UPDATE`", "USING":"`USING`", "VACUUM":"`VACUUM`", "VALUES":"`VALUES`", "VIEW":"`VIEW`", "VIRTUAL":"`VIRTUAL`", "WHEN":"`WHEN`", "WHERE":"`WHERE`", "WINDOW":"`WINDOW`", "WITH":"`WITH`", "WITHOUT":"`WITHOUT`"} 
         self.base_dir = os.path.abspath(base_dir)
         if not os.path.isdir(self.base_dir):
             os.makedirs(self.base_dir)
@@ -603,7 +604,7 @@ class MimirDataStore(DataStore):
         # the name in the database
         db_columns = list()
         colSql = 'ROWID() AS '+ROW_ID
-        for col in columns:
+        for col in map(lambda cn: self.bad_col_names.get(cn, cn), columns):
             db_columns.append(
                 MimirDatasetColumn(
                     identifier=col.identifier,
@@ -624,10 +625,16 @@ class MimirDataStore(DataStore):
             
         sql = 'SELECT '+colSql+' FROM {{input}}'
         view_name = mimir._mimir.createView(table_name, sql)
-        sql = 'SELECT '+ROW_ID+' FROM ' + view_name
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+        #sql = 'SELECT '+ROW_ID+' FROM ' + view_name
+        #rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
         # List of row ids in the new dataset
-        row_ids = rs['prov'] #range(len(rs['prov']))   
+        #row_ids = rs['prov'] #range(len(rs['prov']))  
+        
+        sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+        
+        row_ids = map(str, range(0, int(rs['data'][0][0])))
+         
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
             table_name=view_name,
@@ -754,8 +761,8 @@ class MimirDataStore(DataStore):
         
         for col in json.loads(mimirSchema):
             col_id = len(columns)
-            name_in_dataset = col['name']
-            name_in_rdb = col['name']#COL_PREFIX + str(col_id)
+            name_in_dataset = self.bad_col_names.get(col['name'],col['name'])
+            name_in_rdb = self.bad_col_names.get(col['name'],col['name'])#COL_PREFIX + str(col_id)
             col = MimirDatasetColumn(
                 identifier=col_id,
                 name_in_dataset=name_in_dataset,
@@ -766,10 +773,15 @@ class MimirDataStore(DataStore):
            
         sql = 'SELECT '+colSql+' FROM {{input}}'
         view_name = mimir._mimir.createView(init_load_name, sql)
-        sql = 'SELECT '+ROW_ID+' FROM ' + view_name
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+        #sql = 'SELECT '+ROW_ID+' FROM ' + view_name
+        #rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
         
-        row_ids = rs['prov'] #range(len(rs['prov']))   
+        #row_ids = rs['prov'] #range(len(rs['prov']))  
+        
+        sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+        
+        row_ids = map(str, range(0, int(rs['data'][0][0])))
         
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
@@ -862,7 +874,7 @@ class MimirDataStore(DataStore):
             row_counter += 1
         dataset = MimirDatasetHandle(
             identifier=get_unique_identifier(),
-            columns=columns,
+            columns= map(lambda cn: self.bad_col_names.get(cn, cn), columns),
             rowid_column=rowid_column,
             table_name=table_name,
             row_ids=row_ids,
