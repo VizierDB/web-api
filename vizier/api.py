@@ -198,7 +198,7 @@ class VizierWebService(object):
     # --------------------------------------------------------------------------
     # Datasets
     # --------------------------------------------------------------------------
-    def get_dataset(self, dataset_id, offset=None, limit=None):
+    def get_dataset(self, dataset_id, offset=None, limit=None, order_by=""):
         """Get dataset with given identifier. The result is None if no dataset
         with the given identifier exists.
 
