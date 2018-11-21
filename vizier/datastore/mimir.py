@@ -445,7 +445,7 @@ class MimirDatasetReader(DatasetReader):
         self.rowid_column_numeric = rowid_column_numeric
         self.annotations = annotations if not annotations is None else DatasetMetadata()
         self.offset = offset
-        if not self.order_by is "":
+        if not order_by is "":
             self.is_order_by = True
         else:
             self.is_order_by = False
