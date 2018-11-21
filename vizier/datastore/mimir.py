@@ -389,7 +389,7 @@ class MimirDatasetHandle(DatasetHandle):
             rowid_column_numeric=self.rowid_column.is_numeric(),
             offset=offset,
             limit=limit,
-            annotations=self.annotations
+            annotations=self.annotations,
             order_by=order_by
         )
 
