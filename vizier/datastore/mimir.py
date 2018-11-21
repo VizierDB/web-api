@@ -366,7 +366,7 @@ class MimirDatasetHandle(DatasetHandle):
             raise ValueError('invalid component identifier')
         return annotations.values()
 
-    def reader(self, offset=0, limit=-1):
+    def reader(self, offset=0, limit=-1, order_by=""):
         """Get reader for the dataset to access the dataset rows. The optional
         offset amd limit parameters are used to retrieve only a subset of
         rows.
@@ -390,6 +390,7 @@ class MimirDatasetHandle(DatasetHandle):
             offset=offset,
             limit=limit,
             annotations=self.annotations
+            order_by=order_by
         )
 
     def to_file(self, filename):
@@ -416,7 +417,7 @@ class MimirDatasetHandle(DatasetHandle):
 
 class MimirDatasetReader(DatasetReader):
     """Dataset reader for Mimir datasets."""
-    def __init__(self, table_name, columns, row_ids, rowid_column_numeric=True, offset=0, limit=-1, annotations=None):
+    def __init__(self, table_name, columns, row_ids, rowid_column_numeric=True, offset=0, limit=-1, annotations=None, order_by=""):
         """Initialize information about the delimited file and the file format.
 
         Parameters
@@ -434,6 +435,8 @@ class MimirDatasetReader(DatasetReader):
             Number of rows at the beginning of the list that are skipped.
         limit: int, optional
             Limits the number of rows that are returned.
+        order_by:
+            Column to order by and order direction (asc, desc)
         annotations: vizier.datastore.metadata.DatasetMetadata, optional
             Annotations for dataset components
         """
@@ -442,7 +445,12 @@ class MimirDatasetReader(DatasetReader):
         self.rowid_column_numeric = rowid_column_numeric
         self.annotations = annotations if not annotations is None else DatasetMetadata()
         self.offset = offset
+        if not self.order_by is "":
+            self.is_order_by = True
+        else:
+            self.is_order_by = False
         self.limit = limit
+        self.order_by = order_by
         # Convert row id list into row position index. Depending on whether
         # offset or limit parameters are given we also limit the entries in the
         # dictionary. The internal flag .is_range_query keeps track of whether
@@ -500,8 +508,10 @@ class MimirDatasetReader(DatasetReader):
             # Query the database to get the list of rows. Sort rows according to
             # order in row_ids and return a InMemReader
             sql = get_select_query(self.table_name, columns=self.columns)
+            if self.is_order_by:
+                sql += ' ' + str(self.order_by) 
             if self.is_range_query:
-                sql += ' LIMIT ' + str(self.limit) + ' OFFSET ' + str(self.offset)
+                sql +=  ' LIMIT ' + str(self.limit) + ' OFFSET ' + str(self.offset)
             rs = json.loads(
                 mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
             )
