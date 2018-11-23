@@ -236,7 +236,7 @@ class VizierWebService(object):
             # Serialize the dataset schema and cells
             return serialize.DATASET(
                 dataset=dataset,
-                rows=dataset.fetch_rows(offset=offset, limit=result_size),
+                rows=dataset.fetch_rows(offset=offset, limit=result_size, order_by=order_by),
                 config=self.config,
                 urls=self.urls,
                 offset=offset,
@@ -536,6 +536,8 @@ class VizierWebService(object):
             branch_id=branch_id,
             workflow_version=branch.workflows[-1].version
         )
+        import sys
+        sys.stderr.write("-------------------------------------\n" +str(includeDataset))
         return serialize.WORKFLOW_UPDATE_RESULT(
             viztrail,
             workflow,

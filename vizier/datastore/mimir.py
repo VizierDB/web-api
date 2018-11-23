@@ -509,7 +509,7 @@ class MimirDatasetReader(DatasetReader):
             # order in row_ids and return a InMemReader
             sql = get_select_query(self.table_name, columns=self.columns)
             if self.is_order_by:
-                sql += ' ' + str(self.order_by) 
+                sql += ' ORDER BY ' + str(self.order_by) 
             if self.is_range_query:
                 sql +=  ' LIMIT ' + str(self.limit) + ' OFFSET ' + str(self.offset)
             rs = json.loads(
