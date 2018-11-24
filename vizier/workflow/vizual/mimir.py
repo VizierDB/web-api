@@ -510,9 +510,11 @@ class MimirVizualEngine(DefaultVizualEngine):
             if reversed[i]:
                 stmt += ' DESC'
             order_by_clause.append(stmt)
-        # Query the row ids in the database sorted by the given order by clause
-        sql = 'SELECT ' + ROW_ID + ' FROM ' + dataset.table_name + ' ORDER BY '
+        sql = 'SELECT * FROM {{input}} ORDER BY '
         sql += ','.join(order_by_clause)
+        view_name = mimir._mimir.createView(dataset.table_name, sql)
+        # Query the row ids in the database sorted by the given order by clause
+        sql = 'SELECT ' + ROW_ID + ' FROM ' + view_name 
         rs = json.loads(
             mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
         )
@@ -520,7 +522,7 @@ class MimirVizualEngine(DefaultVizualEngine):
         rows = rs['prov']
         # Register new dataset with only a modified list of row identifier
         ds = self.datastore.register_dataset(
-            table_name=dataset.table_name,
+            table_name=view_name,
             columns=dataset.columns,
             row_ids=rows,
             column_counter=dataset.column_counter,
