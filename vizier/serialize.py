@@ -1193,10 +1193,9 @@ def WORKFLOW_UPDATE_RESULT(
     if not includeDataset is None and not workflow.has_error:
         ds_name = includeDataset['name'].lower()
         offset = includeDataset['offset']
-        order_by = includeDataset['order_by']
         if ds_name in workflow.modules[-1].datasets:
             ds_id = workflow.modules[-1].datasets[ds_name]
-            dataset = dataset_serializer(ds_id, offset=offset,order_by=order_by)
+            dataset = dataset_serializer(ds_id, offset=offset)
             obj['dataset'] = dataset
     else:
         add_modules(obj, viztrail, workflow, config, urls, dataset_cache)
