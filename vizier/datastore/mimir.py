@@ -389,7 +389,7 @@ class MimirDatasetHandle(DatasetHandle):
             rowid_column_numeric=self.rowid_column.is_numeric(),
             offset=offset,
             limit=limit,
-            annotations=self.annotations,
+            annotations=self.annotations
             order_by=order_by
         )
 
@@ -445,7 +445,7 @@ class MimirDatasetReader(DatasetReader):
         self.rowid_column_numeric = rowid_column_numeric
         self.annotations = annotations if not annotations is None else DatasetMetadata()
         self.offset = offset
-        if not order_by is "":
+        if not self.order_by is "":
             self.is_order_by = True
         else:
             self.is_order_by = False
@@ -509,7 +509,7 @@ class MimirDatasetReader(DatasetReader):
             # order in row_ids and return a InMemReader
             sql = get_select_query(self.table_name, columns=self.columns)
             if self.is_order_by:
-                sql += ' ORDER BY ' + str(self.order_by) 
+                sql += ' ' + str(self.order_by) 
             if self.is_range_query:
                 sql +=  ' LIMIT ' + str(self.limit) + ' OFFSET ' + str(self.offset)
             rs = json.loads(

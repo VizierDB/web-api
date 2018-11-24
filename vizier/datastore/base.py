@@ -164,13 +164,13 @@ class DatasetHandle(object):
         column_id : int or string
             Column index, name, or label
 
-        -------
         Returns
+        -------
         int
         """
         return get_column_index(self.columns, column_id)
 
-    def fetch_rows(self, offset=0, limit=-1, order_by=""):
+    def fetch_rows(self, offset=0, limit=-1):
         """Get list of dataset rows. The offset and limit parameters are
         intended for pagination.
 
@@ -191,7 +191,7 @@ class DatasetHandle(object):
         # Collect rows in result list. Skip first rows if offset is greater than
         # zero
         rows = list()
-        with self.reader(offset=offset, limit=limit, order_by=order_by) as reader:
+        with self.reader(offset=offset, limit=limit) as reader:
             for row in reader:
                 rows.append(row)
         return rows
