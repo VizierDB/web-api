@@ -500,7 +500,7 @@ class MimirDatasetReader(DatasetReader):
             # Query the database to get the list of rows. Sort rows according to
             # order in row_ids and return a InMemReader
             sql = get_select_query(self.table_name, columns=self.columns)
-           if self.is_range_query:
+            if self.is_range_query:
                 sql +=  ' LIMIT ' + str(self.limit) + ' OFFSET ' + str(self.offset)
             rs = json.loads(
                 mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
