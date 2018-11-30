@@ -351,7 +351,7 @@ def download_dataset(dataset_id):
     cw.writerow([col.name for col in dataset.columns])
     with dataset.reader() as reader:
         for row in reader:
-            cw.writerow(row.values)
+            cw.writerow(map(lambda x: unicode(x).encode("utf-8"), row.values))
     # Return the CSV file file
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=export.csv"
