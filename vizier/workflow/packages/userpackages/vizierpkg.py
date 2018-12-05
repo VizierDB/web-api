@@ -856,9 +856,19 @@ class VizualCell(NotCacheable, Module):
                 raise ValueError('dataset \'' + ds_name + '\' exists')
             if not is_valid_name(ds_name):
                 raise ValueError('invalid dataset name \'' + ds_name + '\'')
+            # Get the the load options
+            detect_headers = get_argument(cmd.PARA_LOAD_DH, args)
+            infer_types = get_argument(cmd.PARA_LOAD_TI, args)
+            load_format = get_argument(cmd.PARA_LOAD_FORMAT, args)
+            options = get_argument(cmd.PARA_LOAD_OPTIONS, args)
+            m_opts = []
+            for option in get_argument(cmd.PARA_LOAD_OPTIONS, args):
+                load_opt_key = get_argument(cmd.PARA_LOAD_OPTION_KEY, option)
+                load_opt_val = get_argument(cmd.PARA_LOAD_OPTION_VALUE, option) 
+                m_opts.append({load_opt_key: load_opt_val})
             # Execute VizUAL creat dataset command. Add new dataset to
             # dictionary and add dataset schema and row count to output
-            ds = v_eng.load_dataset(ds_file)
+            ds = v_eng.load_dataset(ds_file,detect_headers,infer_types,load_format,m_opts)
             vizierdb.set_dataset_identifier(ds_name, ds.identifier)
             print_dataset_schema(outputs, ds_name, ds.columns)
             outputs.stdout(content=PLAIN_TEXT(str(ds.row_count) + ' row(s)'))

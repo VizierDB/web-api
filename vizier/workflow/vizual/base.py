@@ -579,7 +579,7 @@ class DefaultVizualEngine(VizualEngine):
         )
         return 1, ds.identifier
 
-    def load_dataset(self, file_id):
+    def load_dataset(self, file_id, detect_headers=True, infer_types=True, load_format='csv', options=[]):
         """Create (or load) a new dataset from a given Uri. The format of the
         Uri and the method to resolve the Uri and retireve the data are all
         implementation dependent.
@@ -602,7 +602,7 @@ class DefaultVizualEngine(VizualEngine):
         if f_handle is None:
             raise ValueError('unknown file \'' + file_id + '\'')
         # Create dataset and return handle
-        return self.datastore.load_dataset(f_handle)
+        return self.datastore.load_dataset(f_handle, detect_headers, infer_types, load_format, options)
 
     def move_column(self, identifier, column, position):
         """Move a column within a given dataset.

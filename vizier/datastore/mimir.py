@@ -733,7 +733,7 @@ class MimirDataStore(DataStore):
         """
         return os.path.join(self.get_dataset_dir(identifier), 'annotation.yaml')
 
-    def load_dataset(self, f_handle):
+    def load_dataset(self, f_handle, detect_headers=True, infer_types=True, load_format='csv', options=[]):
         """Create a new dataset from a given file.
 
         Raises ValueError if the given file could not be loaded as a dataset.
@@ -751,7 +751,7 @@ class MimirDataStore(DataStore):
         if 'url' in f_handle.properties.keys() and not f_handle.properties['url'] is None:
             abspath = f_handle.properties['url']
         # Load dataset and delete temp file
-        init_load_name = mimir._mimir.loadCSV(abspath, ',', True, True)
+        init_load_name = mimir._mimir.loadCSV(abspath, load_format, infer_types, detect_headers, mimir._jvmhelper.to_scala_seq(options))
         # Retrieve schema information for the created dataset
         sql = 'SELECT * FROM ' + init_load_name
         mimirSchema = mimir._mimir.getSchema(sql)
@@ -761,8 +761,8 @@ class MimirDataStore(DataStore):
         
         for col in json.loads(mimirSchema):
             col_id = len(columns)
-            name_in_dataset = self.bad_col_names.get(col['name'],col['name'])
-            name_in_rdb = self.bad_col_names.get(col['name'],col['name'])#COL_PREFIX + str(col_id)
+            name_in_dataset = self.bad_col_names.get(col['name'].upper(),col['name'])
+            name_in_rdb = self.bad_col_names.get(col['name'].upper(),col['name'])#COL_PREFIX + str(col_id)
             col = MimirDatasetColumn(
                 identifier=col_id,
                 name_in_dataset=name_in_dataset,
