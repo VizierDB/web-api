@@ -487,7 +487,12 @@ class SQLCell(NotCacheable, Module):
             
             sql = 'SELECT '+colSql+' FROM {{input}}'
             view_name = mimir._mimir.createView(view_name, sql)
-            sql = 'SELECT * FROM ' + view_name
+            
+            sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
+            rs_count = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+            row_count = int(rs_count['data'][0][0])
+        
+            sql = 'SELECT * FROM ' + view_name + ' LIMIT ' + str(config.DEFAULT_MAX_ROW_LIMIT)
             rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
             
             if ds_name is None or ds_name == '':
@@ -499,10 +504,11 @@ class SQLCell(NotCacheable, Module):
                 ds = vizierdb.datastore.register_dataset(
                         table_name=view_name,
                         columns=columns,
-                        row_ids=row_ids
+                        row_ids=row_ids,
+                        row_counter=row_count
                     )
                 print_dataset_schema(outputs, ds_name, ds.columns)
-                outputs.stdout(content=PLAIN_TEXT(str(len(rs['data'])) + ' row(s)'))
+                outputs.stdout(content=PLAIN_TEXT(str(row_count) + ' row(s)'))
                 vizierdb.set_dataset_identifier(ds_name, ds.identifier)
                 # Propagate potential changes to the dataset mappings
                 propagate_changes(module_id, vizierdb.datasets, context)
