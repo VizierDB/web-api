@@ -677,9 +677,9 @@ VIZUAL_COMMANDS = {
                 PARA_LOAD_FORMAT,
                 name='Load Format',
                 data_type=DT_STRING,
-                values=['csv', 'json', 'jdbc', 'text', 'parquet', 'orc'],
+                values=[{'value':'csv', 'isDefault':True}, 'json', 'jdbc', 'text', 'parquet', 'orc'],
                 index=2,
-                required=False
+                required=True
             ),
             PARA_LOAD_TI: parameter_specification(
                 PARA_LOAD_TI,
