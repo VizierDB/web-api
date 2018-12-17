@@ -29,6 +29,7 @@ references for resources that are accessible via the Vizier Web API.
 """Pagination query parameter."""
 PAGE_LIMIT = 'limit'
 PAGE_OFFSET = 'offset'
+PAGE_ROWID = 'rowid'
 
 """HATEOAS relation identifier."""
 REL_ANNOTATED = 'annotated'

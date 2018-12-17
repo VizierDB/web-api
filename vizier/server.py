@@ -40,7 +40,7 @@ from vizier.datastore.federated import FederatedDataStore
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
-from vizier.hateoas import PAGE_LIMIT, PAGE_OFFSET
+from vizier.hateoas import PAGE_LIMIT, PAGE_OFFSET, PAGE_ROWID
 from vizier.workflow.module import ModuleSpecification
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
 from vizier.core.util import get_unique_identifier 
@@ -265,7 +265,8 @@ def get_dataset(dataset_id):
         dataset = api.get_dataset(
             dataset_id,
             offset=request.args.get(PAGE_OFFSET),
-            limit=request.args.get(PAGE_LIMIT)
+            limit=request.args.get(PAGE_LIMIT),
+            rowid=request.args.get(PAGE_ROWID)
         )
     except ValueError as ex:
         raise InvalidRequest(str(ex))
