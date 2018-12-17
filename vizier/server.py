@@ -281,8 +281,8 @@ def get_dataset_annotations(dataset_id):
     # Expects at least a column or row identifier
     column_id = request.args.get('column', -1, type=int)
     row_id = request.args.get('row', '-1', type=str)
-    if column_id < 0 and row_id < 0:
-        raise InvalidRequest('missing identifier for column and row')
+    #if column_id < 0 and row_id < 0:
+    #   raise InvalidRequest('missing identifier for column and row')
     # Get annotations for dataset with given identifier. The result is None if
     # no dataset with given identifier exists.
     annotations = api.get_dataset_annotations(

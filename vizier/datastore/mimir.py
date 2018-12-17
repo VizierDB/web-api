@@ -328,7 +328,19 @@ class MimirDatasetHandle(DatasetHandle):
         # moment we only maintain uncertainty information for cells. If cell
         # annotations are requested we need to query the database to retrieve
         # any existing uncertainty annotations for the cell.
-        if column_id >= 0 and row_id < 0:
+        import sys
+            
+        if column_id == -1 and row_id == '-1':
+            annotations = ObjectMetadataSet(dict())
+            
+            sql = 'SELECT * '
+            sql += 'FROM ' + self.table_name + ' '
+            annoList = json.loads(mimir._mimir.explainEverythingJson(sql))
+            
+            for anno in annoList:
+                annotations.add(ANNO_UNCERTAIN, anno)
+            #return [item for sublist in map(lambda (i,x): self.annotations.for_column(i).values(), enumerate(self.columns)) for item in sublist]
+        elif column_id >= 0 and row_id < 0:
             return self.annotations.for_column(column_id).values()
         elif column_id < 0 and row_id >= 0:
             return self.annotations.for_row(row_id).values()

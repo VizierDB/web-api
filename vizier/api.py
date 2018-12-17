@@ -243,7 +243,7 @@ class VizierWebService(object):
                 limit=limit
             )
 
-    def get_dataset_annotations(self, dataset_id, column_id=-1, row_id=-1):
+    def get_dataset_annotations(self, dataset_id, column_id=-1, row_id='-1'):
         """Get annotations for dataset with given identifier. The result is None
         if no dataset with the given identifier exists.
 
