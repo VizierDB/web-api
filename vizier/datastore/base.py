@@ -432,7 +432,7 @@ class DataStore(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def load_dataset(self, f_handle):
+    def load_dataset(self, f_handle, detect_headers=True, infer_types=True, load_format='csv', options=[]):
         """Create a new dataset from a given file.
 
         Raises ValueError if the given file could not be loaded as a dataset.

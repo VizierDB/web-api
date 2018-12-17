@@ -40,6 +40,7 @@ from vizier.datastore.base import DataStore, encode_values, max_column_id
 from vizier.datastore.metadata import Annotation, DatasetMetadata, ObjectMetadataSet
 from vizier.datastore.reader import DatasetReader
 
+import vizier.config as config
 
 """Mimir annotation keys."""
 ANNO_UNCERTAIN = 'mimir:uncertain'
@@ -643,15 +644,21 @@ class MimirDataStore(DataStore):
         #row_ids = rs['prov'] #range(len(rs['prov']))  
         
         sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+        rs_count = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
         
-        row_ids = map(str, range(0, int(rs['data'][0][0])))
+        row_count = int(rs_count['data'][0][0])
+        
+        sql = 'SELECT * FROM ' + view_name + ' LIMIT ' + str(config.DEFAULT_MAX_ROW_LIMIT)
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+            
+        row_ids = rs['prov']
          
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
             table_name=view_name,
             columns=db_columns,
             row_ids=row_ids,
+            row_counter=row_count,
             annotations=annotations
         )
 
@@ -745,7 +752,7 @@ class MimirDataStore(DataStore):
         """
         return os.path.join(self.get_dataset_dir(identifier), 'annotation.yaml')
 
-    def load_dataset(self, f_handle):
+    def load_dataset(self, f_handle, detect_headers=True, infer_types=True, load_format='csv', options=[]):
         """Create a new dataset from a given file.
 
         Raises ValueError if the given file could not be loaded as a dataset.
@@ -763,7 +770,7 @@ class MimirDataStore(DataStore):
         if 'url' in f_handle.properties.keys() and not f_handle.properties['url'] is None:
             abspath = f_handle.properties['url']
         # Load dataset and delete temp file
-        init_load_name = mimir._mimir.loadCSV(abspath, ',', True, True)
+        init_load_name = mimir._mimir.loadCSV(abspath, load_format, infer_types, detect_headers, mimir._jvmhelper.to_scala_seq(options))
         # Retrieve schema information for the created dataset
         sql = 'SELECT * FROM ' + init_load_name
         mimirSchema = mimir._mimir.getSchema(sql)
@@ -773,8 +780,8 @@ class MimirDataStore(DataStore):
         
         for col in json.loads(mimirSchema):
             col_id = len(columns)
-            name_in_dataset = self.bad_col_names.get(col['name'],col['name'])
-            name_in_rdb = self.bad_col_names.get(col['name'],col['name'])#COL_PREFIX + str(col_id)
+            name_in_dataset = self.bad_col_names.get(col['name'].upper(),col['name'])
+            name_in_rdb = self.bad_col_names.get(col['name'].upper(),col['name'])#COL_PREFIX + str(col_id)
             col = MimirDatasetColumn(
                 identifier=col_id,
                 name_in_dataset=name_in_dataset,
@@ -793,13 +800,15 @@ class MimirDataStore(DataStore):
         sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
         rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
         
-        row_ids = map(str, range(0, int(rs['data'][0][0])))
+        row_count = int(rs['data'][0][0])
+        row_ids = map(str, range(0, row_count))
         
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
             table_name=view_name,
             columns=columns,
-            row_ids=row_ids
+            row_ids=row_ids,
+            row_counter=row_count
         )
 
     def register_dataset(

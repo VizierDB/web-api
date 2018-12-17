@@ -487,7 +487,12 @@ class SQLCell(NotCacheable, Module):
             
             sql = 'SELECT '+colSql+' FROM {{input}}'
             view_name = mimir._mimir.createView(view_name, sql)
-            sql = 'SELECT * FROM ' + view_name
+            
+            sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
+            rs_count = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+            row_count = int(rs_count['data'][0][0])
+        
+            sql = 'SELECT * FROM ' + view_name + ' LIMIT ' + str(config.DEFAULT_MAX_ROW_LIMIT)
             rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
             
             if ds_name is None or ds_name == '':
@@ -499,10 +504,11 @@ class SQLCell(NotCacheable, Module):
                 ds = vizierdb.datastore.register_dataset(
                         table_name=view_name,
                         columns=columns,
-                        row_ids=row_ids
+                        row_ids=row_ids,
+                        row_counter=row_count
                     )
                 print_dataset_schema(outputs, ds_name, ds.columns)
-                outputs.stdout(content=PLAIN_TEXT(str(len(rs['data'])) + ' row(s)'))
+                outputs.stdout(content=PLAIN_TEXT(str(row_count) + ' row(s)'))
                 vizierdb.set_dataset_identifier(ds_name, ds.identifier)
                 # Propagate potential changes to the dataset mappings
                 propagate_changes(module_id, vizierdb.datasets, context)
@@ -856,9 +862,19 @@ class VizualCell(NotCacheable, Module):
                 raise ValueError('dataset \'' + ds_name + '\' exists')
             if not is_valid_name(ds_name):
                 raise ValueError('invalid dataset name \'' + ds_name + '\'')
+            # Get the the load options
+            detect_headers = get_argument(cmd.PARA_LOAD_DH, args)
+            infer_types = get_argument(cmd.PARA_LOAD_TI, args)
+            load_format = get_argument(cmd.PARA_LOAD_FORMAT, args)
+            options = get_argument(cmd.PARA_LOAD_OPTIONS, args)
+            m_opts = []
+            for option in get_argument(cmd.PARA_LOAD_OPTIONS, args):
+                load_opt_key = get_argument(cmd.PARA_LOAD_OPTION_KEY, option)
+                load_opt_val = get_argument(cmd.PARA_LOAD_OPTION_VALUE, option) 
+                m_opts.append({load_opt_key: load_opt_val})
             # Execute VizUAL creat dataset command. Add new dataset to
             # dictionary and add dataset schema and row count to output
-            ds = v_eng.load_dataset(ds_file)
+            ds = v_eng.load_dataset(ds_file,detect_headers,infer_types,load_format,m_opts)
             vizierdb.set_dataset_identifier(ds_name, ds.identifier)
             print_dataset_schema(outputs, ds_name, ds.columns)
             outputs.stdout(content=PLAIN_TEXT(str(ds.row_count) + ' row(s)'))

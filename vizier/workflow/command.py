@@ -86,6 +86,12 @@ PARA_STREET = 'strname'
 PARA_TYPE = 'type'
 PARA_VALUE = 'value'
 PARA_XAXIS = 'xaxis'
+PARA_LOAD_OPTION_KEY = 'loadOptionKey'
+PARA_LOAD_OPTION_VALUE = 'loadOptionValue'
+PARA_LOAD_OPTIONS = 'loadOptions'
+PARA_LOAD_FORMAT = 'loadFormat'
+PARA_LOAD_TI = 'loadInferTypes'
+PARA_LOAD_DH = 'loadDetectHeaders'
 # Concatenation of parameter kets
 PARA_COLUMNS_COLUMN = PARA_COLUMNS + '_' + PARA_COLUMN
 PARA_COLUMNS_ORDER = PARA_COLUMNS + '_' + PARA_ORDER
@@ -666,7 +672,53 @@ VIZUAL_COMMANDS = {
                 name='Source File',
                 data_type=DT_FILE_ID,
                 index=1
-            )
+            ),
+            PARA_LOAD_FORMAT: parameter_specification(
+                PARA_LOAD_FORMAT,
+                name='Load Format',
+                data_type=DT_STRING,
+                values=[{'value':'csv', 'isDefault':True}, 'json', 'jdbc', 'text', 'parquet', 'orc'],
+                index=2,
+                required=True
+            ),
+            PARA_LOAD_TI: parameter_specification(
+                PARA_LOAD_TI,
+                name='Infer Types',
+                data_type=DT_BOOL,
+                index=3,
+                required=False
+            ),
+            PARA_LOAD_DH: parameter_specification(
+                PARA_LOAD_DH,
+                name='Detect Headers',
+                data_type=DT_BOOL,
+                index=4,
+                required=False
+            ),
+            PARA_LOAD_OPTIONS: parameter_specification(
+                PARA_LOAD_OPTIONS,
+                name='Load Options',
+                data_type=DT_GROUP,
+                index=5,
+                required=False
+            ),
+            PARA_LOAD_OPTION_KEY: parameter_specification(
+                PARA_LOAD_OPTION_KEY,
+                name='Option Key',
+                data_type=DT_STRING,
+                index=6,
+                #values=['delimeter', 'varchar'],
+                parent=PARA_LOAD_OPTIONS,
+                required=False
+            ),
+            PARA_LOAD_OPTION_VALUE: parameter_specification(
+                PARA_LOAD_OPTION_VALUE,
+                name='Option Value',
+                data_type=DT_STRING,
+                index=7,
+                parent=PARA_LOAD_OPTIONS,
+                required=False
+            ),               
         }
     },
     VIZUAL_MOV_COL: {
@@ -1250,7 +1302,7 @@ def insert_row(dataset_name, position):
     )
 
 
-def load_dataset(file_id, dataset_name, filename=None, url=None):
+def load_dataset(file_id, dataset_name, filename=None, url=None, infer_types=False, detect_headers=False, load_format='csv', load_options=None):
     """Load dataset from file. Expects file identifier and new dataset name.
 
     Parameters
@@ -1278,7 +1330,11 @@ def load_dataset(file_id, dataset_name, filename=None, url=None):
         VIZUAL_LOAD,
         {
             PARA_FILE : file,
-            PARA_NAME: dataset_name
+            PARA_NAME: dataset_name,
+            PARA_LOAD_TI : infer_types,
+            PARA_LOAD_DH : detect_headers,
+            PARA_LOAD_FORMAT : load_format,
+            PARA_LOAD_OPTIONS : load_options
         }
     )
 
