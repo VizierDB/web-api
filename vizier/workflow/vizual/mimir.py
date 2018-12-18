@@ -558,13 +558,10 @@ class MimirVizualEngine(DefaultVizualEngine):
         dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
-        # Make sure that row refers a valid row in the dataset
-        if row < 0 or row >= dataset.row_count:
-            raise ValueError('invalid cell [' + str(column) + ', ' + str(row) + ']')
         # Get the index of the specified cell column
         col_index = get_index_for_column(dataset, column)
         # Get id of the cell row
-        row_id = dataset.row_ids[row]
+        row_id = row
         # Create a view for the modified dataset
         col_list = [ROW_ID]
         for i in range(len(dataset.columns)):

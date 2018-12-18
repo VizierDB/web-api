@@ -801,11 +801,16 @@ class MimirDataStore(DataStore):
         
         #row_ids = rs['prov'] #range(len(rs['prov']))  
         
+        #TODO: this is a hack to speed up this step a bit.  
+        #  we get the first row id and the count and take a range;
+        #  this is fragile and should be made better
         sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
         rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
-        
+        sql = 'SELECT ' + ROW_ID + ' FROM ' + view_name + ' ORDER BY ' + ROW_ID + ' LIMIT 1'
+        rsfr = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
         row_count = int(rs['data'][0][0])
-        row_ids = map(str, range(0, row_count))
+        first_row_id = int(rsfr['data'][0][0])
+        row_ids = map(str, range(first_row_id, first_row_id+row_count))
         
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(

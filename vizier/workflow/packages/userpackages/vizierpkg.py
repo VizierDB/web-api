@@ -976,7 +976,7 @@ class VizualCell(NotCacheable, Module):
             # exception if the specified dataset does not exist.
             ds_name = get_argument(cmd.PARA_DATASET, args).lower()
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            c_row = get_argument(cmd.PARA_ROW, args, as_int=True)
+            c_row = get_argument(cmd.PARA_ROW, args)
             c_val = get_argument(cmd.PARA_VALUE, args)
             ds = vizierdb.get_dataset_identifier(ds_name)
             # Execute update cell command. Replacte existing dataset
