@@ -33,6 +33,8 @@ import uuid
 import sys
 import traceback
 
+import vistrails.packages.mimir.init as mimir
+
 from vizier.api import VizierWebService
 from vizier.config import AppConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
 from vizier.core.util import LOGGER_ENGINE
@@ -331,6 +333,43 @@ def update_dataset_annotation(dataset_id):
         anno_id=anno_id,
         key=key,
         value=value
+    )
+    if not annotations is None:
+        return jsonify(annotations)
+    raise ResourceNotFound('unknown dataset \'' + dataset_id + '\'')
+
+
+@app.route('/datasets/<string:dataset_id>/feedback', methods=['POST'])
+def feedback_dataset(dataset_id):
+    """feedback on an annotation that is associated with a component of the given
+    dataset.
+
+    Request
+    -------
+    {
+      "reason": "dict",
+      "repair": "string",
+      "acknowledge": "bool"
+    }
+    """
+    # Validate the request
+    obj = validate_json_request(
+        request,
+        required=['reason', 'repair'],
+        optional=['acknowledge']
+    )
+    # Create update statement and execute. The result is None if no dataset with
+    # given identifier exists.
+    reason = obj['reason'] if 'reason' in obj else {}
+    repair = obj['repair'] if 'repair' in obj else ''
+    acknowledge = obj['acknowledge'] if 'acknowledge' in obj else False
+    
+    mimir._mimir.feedback(reason['source'], reason['varid'], mimir._jvmhelper.to_scala_seq(reason['args']), acknowledge, repair)
+    
+    annotations = api.get_dataset_annotations(
+        dataset_id,
+        column_id=-1,
+        row_id='-1'
     )
     if not annotations is None:
         return jsonify(annotations)
