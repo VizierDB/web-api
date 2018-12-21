@@ -269,7 +269,7 @@ class MimirDatasetHandle(DatasetHandle):
         super(MimirDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
-            row_count=len(row_ids),
+            row_count=row_counter,
             column_counter=column_counter,
             row_counter=row_counter,
             annotations=annotations
@@ -897,11 +897,9 @@ class MimirDataStore(DataStore):
             column_counter = max_column_id(columns) + 1
         # Set row counter to max. row id + 1 if None
         if row_counter is None:
-            row_counter = -1
-            for row_id, row_id_str in enumerate(row_ids, start=1):
-                if row_id > row_counter:
-                    row_counter = row_id
-            row_counter += 1
+            sql = 'SELECT COUNT(*) AS RECCNT FROM ' + table_name
+            rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+            row_counter = int(rs['data'][0][0])
         dataset = MimirDatasetHandle(
             identifier=get_unique_identifier(),
             columns= map(lambda cn: self.bad_col_names.get(cn, cn), columns),
