@@ -53,9 +53,6 @@ or be located (as file config.yaml) in the current working directory.
 import os
 import yaml
 
-from yaml import CLoader
-from vizier.core.util import dump_json, load_json
-
 import vizier.workflow.command as cmd
 
 
@@ -77,9 +74,6 @@ DEFAULT_ENV_DESC = 'Curation workflow with basic functionality'
 """List of default packages."""
 DEFAULT_PACKAGES = [cmd.PACKAGE_VIZUAL, cmd.PACKAGE_PYTHON, cmd.PACKAGE_PLOT]
 
-"""Some other defaults"""
-DEFAULT_ROW_LIMIT = -1
-DEFAULT_MAX_ROW_LIMIT = 25
 
 class AppConfig(object):
     """Application configuration object. This object contains all configuration
@@ -156,13 +150,9 @@ class AppConfig(object):
         ]
         for config_file in files:
             if not config_file is None and os.path.isfile(config_file):
-                try:
-                    with open(config_file, 'r') as f:
-                        doc = load_json(f.read())
-                except:
-                    with open(config_file, 'r') as f:
-                        doc = yaml.load(f.read(), Loader=CLoader)
-                break
+                with open(config_file, 'r') as f:
+                    doc = yaml.load(f.read())
+                    break
         if not doc is None:
             if 'api' in doc:
                 self.api.from_dict(doc['api'])
@@ -170,7 +160,7 @@ class AppConfig(object):
                 self.fileserver.from_dict(doc['fileserver'])
             if 'envs' in doc:
                 for obj in doc['envs']:
-                    env = ExecEnv(self.fileserver).from_dict(doc['envs'][obj])
+                    env = ExecEnv(self.fileserver).from_dict(obj)
                     self.envs[env.identifier] = env
             if 'viztrails' in doc:
                 self.viztrails.from_dict(doc['viztrails'])
@@ -277,7 +267,7 @@ class ExecEnv(object):
         if not packages is None:
             self.packages = packages
         elif self.identifier == ENGINEENV_MIMIR:
-            self.packages = DEFAULT_PACKAGES + [cmd.PACKAGE_MIMIR] + [cmd.PACKAGE_SQL] + [cmd.PACKAGE_SCALA]
+            self.packages = DEFAULT_PACKAGES + [cmd.PACKAGE_MIMIR]
         else:
             self.packages = DEFAULT_PACKAGES
 
@@ -338,8 +328,8 @@ class APIDefaults(object):
     """Collection of default values for API."""
     def __init__(self):
         """Initialize default values."""
-        self.row_limit = DEFAULT_ROW_LIMIT
-        self.max_row_limit = DEFAULT_MAX_ROW_LIMIT
+        self.row_limit = -1
+        self.max_row_limit = 25
 
     def from_dict(self, doc):
         """Initialize from dictionary."""
@@ -470,6 +460,4 @@ def env_commands(env_id, packages=None):
         # Add Mimir modules if environemt is MIMIR
         if env_id == ENGINEENV_MIMIR:
             commands[cmd.PACKAGE_MIMIR] = cmd.MIMIR_LENSES
-            commands[cmd.PACKAGE_SQL] = cmd.SQL_COMMANDS
-            commands[cmd.PACKAGE_SCALA] = cmd.SCALA_COMMANDS
     return commands
