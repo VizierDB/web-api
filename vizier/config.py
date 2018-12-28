@@ -170,7 +170,7 @@ class AppConfig(object):
                 self.fileserver.from_dict(doc['fileserver'])
             if 'envs' in doc:
                 for obj in doc['envs']:
-                    env = ExecEnv(self.fileserver).from_dict(obj)
+                    env = ExecEnv(self.fileserver).from_dict(doc['envs'][obj])
                     self.envs[env.identifier] = env
             if 'viztrails' in doc:
                 self.viztrails.from_dict(doc['viztrails'])
