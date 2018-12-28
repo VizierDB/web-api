@@ -5,7 +5,7 @@ api:
     app_path: '/vizier-db/api/v1'
     doc_url: 'http://cds-swg1.cims.nyu.edu/vizier-db/doc/api/v1'
 envs:
-    name: 'MIMIR'
+    id: 'MIMIR'
     datastore:
         directory: '../.env/ds'
     workflows:
