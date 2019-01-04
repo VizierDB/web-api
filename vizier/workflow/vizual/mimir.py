@@ -308,9 +308,10 @@ class MimirVizualEngine(DefaultVizualEngine):
         for col in dataset.columns:
             col_list.append(col.name_in_rdb)
         sql = 'SELECT ' + ','.join(col_list) + ' FROM ' + dataset.table_name
+        mimirSchema = json.loads(mimir._mimir.getSchema(sql))
         union_list = [dataset.rowid_column.to_sql_value(row_id) + ' AS ' + ROW_ID]
-        for col in dataset.columns:
-            union_list.append('NULL AS ' + col.name_in_rdb)
+        for col in mimirSchema[1:]:
+            union_list.append('CAST(NULL AS '+col['base_type']+') AS ' + col['name'])
         sql = '(' + sql + ') UNION ALL (SELECT ' + ','.join(union_list) + ')'
         view_name = mimir._mimir.createView(dataset.table_name, sql)
         # Store updated dataset information with new identifier
@@ -509,19 +510,19 @@ class MimirVizualEngine(DefaultVizualEngine):
             if reversed[i]:
                 stmt += ' DESC'
             order_by_clause.append(stmt)
-        # Query the row ids in the database sorted by the given order by clause
-        sql = 'SELECT ' + ROW_ID + ' FROM ' + dataset.table_name + ' ORDER BY '
+        sql = 'SELECT * FROM {{input}} ORDER BY '
         sql += ','.join(order_by_clause)
+        view_name = mimir._mimir.createView(dataset.table_name, sql)
+        # Query the row ids in the database sorted by the given order by clause
+        sql = 'SELECT ' + ROW_ID + ' FROM ' + view_name 
         rs = json.loads(
             mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
         )
         # The result contains the sorted list of row ids
-        rows = list()
-        for row in rs['data']:
-            rows.append(row[0])
+        rows = rs['prov']
         # Register new dataset with only a modified list of row identifier
         ds = self.datastore.register_dataset(
-            table_name=dataset.table_name,
+            table_name=view_name,
             columns=dataset.columns,
             row_ids=rows,
             column_counter=dataset.column_counter,
@@ -557,13 +558,10 @@ class MimirVizualEngine(DefaultVizualEngine):
         dataset = self.datastore.get_dataset(identifier)
         if dataset is None:
             raise ValueError('unknown dataset \'' + identifier + '\'')
-        # Make sure that row refers a valid row in the dataset
-        if row < 0 or row >= dataset.row_count:
-            raise ValueError('invalid cell [' + str(column) + ', ' + str(row) + ']')
         # Get the index of the specified cell column
         col_index = get_index_for_column(dataset, column)
         # Get id of the cell row
-        row_id = dataset.row_ids[row]
+        row_id = row
         # Create a view for the modified dataset
         col_list = [ROW_ID]
         for i in range(len(dataset.columns)):

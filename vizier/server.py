@@ -28,6 +28,12 @@ from werkzeug.utils import secure_filename
 import tempfile
 import urllib2
 import yaml
+import time
+import uuid
+import sys
+import traceback
+
+import vistrails.packages.mimir.init as mimir
 
 from vizier.api import VizierWebService
 from vizier.config import AppConfig, ENGINEENV_DEFAULT, ENGINEENV_MIMIR
@@ -36,9 +42,10 @@ from vizier.datastore.federated import FederatedDataStore
 from vizier.datastore.fs import FileSystemDataStore
 from vizier.datastore.mimir import MimirDataStore
 from vizier.filestore.base import DefaultFileServer
-from vizier.hateoas import PAGE_LIMIT, PAGE_OFFSET
+from vizier.hateoas import PAGE_LIMIT, PAGE_OFFSET, PAGE_ROWID
 from vizier.workflow.module import ModuleSpecification
 from vizier.workflow.repository.fs import FileSystemViztrailRepository
+from vizier.core.util import get_unique_identifier 
 
 
 # -----------------------------------------------------------------------------
@@ -54,6 +61,7 @@ environment variable VIZIERSERVER_CONFIG first. If the variable is not set
 config.yaml in the current working directory. If neither exists the the default
 configuration is used.
 """
+
 config = AppConfig()
 
 # Create the app and enable cross-origin resource sharing
@@ -144,40 +152,22 @@ def upload_file():
         if file.filename == '':
             raise InvalidRequest('empty file name')
         # Save uploaded file to temp directory
-        temp_dir = tempfile.mkdtemp()
-        filename = secure_filename(file.filename)
-        upload_file = os.path.join(temp_dir, filename)
+        identifier = get_unique_identifier()
+        upload_file = api.fileserver.get_filepath(identifier)
         file.save(upload_file)
         prov = {'filename': file.filename}
     elif request.json and 'url' in request.json:
         obj = validate_json_request(request, required=['url'])
         url = obj['url']
         # Save uploaded file to temp directory
-        temp_dir = tempfile.mkdtemp()
-        try:
-            response = urllib2.urlopen(url)
-            filename = get_download_filename(url, response.info())
-            upload_file = os.path.join(temp_dir, secure_filename(filename))
-            mode = 'w'
-            if filename.endswith('.gz'):
-                mode += 'b'
-            with open(upload_file, mode) as f:
-                f.write(response.read())
-        except Exception as ex:
-            shutil.rmtree(temp_dir)
-            raise InvalidRequest(str(ex))
-        if os.stat(upload_file).st_size > config.fileserver.max_file_size:
-            shutil.rmtree(temp_dir)
-            raise InvalidRequest('file size exceeds limit')
+        upload_file = url
         prov = {'url': url}
     else:
         raise InvalidRequest('no file or url specified in request')
     try:
         result = jsonify(api.upload_file(upload_file, provenance=prov)), 201
-        shutil.rmtree(temp_dir)
         return result
     except ValueError as ex:
-        shutil.rmtree(temp_dir)
         raise InvalidRequest(str(ex))
 
 
@@ -277,7 +267,8 @@ def get_dataset(dataset_id):
         dataset = api.get_dataset(
             dataset_id,
             offset=request.args.get(PAGE_OFFSET),
-            limit=request.args.get(PAGE_LIMIT)
+            limit=request.args.get(PAGE_LIMIT),
+            rowid=request.args.get(PAGE_ROWID)
         )
     except ValueError as ex:
         raise InvalidRequest(str(ex))
@@ -292,9 +283,9 @@ def get_dataset_annotations(dataset_id):
     """
     # Expects at least a column or row identifier
     column_id = request.args.get('column', -1, type=int)
-    row_id = request.args.get('row', -1, type=int)
-    if column_id < 0 and row_id < 0:
-        raise InvalidRequest('missing identifier for column and row')
+    row_id = request.args.get('row', '-1', type=str)
+    #if column_id < 0 and row_id < 0:
+    #   raise InvalidRequest('missing identifier for column and row')
     # Get annotations for dataset with given identifier. The result is None if
     # no dataset with given identifier exists.
     annotations = api.get_dataset_annotations(
@@ -348,6 +339,43 @@ def update_dataset_annotation(dataset_id):
     raise ResourceNotFound('unknown dataset \'' + dataset_id + '\'')
 
 
+@app.route('/datasets/<string:dataset_id>/feedback', methods=['POST'])
+def feedback_dataset(dataset_id):
+    """feedback on an annotation that is associated with a component of the given
+    dataset.
+
+    Request
+    -------
+    {
+      "reason": "dict",
+      "repair": "string",
+      "acknowledge": "bool"
+    }
+    """
+    # Validate the request
+    obj = validate_json_request(
+        request,
+        required=['reason', 'repair'],
+        optional=['acknowledge']
+    )
+    # Create update statement and execute. The result is None if no dataset with
+    # given identifier exists.
+    reason = obj['reason'] if 'reason' in obj else {}
+    repair = obj['repair'] if 'repair' in obj else ''
+    acknowledge = obj['acknowledge'] if 'acknowledge' in obj else False
+    
+    mimir._mimir.feedback(reason['source'], reason['varid'], mimir._jvmhelper.to_scala_seq(reason['args']), acknowledge, repair)
+    
+    annotations = api.get_dataset_annotations(
+        dataset_id,
+        column_id=-1,
+        row_id='-1'
+    )
+    if not annotations is None:
+        return jsonify(annotations)
+    raise ResourceNotFound('unknown dataset \'' + dataset_id + '\'')
+
+
 @app.route('/datasets/<string:dataset_id>/csv')
 def download_dataset(dataset_id):
     """Get the dataset with given identifier in CSV format.
@@ -363,7 +391,7 @@ def download_dataset(dataset_id):
     cw.writerow([col.name for col in dataset.columns])
     with dataset.reader() as reader:
         for row in reader:
-            cw.writerow(row.values)
+            cw.writerow(map(lambda x: unicode(x).encode("utf-8"), row.values))
     # Return the CSV file file
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=export.csv"
@@ -1135,9 +1163,11 @@ if __name__ == '__main__':
     application = DispatcherMiddleware(Flask('dummy_app'), {
         app.config['APPLICATION_ROOT']: app,
     })
-    run_simple(
-        '0.0.0.0',
-        config.api.server_local_port,
-        application,
-        use_reloader=config.debug
-    )
+    app.run()
+    #run_simple(
+    #    '0.0.0.0',
+    #    config.api.server_local_port,
+    #    application,
+    #    use_reloader=config.debug,
+    #    threaded=True
+    #)

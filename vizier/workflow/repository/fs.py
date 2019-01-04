@@ -24,6 +24,9 @@ import os
 import shutil
 import yaml
 
+from yaml import CLoader, CDumper
+from vizier.core.util import dump_json, load_json
+
 from vizier.config import ENGINEENV_TEST, env_commands
 from vizier.core.properties import FilePropertiesHandler
 from vizier.core.system import build_info, component_descriptor
@@ -63,8 +66,12 @@ class FileSystemBranchProvenance(ViztrailBranchProvenance):
         # Initialize a 'empty' provenance object (for the master branch)
         super(FileSystemBranchProvenance, self).__init__(None, -1, -1)
         if os.path.isfile(file_name):
-            with open(file_name, 'r') as f:
-                doc = yaml.load(f.read())
+            try:
+                with open(file_name, 'r') as f:
+                    doc = load_json(f.read())
+            except:
+                with open(file_name, 'r') as f:
+                    doc = yaml.load(f.read(), Loader=CLoader)
             self.source_branch = doc['branch']
             self.workflow_version = doc['workflow']
             self.module_id = doc['module']
@@ -88,7 +95,8 @@ class FileSystemBranchProvenance(ViztrailBranchProvenance):
             'module': module_id
         }
         with open(file_name, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
+            #yaml.dump(doc, f, default_flow_style=False, Dumper=CDumper)
+            dump_json(doc, f)
 
 
 class FileSystemViztrailHandle(ViztrailHandle):
@@ -237,8 +245,12 @@ class FileSystemViztrailHandle(ViztrailHandle):
         vizier.workflow.repository.fs.FileSystemViztrailHandle
         """
         # Read vizrail information for file (in Yaml format)
-        with open(os.path.join(fs_dir, VIZTRAIL_FILE), 'r') as f:
-            doc = yaml.load(f.read())
+        try:
+            with open(os.path.join(fs_dir, VIZTRAIL_FILE), 'r') as f:
+                doc = load_json(f.read())
+        except:
+            with open(os.path.join(fs_dir, VIZTRAIL_FILE), 'r') as f:
+                doc = yaml.load(f.read(), Loader=CLoader)
         # Read information about viztrail branches
         return FileSystemViztrailHandle(
             doc['id'],
@@ -292,8 +304,12 @@ class FileSystemViztrailHandle(ViztrailHandle):
         if wf_file is None:
             return None
         # Read workflow handle from file
-        with open(wf_file, 'r') as f:
-            doc = yaml.load(f.read())
+        try:
+            with open(wf_file, 'r') as f:
+                doc = load_json(f.read())
+        except:
+            with open(wf_file, 'r') as f:
+                doc = yaml.load(f.read(), Loader=CLoader)
         return WorkflowHandle(
             branch_id,
             doc['version'],
@@ -324,7 +340,8 @@ class FileSystemViztrailHandle(ViztrailHandle):
         }
         # Write viztrail serialization to file
         with open(os.path.join(self.fs_dir, VIZTRAIL_FILE), 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
+            #yaml.dump(doc, f, default_flow_style=False, Dumper=CDumper)
+            dump_json(doc, f)
 
     def write_workflow(self, exec_result):
         """Write workflow execution result into a new workflow file.
@@ -347,7 +364,8 @@ class FileSystemViztrailHandle(ViztrailHandle):
         }
         # Write handle to file
         with open(workflow_file(self.fs_dir, exec_result.version), 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
+            #yaml.dump(doc, f, default_flow_style=False, Dumper=CDumper)
+            dump_json(doc, f)
         return created_at
 
 class FileSystemViztrailRepository(ViztrailRepository):

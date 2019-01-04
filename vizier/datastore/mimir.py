@@ -26,6 +26,9 @@ import tempfile
 import unicodecsv
 import yaml
 
+from yaml import CLoader, CDumper
+from vizier.core.util import dump_json, load_json
+
 from StringIO import StringIO
 
 import vistrails.packages.mimir.init as mimir
@@ -37,6 +40,7 @@ from vizier.datastore.base import DataStore, encode_values, max_column_id
 from vizier.datastore.metadata import Annotation, DatasetMetadata, ObjectMetadataSet
 from vizier.datastore.reader import DatasetReader
 
+import vizier.config as config
 
 """Mimir annotation keys."""
 ANNO_UNCERTAIN = 'mimir:uncertain'
@@ -265,7 +269,7 @@ class MimirDatasetHandle(DatasetHandle):
         super(MimirDatasetHandle, self).__init__(
             identifier=identifier,
             columns=columns,
-            row_count=len(row_ids),
+            row_count=row_counter,
             column_counter=column_counter,
             row_counter=row_counter,
             annotations=annotations
@@ -289,8 +293,12 @@ class MimirDatasetHandle(DatasetHandle):
         -------
         vizier.datastore.base.DatasetHandle
         """
-        with open(filename, 'r') as f:
-            doc = yaml.load(f.read())
+        try:
+            with open(filename, 'r') as f:
+                doc = load_json(f.read())
+        except:
+            with open(filename, 'r') as f:
+                doc = yaml.load(f.read(), Loader=CLoader)
         return MimirDatasetHandle(
             identifier=doc['id'],
             columns=[MimirDatasetColumn.from_dict(obj) for obj in doc['columns']],
@@ -302,7 +310,7 @@ class MimirDatasetHandle(DatasetHandle):
             annotations=annotations
         )
 
-    def get_annotations(self, column_id=-1, row_id=-1):
+    def get_annotations(self, column_id=-1, row_id='-1'):
         """Get list of annotations for a dataset component. Expects at least one
         of the given identifier to be a valid identifier (>= 0).
 
@@ -321,7 +329,19 @@ class MimirDatasetHandle(DatasetHandle):
         # moment we only maintain uncertainty information for cells. If cell
         # annotations are requested we need to query the database to retrieve
         # any existing uncertainty annotations for the cell.
-        if column_id >= 0 and row_id < 0:
+        import sys
+            
+        if column_id == -1 and row_id == '-1':
+            annotations = ObjectMetadataSet(dict())
+            
+            sql = 'SELECT * '
+            sql += 'FROM ' + self.table_name + ' '
+            annoList = json.loads(mimir._mimir.explainEverythingJson(sql))
+            
+            for anno in annoList:
+                annotations.add(ANNO_UNCERTAIN, anno)
+            #return [item for sublist in map(lambda (i,x): self.annotations.for_column(i).values(), enumerate(self.columns)) for item in sublist]
+        elif column_id >= 0 and row_id < 0:
             return self.annotations.for_column(column_id).values()
         elif column_id < 0 and row_id >= 0:
             return self.annotations.for_row(row_id).values()
@@ -335,18 +355,12 @@ class MimirDatasetHandle(DatasetHandle):
                 if col.identifier == column_id:
                     column = col
                     break
-            sql = 'SELECT ' + column.name_in_rdb + ' '
+            sql = 'SELECT * '
             sql += 'FROM ' + self.table_name + ' '
-            sql += 'WHERE ' + ROW_ID + ' = ' + str(row_id)
-            rs = json.loads(
-                mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
-            )
-            has_reasons = not rs['col_taint'][0][0]
+            buffer = mimir._mimir.explainCell(sql, column.name_in_rdb, str(row_id))
+            has_reasons = buffer.size() > 0
             if has_reasons:
-                row_prov = str(rs['prov'][0])
-                buffer = mimir._mimir.explainCell(sql, 0, row_prov)
-                for i in range(buffer.size()):
-                    value = str(buffer.array()[i])
+                for value in buffer.mkString("-*-*-").split("-*-*-"):
                     # Remove references to lenses
                     while 'LENS_' in value:
                         start_pos = value.find('LENS_')
@@ -365,7 +379,7 @@ class MimirDatasetHandle(DatasetHandle):
             raise ValueError('invalid component identifier')
         return annotations.values()
 
-    def reader(self, offset=0, limit=-1):
+    def reader(self, offset=0, limit=-1, rowid=None):
         """Get reader for the dataset to access the dataset rows. The optional
         offset amd limit parameters are used to retrieve only a subset of
         rows.
@@ -388,6 +402,7 @@ class MimirDatasetHandle(DatasetHandle):
             rowid_column_numeric=self.rowid_column.is_numeric(),
             offset=offset,
             limit=limit,
+            rowid=rowid,
             annotations=self.annotations
         )
 
@@ -409,12 +424,13 @@ class MimirDatasetHandle(DatasetHandle):
             'rowCounter': self.row_counter
         }
         with open(filename, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
+            #yaml.dump(doc, f, default_flow_style=False, Dumper=CDumper)
+            dump_json(doc, f)
 
 
 class MimirDatasetReader(DatasetReader):
     """Dataset reader for Mimir datasets."""
-    def __init__(self, table_name, columns, row_ids, rowid_column_numeric=True, offset=0, limit=-1, annotations=None):
+    def __init__(self, table_name, columns, row_ids, rowid_column_numeric=True, offset=0, limit=-1, rowid=None, annotations=None):
         """Initialize information about the delimited file and the file format.
 
         Parameters
@@ -439,6 +455,9 @@ class MimirDatasetReader(DatasetReader):
         self.columns = columns
         self.rowid_column_numeric = rowid_column_numeric
         self.annotations = annotations if not annotations is None else DatasetMetadata()
+        self.offset = offset
+        self.limit = limit
+        self.rowid = rowid
         # Convert row id list into row position index. Depending on whether
         # offset or limit parameters are given we also limit the entries in the
         # dictionary. The internal flag .is_range_query keeps track of whether
@@ -446,20 +465,8 @@ class MimirDatasetReader(DatasetReader):
         # later used to generate the query for the database.
         self.row_ids = dict()
         if offset > 0 or limit > 0:
-            skip = offset
-            count = 0
-            for row_id in row_ids:
-                if skip > 0:
-                    skip -= 1
-                else:
-                    self.row_ids[row_id] = count
-                    count += 1
-                    if limit > 0 and count >= limit:
-                        break
             self.is_range_query = True
         else:
-            for i in range(len(row_ids)):
-                self.row_ids[row_ids[i]] = i
             self.is_range_query = False
         # Keep an in-memory copy of the dataset rows when open
         self.is_open = False
@@ -508,13 +515,14 @@ class MimirDatasetReader(DatasetReader):
             # Query the database to get the list of rows. Sort rows according to
             # order in row_ids and return a InMemReader
             sql = get_select_query(self.table_name, columns=self.columns)
-            if self.is_range_query and self.rowid_column_numeric:
-                min_id, max_id = min_max(self.row_ids.keys())
-                sql += ' WHERE ' + ROW_ID + ' >= ' + str(min_id)
-                sql += ' AND ' + ROW_ID + ' <= ' + str(max_id)
+            if self.rowid != None:
+                sql += ' WHERE ROWID() = ' + str(self.rowid) 
+            if self.is_range_query:
+                sql +=  ' LIMIT ' + str(self.limit) + ' OFFSET ' + str(self.offset)
             rs = json.loads(
                 mimir._mimir.vistrailsQueryMimirJson(sql, True, False)
             )
+            self.row_ids = rs['prov']
             # Initialize mapping of column rdb names to index positions in
             # dataset rows
             self.col_map = dict()
@@ -525,17 +533,11 @@ class MimirDatasetReader(DatasetReader):
             # row_ids list), read index and open flag
             rowid_idx = self.col_map[ROW_ID]
             # Filter rows if this is a range query (needed until IN works)
-            if self.is_range_query:
-                rs_rows = list()
-                for row in rs['data']:
-                    if int(row[rowid_idx]) in self.row_ids:
-                        rs_rows.append(row)
-            else:
-                rs_rows = rs['data']
+            rs_rows = rs['data']
             self.rows = list()
             for row_index in range(len(rs_rows)):
                 row = rs_rows[row_index]
-                row_id = int(row[self.col_map[ROW_ID]])
+                row_id = str(row[self.col_map[ROW_ID]])
                 values = [None] * len(self.columns)
                 row_annos = [False] * len(values)
                 for i in range(len(self.columns)):
@@ -551,11 +553,20 @@ class MimirDatasetReader(DatasetReader):
                         has_anno = not rs['col_taint'][row_index][col_index]
                     row_annos[i] = has_anno
                 self.rows.append(DatasetRow(row_id, values, annotations=row_annos))
-            self.rows.sort(key=lambda row: self.row_ids[row.identifier])
+            self.rows.sort(key=lambda row: self.sortbyrowid(row.identifier))
             self.read_index = 0
             self.is_open = True
         return self
 
+    def sortbyrowid(self, s):
+        try:
+            return int(s)
+        except ValueError:
+            pass
+        try:
+            return int(s.split(':')[0]) 
+        except:
+            return 0
 
 class MimirDataStore(DataStore):
     """Vizier data store implementation using Mimir.
@@ -579,6 +590,7 @@ class MimirDataStore(DataStore):
             Name of the directory where metadata is stored
         """
         super(MimirDataStore, self).__init__(build_info('MimirDataStore'))
+        self.bad_col_names = {"ABORT":"`ABORT`", "ACTION":"`ACTION`", "ADD":"`ADD`", "AFTER":"`AFTER`", "ALL":"`ALL`", "ALTER":"`ALTER`", "ANALYZE":"`ANALYZE`", "AND":"`AND`", "AS":"`AS`", "ASC":"`ASC`", "ATTACH":"`ATTACH`", "AUTOINCREMENT":"`AUTOINCREMENT`", "BEFORE":"`BEFORE`", "BEGIN":"`BEGIN`", "BETWEEN":"`BETWEEN`", "BY":"`BY`", "CASCADE":"`CASCADE`", "CASE":"`CASE`", "CAST":"`CAST`", "CHECK":"`CHECK`", "COLLATE":"`COLLATE`", "COLUMN":"`COLUMN`", "COMMIT":"`COMMIT`", "CONFLICT":"`CONFLICT`", "CONSTRAINT":"`CONSTRAINT`", "CREATE":"`CREATE`", "CROSS":"`CROSS`", "CURRENT":"`CURRENT`", "CURRENT_DATE":"`CURRENT_DATE`", "CURRENT_TIME":"`CURRENT_TIME`", "CURRENT_TIMESTAMP":"`CURRENT_TIMESTAMP`", "DATABASE":"`DATABASE`", "DEFAULT":"`DEFAULT`", "DEFERRABLE":"`DEFERRABLE`", "DEFERRED":"`DEFERRED`", "DELETE":"`DELETE`", "DESC":"`DESC`", "DETACH":"`DETACH`", "DISTINCT":"`DISTINCT`", "DO":"`DO`", "DROP":"`DROP`", "EACH":"`EACH`", "ELSE":"`ELSE`", "END":"`END`", "ESCAPE":"`ESCAPE`", "EXCEPT":"`EXCEPT`", "EXCLUSIVE":"`EXCLUSIVE`", "EXISTS":"`EXISTS`", "EXPLAIN":"`EXPLAIN`", "FAIL":"`FAIL`", "FILTER":"`FILTER`", "FOLLOWING":"`FOLLOWING`", "FOR":"`FOR`", "FOREIGN":"`FOREIGN`", "FROM":"`FROM`", "FULL":"`FULL`", "GLOB":"`GLOB`", "GROUP":"`GROUP`", "HAVING":"`HAVING`", "IF":"`IF`", "IGNORE":"`IGNORE`", "IMMEDIATE":"`IMMEDIATE`", "IN":"`IN`", "INDEX":"`INDEX`", "INDEXED":"`INDEXED`", "INITIALLY":"`INITIALLY`", "INNER":"`INNER`", "INSERT":"`INSERT`", "INSTEAD":"`INSTEAD`", "INTERSECT":"`INTERSECT`", "INTO":"`INTO`", "IS":"`IS`", "ISNULL":"`ISNULL`", "JOIN":"`JOIN`", "KEY":"`KEY`", "LEFT":"`LEFT`", "LIKE":"`LIKE`", "LIMIT":"`LIMIT`", "MATCH":"`MATCH`", "NATURAL":"`NATURAL`", "NO":"`NO`", "NOT":"`NOT`", "NOTHING":"`NOTHING`", "NOTNULL":"`NOTNULL`", "NULL":"`NULL`", "OF":"`OF`", "OFFSET":"`OFFSET`", "ON":"`ON`", "OR":"`OR`", "ORDER":"`ORDER`", "OUTER":"`OUTER`", "OVER":"`OVER`", "PARTITION":"`PARTITION`", "PLAN":"`PLAN`", "PRAGMA":"`PRAGMA`", "PRECEDING":"`PRECEDING`", "PRIMARY":"`PRIMARY`", "QUERY":"`QUERY`", "RAISE":"`RAISE`", "RANGE":"`RANGE`", "RECURSIVE":"`RECURSIVE`", "REFERENCES":"`REFERENCES`", "REGEXP":"`REGEXP`", "REINDEX":"`REINDEX`", "RELEASE":"`RELEASE`", "RENAME":"`RENAME`", "REPLACE":"`REPLACE`", "RESTRICT":"`RESTRICT`", "RIGHT":"`RIGHT`", "ROLLBACK":"`ROLLBACK`", "ROW":"`ROW`", "ROWS":"`ROWS`", "SAVEPOINT":"`SAVEPOINT`", "SELECT":"`SELECT`", "SET":"`SET`", "TABLE":"`TABLE`", "TEMP":"`TEMP`", "TEMPORARY":"`TEMPORARY`", "THEN":"`THEN`", "TO":"`TO`", "TRANSACTION":"`TRANSACTION`", "TRIGGER":"`TRIGGER`", "UNBOUNDED":"`UNBOUNDED`", "UNION":"`UNION`", "UNIQUE":"`UNIQUE`", "UPDATE":"`UPDATE`", "USING":"`USING`", "VACUUM":"`VACUUM`", "VALUES":"`VALUES`", "VIEW":"`VIEW`", "VIRTUAL":"`VIRTUAL`", "WHEN":"`WHEN`", "WHERE":"`WHERE`", "WINDOW":"`WINDOW`", "WITH":"`WITH`", "WITHOUT":"`WITHOUT`"} 
         self.base_dir = os.path.abspath(base_dir)
         if not os.path.isdir(self.base_dir):
             os.makedirs(self.base_dir)
@@ -604,37 +616,53 @@ class MimirDataStore(DataStore):
         # Get unique identifier for new dataset
         identifier = 'DS_' + get_unique_identifier()
         # Write rows to temporary file in CSV format
-        tmp_file = get_tempfile()
+        tmp_file = os.path.abspath(self.base_dir + '/../../filestore/files/' + identifier)
         # Create a list of columns that contain the user-vizible column name and
         # the name in the database
         db_columns = list()
-        for col in columns:
+        colSql = 'ROWID() AS '+ROW_ID
+        for col in map(lambda cn: self.bad_col_names.get(cn, cn), columns):
             db_columns.append(
                 MimirDatasetColumn(
                     identifier=col.identifier,
                     name_in_dataset=col.name,
-                    name_in_rdb=COL_PREFIX + str(len(db_columns))
+                    name_in_rdb=col.name#COL_PREFIX + str(len(db_columns))
                 )
             )
-        # List of row ids in the new dataset
-        db_row_ids = list()
+            colSql = colSql + ', ' + col.name + ' AS ' + col.name
         # Create CSV file for load
         with open(tmp_file, 'w') as f_out:
             writer = csv.writer(f_out, quoting=csv.QUOTE_MINIMAL)
-            writer.writerow([ROW_ID] + [col.name_in_rdb for col in db_columns])
+            writer.writerow([col.name_in_rdb for col in db_columns])
             for row in rows:
-                record = [str(row.identifier)] + encode_values(row.values)
+                record = encode_values(row.values)
                 writer.writerow(record)
-                db_row_ids.append(row.identifier)
         # Load CSV file using Mimirs loadCSV method.
         table_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
-        # Delete temporary files
-        os.remove(tmp_file)
+            
+        sql = 'SELECT '+colSql+' FROM {{input}}'
+        view_name = mimir._mimir.createView(table_name, sql)
+        #sql = 'SELECT '+ROW_ID+' FROM ' + view_name
+        #rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+        # List of row ids in the new dataset
+        #row_ids = rs['prov'] #range(len(rs['prov']))  
+        
+        sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
+        rs_count = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+        
+        row_count = int(rs_count['data'][0][0])
+        
+        sql = 'SELECT * FROM ' + view_name + ' LIMIT ' + str(config.DEFAULT_MAX_ROW_LIMIT)
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+            
+        row_ids = rs['prov']
+         
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
-            table_name=table_name,
+            table_name=view_name,
             columns=db_columns,
-            row_ids=db_row_ids,
+            row_ids=row_ids,
+            row_counter=row_count,
             annotations=annotations
         )
 
@@ -728,7 +756,7 @@ class MimirDataStore(DataStore):
         """
         return os.path.join(self.get_dataset_dir(identifier), 'annotation.yaml')
 
-    def load_dataset(self, f_handle):
+    def load_dataset(self, f_handle, detect_headers=True, infer_types=True, load_format='csv', options=[]):
         """Create a new dataset from a given file.
 
         Raises ValueError if the given file could not be loaded as a dataset.
@@ -742,71 +770,54 @@ class MimirDataStore(DataStore):
         -------
         vizier.datastore.mimir.MimirDatasetHandle
         """
-        # Create a copy of the original file under a unique name. If the input
-        # file is tab-delimited (and therefore has been successfully parsed on
-        # upload) we create a comma-separated version. Otherwise, we simply copy
-        # the given file.
-        tmp_file = get_tempfile()
-        if f_handle.is_verified_csv and f_handle.delimiter == '\t':
-            if f_handle.compressed:
-                csvfile = gzip.open(f_handle.filepath, 'rb')
-            else:
-                csvfile = open(f_handle.filepath, 'rb')
-            reader = csv.reader(csvfile, delimiter='\t')
-            with open(tmp_file, 'w') as f:
-                writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-                for row in reader:
-                    writer.writerow(row)
-                csvfile.close()
-        else:
-            shutil.copyfile(f_handle.filepath, tmp_file)
+        abspath = os.path.abspath((r'%s' % os.getcwd().replace('\\','/') ) + '/' + f_handle.filepath)
+        if 'url' in f_handle.properties.keys() and not f_handle.properties['url'] is None:
+            abspath = f_handle.properties['url']
         # Load dataset and delete temp file
-        init_load_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
-        os.remove(tmp_file)
+        init_load_name = mimir._mimir.loadCSV(abspath, load_format, infer_types, detect_headers, mimir._jvmhelper.to_scala_seq(options))
         # Retrieve schema information for the created dataset
         sql = 'SELECT * FROM ' + init_load_name
-        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
-        # Write retieved result to a new temporary file. During output create a
-        # list of column descriptors and row ids.
+        mimirSchema = mimir._mimir.getSchema(sql)
+        
         columns = list()
-        row_ids = list()
-        tmp_file = get_tempfile()
-        with open(tmp_file, 'w') as csvfile:
-            writer = unicodecsv.writer(
-                csvfile,
-                delimiter=',',
-                quotechar='"',
-                quoting=csv.QUOTE_MINIMAL,
-                encoding='utf-8'
+        colSql = 'ROWID() AS '+ROW_ID
+        
+        for col in json.loads(mimirSchema):
+            col_id = len(columns)
+            name_in_dataset = self.bad_col_names.get(col['name'].upper(),col['name'])
+            name_in_rdb = self.bad_col_names.get(col['name'].upper(),col['name'])#COL_PREFIX + str(col_id)
+            col = MimirDatasetColumn(
+                identifier=col_id,
+                name_in_dataset=name_in_dataset,
+                name_in_rdb=name_in_rdb
             )
-            # Start by creating descriptors for all columns and writing the
-            # header line (out_schema). We add a column to keep track of the
-            # row identifier
-            out_schema = [ROW_ID.upper()]
-            for col in rs['schema']:
-                col_id = len(columns)
-                name_in_dataset = col['name']
-                name_in_rdb = COL_PREFIX + str(col_id)
-                col = MimirDatasetColumn(
-                    identifier=col_id,
-                    name_in_dataset=name_in_dataset,
-                    name_in_rdb=name_in_rdb
-                )
-                columns.append(col)
-                out_schema.append(name_in_rdb)
-            writer.writerow(out_schema)
-            # Output dataset rows. Add unique row identifier for each row.
-            for row in rs['data']:
-                row_id = len(row_ids)
-                row_ids.append(row_id)
-                writer.writerow([str(row_id)] + row)
-        table_name = mimir._mimir.loadCSV(tmp_file, ',', True, True)
-        os.remove(tmp_file)
+            colSql = colSql + ', ' + name_in_dataset + ' AS ' + name_in_rdb
+            columns.append(col)
+           
+        sql = 'SELECT '+colSql+' FROM {{input}}'
+        view_name = mimir._mimir.createView(init_load_name, sql)
+        #sql = 'SELECT '+ROW_ID+' FROM ' + view_name
+        #rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+        
+        #row_ids = rs['prov'] #range(len(rs['prov']))  
+        
+        #TODO: this is a hack to speed up this step a bit.  
+        #  we get the first row id and the count and take a range;
+        #  this is fragile and should be made better
+        sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
+        rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+        sql = 'SELECT ' + ROW_ID + ' FROM ' + view_name + ' ORDER BY ' + ROW_ID + ' LIMIT 1'
+        rsfr = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+        row_count = int(rs['data'][0][0])
+        first_row_id = int(rsfr['data'][0][0])
+        row_ids = map(str, range(first_row_id, first_row_id+row_count))
+        
         # Insert the new dataset metadata information into the datastore
         return self.register_dataset(
-            table_name=table_name,
+            table_name=view_name,
             columns=columns,
-            row_ids=row_ids
+            row_ids=row_ids,
+            row_counter=row_count
         )
 
     def register_dataset(
@@ -886,14 +897,12 @@ class MimirDataStore(DataStore):
             column_counter = max_column_id(columns) + 1
         # Set row counter to max. row id + 1 if None
         if row_counter is None:
-            row_counter = -1
-            for row_id in row_ids:
-                if row_id > row_counter:
-                    row_counter = row_id
-            row_counter += 1
+            sql = 'SELECT COUNT(*) AS RECCNT FROM ' + table_name
+            rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+            row_counter = int(rs['data'][0][0])
         dataset = MimirDatasetHandle(
             identifier=get_unique_identifier(),
-            columns=columns,
+            columns= map(lambda cn: self.bad_col_names.get(cn, cn), columns),
             rowid_column=rowid_column,
             table_name=table_name,
             row_ids=row_ids,

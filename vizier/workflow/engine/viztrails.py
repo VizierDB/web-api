@@ -17,6 +17,8 @@
 """Vistrails-type engine."""
 
 import time
+import traceback
+import sys
 
 from vizier.datastore.mem import VolatileDataStore
 from vizier.serialize import PLAIN_TEXT
@@ -113,6 +115,10 @@ class DefaultViztrailsEngine(WorkflowEngine):
             cell = create_python_cell(module.identifier, cmd, context)
         elif cmd.is_type(cmdtype.PACKAGE_MIMIR):
             cell = create_mimir_cell(module.identifier, cmd, context)
+        elif cmd.is_type(cmdtype.PACKAGE_SQL):
+            cell = create_sql_cell(module.identifier, cmd, context)
+        elif cmd.is_type(cmdtype.PACKAGE_SCALA):
+            cell = create_scala_cell(module.identifier, cmd, context)
         elif cmd.is_type(cmdtype.PACKAGE_VIZUAL):
             cell = create_vizual_cell(module.identifier, cmd, context)
         elif cmd.is_type(cmdtype.PACKAGE_PLOT):
@@ -129,6 +135,13 @@ class DefaultViztrailsEngine(WorkflowEngine):
             outputs = ModuleOutputs()
             template = "{0}:{1!r}"
             message = template.format(type(ex).__name__, ex.args)
+            message = message + ': ' + traceback.format_exc(sys.exc_info())
+            outputs.stderr(content=PLAIN_TEXT(message))
+            status = ERROR
+        except:
+            outputs = ModuleOutputs()
+            template = "{0}:{1!r}"
+            message = 'Unknown Error: ' + traceback.format_exc(sys.exc_info())
             outputs.stderr(content=PLAIN_TEXT(message))
             status = ERROR
         end_time = time.time()
@@ -323,6 +336,65 @@ def create_mimir_cell(module_id, command, context):
     cell.set_input_port('context', InputPort(context))
     return cell
 
+
+def create_sql_cell(module_id, command, context):
+    """Create a new sql cell module from the given command specification.
+
+    Assumes that the validity of the command has been verified.
+
+    Expected elements in command arguments:
+    - source: sql source code for cell
+    - dataset: input dataset
+    
+    Parameters
+    ----------
+    module_id: int
+        Module identifier
+    command: vizier.worktrail.module.ModuleSpecification
+        Command specification
+    context: dict
+        Workflow execution context
+
+    Returns
+    -------
+    vizier.packages.userpackages.vizierpkg.SQLCell
+    """
+    # Create a new sql cell and set the input ports
+    cell = vizierpkg.SQLCell()
+    cell.moduleInfo['moduleId'] = module_id
+    cell.set_input_port('output_dataset', InputPort(command.arguments['output_dataset']))
+    cell.set_input_port('source', InputPort(command.arguments['source']))
+    cell.set_input_port('context', InputPort(context))
+    return cell
+
+
+def create_scala_cell(module_id, command, context):
+    """Create a new scala cell module from the given command specification.
+
+    Assumes that the validity of the command has been verified.
+
+    Expected elements in command arguments:
+    - source: Scala source code for cell
+
+    Parameters
+    ----------
+    module_id: int
+        Module identifier
+    command: vizier.worktrail.module.ModuleSpecification
+        Command specification
+    context: dict
+        Workflow execution context
+
+    Returns
+    -------
+    vizier.packages.userpackages.vizierpkg.ScalaCell
+    """
+    # Create a new python cell and set the input ports
+    cell = vizierpkg.ScalaCell()
+    cell.moduleInfo['moduleId'] = module_id
+    cell.set_input_port('source', InputPort(command.arguments['source']))
+    cell.set_input_port('context', InputPort(context))
+    return cell
 
 def create_plot_cell(module_id, command, context):
     """Create a new Plot cell module from the given command specification.

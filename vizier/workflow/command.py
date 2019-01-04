@@ -33,6 +33,8 @@ DT_FILE_ID = 'fileid'
 DT_GROUP = 'group'
 DT_INT = 'int'
 DT_PYTHON_CODE = 'pyCode'
+DT_SQL_CODE = 'sqlCode'
+DT_SCALA_CODE = 'scalaCode'
 DT_ROW_INDEX = 'rowidx'
 DT_STRING = 'string'
 
@@ -46,6 +48,8 @@ DATA_TYPES = [
     DT_GROUP,
     DT_INT,
     DT_PYTHON_CODE,
+    DT_SQL_CODE,
+    DT_SCALA_CODE,
     DT_ROW_INDEX,
     DT_STRING
 ]
@@ -59,6 +63,7 @@ PARA_COLUMN = 'column'
 PARA_COLUMNS = 'columns'
 PARA_CONSTRAINT = 'constraint'
 PARA_DATASET = 'dataset'
+PARA_OUTPUT_DATASET = 'output_dataset'
 PARA_FILE = 'file'
 PARA_FILEID = 'fileid'
 PARA_GEOCODER = 'geocoder'
@@ -81,10 +86,17 @@ PARA_STREET = 'strname'
 PARA_TYPE = 'type'
 PARA_VALUE = 'value'
 PARA_XAXIS = 'xaxis'
+PARA_LOAD_OPTION_KEY = 'loadOptionKey'
+PARA_LOAD_OPTION_VALUE = 'loadOptionValue'
+PARA_LOAD_OPTIONS = 'loadOptions'
+PARA_LOAD_FORMAT = 'loadFormat'
+PARA_LOAD_TI = 'loadInferTypes'
+PARA_LOAD_DH = 'loadDetectHeaders'
 # Concatenation of parameter kets
 PARA_COLUMNS_COLUMN = PARA_COLUMNS + '_' + PARA_COLUMN
 PARA_COLUMNS_ORDER = PARA_COLUMNS + '_' + PARA_ORDER
 PARA_COLUMNS_RENAME = PARA_COLUMNS + '_' + PARA_NAME
+PARA_COLUMNS_CONSTRAINT = PARA_COLUMNS + '_' + PARA_CONSTRAINT
 
 
 """Values for sort order."""
@@ -224,6 +236,8 @@ def parameter_specification(
 
 """Identifier for currently supported module types."""
 PACKAGE_MIMIR = 'mimir'
+PACKAGE_SQL = 'sql'
+PACKAGE_SCALA = 'scala'
 PACKAGE_PLOT = 'plot'
 PACKAGE_PYTHON = 'python'
 PACKAGE_SYS = '_sys'
@@ -251,6 +265,18 @@ PYTHON_SOURCE = 'source'
 
 """Identifier for Python commands."""
 PYTHON_CODE = 'CODE'
+
+"""Components for Sql requests."""
+SQL_SOURCE = 'source'
+
+"""Identifier for Sql commands."""
+SQL_CODE = 'CODE'
+
+"""Components for Sql requests."""
+SCALA_SOURCE = 'source'
+
+"""Identifier for Sql commands."""
+SCALA_CODE = 'CODE'
 
 """Identifier for sysyem commands."""
 SYS_CREATE_BRANCH = 'CREATE_BRANCH'
@@ -334,12 +360,25 @@ MIMIR_LENSES = {
         MODULE_NAME: 'Missing Value Lens',
         MODULE_ARGUMENTS: {
             PARA_DATASET: para_dataset(0),
-            PARA_COLUMN: para_column(1),
-            PARA_CONSTRAINT: parameter_specification(
-                PARA_CONSTRAINT,
+            PARA_COLUMNS: parameter_specification(
+                PARA_COLUMNS,
+                name='Columns',
+                data_type=DT_GROUP,
+                index=1
+            ),
+            PARA_COLUMNS_COLUMN: parameter_specification(
+                PARA_COLUMNS_COLUMN,
+                name='Column',
+                data_type=DT_COLUMN_ID,
+                index=2,
+                parent=PARA_COLUMNS
+            ),
+            PARA_COLUMNS_CONSTRAINT: parameter_specification(
+                PARA_COLUMNS_CONSTRAINT,
                 name='Constraint',
                 data_type=DT_STRING,
-                index=2,
+                index=3,
+                parent=PARA_COLUMNS,
                 required=False
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(3)
@@ -425,6 +464,43 @@ MIMIR_LENSES = {
                 index=1
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(2)
+        }
+    }
+}
+
+"""SQL commands."""
+SQL_COMMANDS = {
+    SQL_CODE: {
+        MODULE_NAME: 'SQL Statement',
+        MODULE_ARGUMENTS: {
+            PARA_OUTPUT_DATASET: parameter_specification(
+                PARA_OUTPUT_DATASET,
+                name='Output Dataset',
+                data_type=DT_STRING,
+                index=2,
+                required=False
+            ),
+            SQL_SOURCE: parameter_specification(
+                SQL_SOURCE,
+                name='SQL Code',
+                data_type=DT_SQL_CODE,
+                index=1
+            )
+        }
+    }
+}
+
+"""Scala commands."""
+SCALA_COMMANDS = {
+    SCALA_CODE: {
+        MODULE_NAME: 'Scala Script',
+        MODULE_ARGUMENTS: {
+            SCALA_SOURCE: parameter_specification(
+                SCALA_SOURCE,
+                name='Scala Code',
+                data_type=DT_SCALA_CODE,
+                index=0
+            )
         }
     }
 }
@@ -596,7 +672,53 @@ VIZUAL_COMMANDS = {
                 name='Source File',
                 data_type=DT_FILE_ID,
                 index=1
-            )
+            ),
+            PARA_LOAD_FORMAT: parameter_specification(
+                PARA_LOAD_FORMAT,
+                name='Load Format',
+                data_type=DT_STRING,
+                values=[{'value':'csv', 'isDefault':True}, 'json', {'key':'com.databricks.spark.xml', 'value':'xml'}, 'jdbc', 'text', 'parquet', 'orc'],
+                index=2,
+                required=True
+            ),
+            PARA_LOAD_TI: parameter_specification(
+                PARA_LOAD_TI,
+                name='Infer Types',
+                data_type=DT_BOOL,
+                index=3,
+                required=False
+            ),
+            PARA_LOAD_DH: parameter_specification(
+                PARA_LOAD_DH,
+                name='Detect Headers',
+                data_type=DT_BOOL,
+                index=4,
+                required=False
+            ),
+            PARA_LOAD_OPTIONS: parameter_specification(
+                PARA_LOAD_OPTIONS,
+                name='Load Options',
+                data_type=DT_GROUP,
+                index=5,
+                required=False
+            ),
+            PARA_LOAD_OPTION_KEY: parameter_specification(
+                PARA_LOAD_OPTION_KEY,
+                name='Option Key',
+                data_type=DT_STRING,
+                index=6,
+                #values=['delimeter', 'varchar'],
+                parent=PARA_LOAD_OPTIONS,
+                required=False
+            ),
+            PARA_LOAD_OPTION_VALUE: parameter_specification(
+                PARA_LOAD_OPTION_VALUE,
+                name='Option Value',
+                data_type=DT_STRING,
+                index=7,
+                parent=PARA_LOAD_OPTIONS,
+                required=False
+            ),               
         }
     },
     VIZUAL_MOV_COL: {
@@ -729,6 +851,8 @@ which can be used in vizier workflows.
 """
 AVAILABLE_PACKAGES = {
     PACKAGE_MIMIR: MIMIR_LENSES,
+    PACKAGE_SQL: SQL_COMMANDS,
+    PACKAGE_SCALA: SCALA_COMMANDS,
     PACKAGE_PLOT: PLOT_COMMANDS,
     PACKAGE_PYTHON: PYTHON_COMMANDS,
     PACKAGE_VIZUAL: VIZUAL_COMMANDS
@@ -862,7 +986,7 @@ def mimir_missing_key(dataset_name, column, missing_only=None, make_input_certai
     )
 
 
-def mimir_missing_value(dataset_name, column, constraint=None, make_input_certain=False):
+def mimir_missing_value(dataset_name, columns, make_input_certain=False):
     """Create a Mimir Missing Value Lens.
 
     Parameters
@@ -882,11 +1006,10 @@ def mimir_missing_value(dataset_name, column, constraint=None, make_input_certai
     """
     args = {
         PARA_DATASET : dataset_name,
-        PARA_COLUMN: column,
+        PARA_COLUMNS: columns,
         PARA_MAKE_CERTAIN: make_input_certain
     }
-    if not constraint is None:
-        args[PARA_CONSTRAINT] = constraint
+    
     return ModuleSpecification(PACKAGE_MIMIR, MIMIR_MISSING_VALUE, args)
 
 
@@ -971,6 +1094,32 @@ def mimir_type_inference(dataset_name, percent_conform, make_input_certain=False
             PARA_DATASET : dataset_name,
             PARA_PERCENT_CONFORM: percent_conform,
             PARA_MAKE_CERTAIN: make_input_certain
+        }
+    )
+
+
+# ------------------------------------------------------------------------------
+# SQL
+# ------------------------------------------------------------------------------
+
+def sql_cell(output_ds_name, source):
+    """Module specification for a SQL cell.
+    Parameters
+    ----------
+    ds_name: string
+        Input dataset name
+    source: string
+        SQL code for cell body
+    Returns
+    -------
+    vizier.workflow.module.ModuleSpecification
+    """
+    return ModuleSpecification(
+        PACKAGE_SQL,
+        SQL_CODE,
+        {
+            PARA_OUTPUT_DATASET: output_ds_name,
+            SQL_SOURCE: source
         }
     )
 
@@ -1153,7 +1302,7 @@ def insert_row(dataset_name, position):
     )
 
 
-def load_dataset(file_id, dataset_name, filename=None, url=None):
+def load_dataset(file_id, dataset_name, filename=None, url=None, infer_types=False, detect_headers=False, load_format='csv', load_options=None):
     """Load dataset from file. Expects file identifier and new dataset name.
 
     Parameters
@@ -1181,7 +1330,11 @@ def load_dataset(file_id, dataset_name, filename=None, url=None):
         VIZUAL_LOAD,
         {
             PARA_FILE : file,
-            PARA_NAME: dataset_name
+            PARA_NAME: dataset_name,
+            PARA_LOAD_TI : infer_types,
+            PARA_LOAD_DH : detect_headers,
+            PARA_LOAD_FORMAT : load_format,
+            PARA_LOAD_OPTIONS : load_options
         }
     )
 

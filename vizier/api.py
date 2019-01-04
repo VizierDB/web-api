@@ -198,7 +198,7 @@ class VizierWebService(object):
     # --------------------------------------------------------------------------
     # Datasets
     # --------------------------------------------------------------------------
-    def get_dataset(self, dataset_id, offset=None, limit=None):
+    def get_dataset(self, dataset_id, offset=None, limit=None, rowid=None):
         """Get dataset with given identifier. The result is None if no dataset
         with the given identifier exists.
 
@@ -236,14 +236,14 @@ class VizierWebService(object):
             # Serialize the dataset schema and cells
             return serialize.DATASET(
                 dataset=dataset,
-                rows=dataset.fetch_rows(offset=offset, limit=result_size),
+                rows=dataset.fetch_rows(offset=offset, limit=result_size, rowid=rowid),
                 config=self.config,
                 urls=self.urls,
                 offset=offset,
                 limit=limit
             )
 
-    def get_dataset_annotations(self, dataset_id, column_id=-1, row_id=-1):
+    def get_dataset_annotations(self, dataset_id, column_id=-1, row_id='-1'):
         """Get annotations for dataset with given identifier. The result is None
         if no dataset with the given identifier exists.
 

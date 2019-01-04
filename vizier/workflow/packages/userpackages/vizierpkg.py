@@ -16,8 +16,10 @@
 
 import copy
 import csv
+import json
 import sys
 import urllib
+import traceback
 
 from StringIO import StringIO
 
@@ -34,7 +36,7 @@ from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import MimirDataStore, create_missing_key_view
 from vizier.filestore.base import DefaultFileServer
 from vizier.plot.view import ChartViewHandle
-from vizier.serialize import CHART_VIEW, PLAIN_TEXT
+from vizier.serialize import CHART_VIEW, PLAIN_TEXT, HTML_TEXT
 from vizier.workflow.context import VizierDBClient
 from vizier.workflow.module import ModuleOutputs
 from vizier.workflow.vizual.base import DefaultVizualEngine
@@ -105,6 +107,7 @@ class MimirLens(Module):
         outputs = ModuleOutputs()
         store_as_dataset = None
         update_rows = False
+        lens_annotations = []
         # Get dataset. Raise exception if dataset is unknown
         ds_name = get_argument(cmd.PARA_DATASET, args).lower()
         dataset_id = vizierdb.get_dataset_identifier(ds_name)
@@ -143,22 +146,31 @@ class MimirLens(Module):
             params += ['MISSING_ONLY(FALSE)']
             # Need to run this lens twice in order to generate row ids for
             # any potential new tuple
-            mimir_table_name = mimir._mimir.createLens(
+            mimir_lens_response = mimir._mimir.createLens(
                 dataset.table_name,
                 mimir._jvmhelper.to_scala_seq(params),
                 lens,
                 get_argument(cmd.PARA_MAKE_CERTAIN, args),
                 False
             )
+            (mimir_table_name, lens_annotations) = (mimir_lens_response.lensName(), mimir_lens_response.annotations())
             params = [ROW_ID, 'MISSING_ONLY(FALSE)']
             update_rows = True
         elif lens == cmd.MIMIR_MISSING_VALUE:
-            column = get_column_argument(dataset, args, cmd.PARA_COLUMN)
-            params = column.name_in_rdb
-            if cmd.PARA_CONSTRAINT in args:
-                params = params + ' ' + str(args[cmd.PARA_CONSTRAINT])
-                params = '\'' + params + '\''
-            params = [params]
+            params = list()            
+            for col in get_argument(cmd.PARA_COLUMNS, args, default_value=[], raise_error=False):
+                f_col = get_column_argument(dataset, col, cmd.PARA_COLUMNS_COLUMN)
+                param = f_col.name_in_rdb
+                col_constraint = None
+                if cmd.PARA_COLUMNS_CONSTRAINT in col:
+                    col_constraint = get_argument(cmd.PARA_COLUMNS_CONSTRAINT, col, raise_error=False)
+                if col_constraint == '':
+                    col_constraint = None
+                if not col_constraint is None:
+                    param = param + ' ' + str(col_constraint).replace("'", "''").replace("OR", ") OR (")
+                param = '\'(' + param + ')\''
+                params.append(param)
+        
         elif lens == cmd.MIMIR_PICKER:
             pick_from = list()
             column_names = list()
@@ -195,7 +207,8 @@ class MimirLens(Module):
             for col in get_argument(cmd.PARA_SCHEMA, args):
                 c_name = get_argument(cmd.PARA_COLUMN, col)
                 c_type = get_argument(cmd.PARA_TYPE, col)
-                params.append('\'' + COL_PREFIX + str(len(column_names)) + ' ' + c_type + '\'')
+                #COL_PREFIX + str(len(column_names))
+                params.append('\'' + c_name + ' ' + c_type + '\'')
                 column_names.append(c_name)
         elif lens == cmd.MIMIR_TYPE_INFERENCE:
             params = [str(get_argument(cmd.PARA_PERCENT_CONFORM, args))]
@@ -209,13 +222,15 @@ class MimirLens(Module):
                 lens
             )
         else:
-            lens_name = mimir._mimir.createLens(
+            mimir_lens_response = mimir._mimir.createLens(
                 mimir_table_name,
                 mimir._jvmhelper.to_scala_seq(params),
                 lens,
                 get_argument(cmd.PARA_MAKE_CERTAIN, args),
                 False
             )
+            (lens_name, lens_annotations) = (mimir_lens_response.lensName(), mimir_lens_response.annotations())
+            
         # Create a view including missing row ids for the result of a
         # MISSING KEY lens
         if lens == cmd.MIMIR_MISSING_KEY:
@@ -233,7 +248,7 @@ class MimirLens(Module):
                 columns.append(MimirDatasetColumn(
                     col_id,
                     c_name,
-                    COL_PREFIX + str(col_id)
+                    c_name #COL_PREFIX + str(col_id)
                 ))
             #ds = vizierdb.datastore.create_dataset(table_name, columns)
             ds = vizierdb.datastore.register_dataset(
@@ -255,6 +270,13 @@ class MimirLens(Module):
                 update_rows=update_rows
             )
         print_dataset_schema(outputs, ds_name, ds.columns)
+        #annos_of_interest = list(filter(lambda d: ':META:' not in d['source'], lens_annotations))
+        
+        #annos_to_print = list(map(lambda d: d['english'].replace(lens_name,ds_name), annos_of_interest))  
+        #if len(annos_to_print) > 5:
+        #    annos_to_print = (annos_to_print[:5]).append("...and " + str(len(annos_to_print)-5) + " more")
+        
+        print_lens_annotations(outputs, lens_annotations)
         vizierdb.set_dataset_identifier(ds_name, ds.identifier)
         # Propagate potential changes to the dataset mappings
         propagate_changes(module_id, vizierdb.datasets, context)
@@ -337,17 +359,28 @@ class MimirLens(Module):
             return ' '.join(tokens)
         elif lens == cmd.MIMIR_MISSING_VALUE:
             # MISSING VALUES FOR <column> IN <dataset> {WITH CONSTRAINT} <constraint>
-            col_id = get_argument(cmd.PARA_COLUMN, args, raise_error=False)
+            columns = list()
+            constraints = list()
+            for col in get_argument(cmd.PARA_COLUMNS, args, default_value=list()):
+                col_id = get_argument(
+                    cmd.PARA_COLUMNS_COLUMN, col, default_value='?'
+                )
+                col_name = format_str(get_column_name(ds_name, col_id, vizierdb))
+                columns.append(col_name)
+                constraint = get_argument(
+                    cmd.PARA_COLUMNS_CONSTRAINT, col, default_value=None
+                )
+                if not constraint is None:
+                    constraint = col_name + ' ' + constraint
+                    constraints.append(constraint)
             cmd_text = ' '.join([
                 'MISSING VALUES FOR',
-                format_str(get_column_name(ds_name, col_id, vizierdb)),
+                ', '.join(columns),
                 'IN',
                 format_str(ds_name.lower())
             ])
-            if cmd.PARA_CONSTRAINT in args:
-                constraint = args[cmd.PARA_CONSTRAINT]
-                if constraint != '':
-                    cmd_text += ' WITH CONSTRAINT ' + str(constraint)
+            if len(constraints) > 0:
+                cmd_text += ' WITH CONSTRAINTS ' + ', '.join(constraints)
             return cmd_text
         elif lens == cmd.MIMIR_PICKER:
             # PICK FROM <columns> {AS <name>} IN <dataset>
@@ -396,6 +429,160 @@ class MimirLens(Module):
         return 'unknown Mimir lens \'' + str(lens) + '\''
 
 
+class SQLCell(NotCacheable, Module):
+    _input_ports = [
+        ('output_dataset', 'basic:String'),
+        ('source', 'basic:String'),
+        ('context', 'basic:Dictionary')
+    ]
+    _output_ports = [
+        ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
+        ('output', 'basic:Dictionary')
+    ]
+
+    def compute(self):
+        # Get SQL source code that is in this cell and the global
+        # variables
+        try:
+            source = urllib.unquote(self.get_input('source'))
+            ds_name = self.get_input('output_dataset')
+            context = self.get_input('context')
+            # Get module identifier and VizierDB client for current workflow state
+            module_id = self.moduleInfo['moduleId']
+            vizierdb = get_env(module_id, context)
+            mimir_table_names = dict()   
+            
+            # Module outputs
+            outputs = ModuleOutputs()
+            for ds_name_o in vizierdb.datasets:
+                dataset_id = vizierdb.get_dataset_identifier(ds_name_o)
+                dataset = vizierdb.datastore.get_dataset(dataset_id)
+                if dataset is None:
+                    raise ValueError('unknown dataset \'' + ds_name_o + '\'')
+                mimir_table_names[ds_name_o] = dataset.table_name
+            
+            view_name = mimir._mimir.createView(mimir._jvmhelper.to_scala_map(mimir_table_names), source)
+            
+            sql = 'SELECT * FROM ' + view_name
+            mimirSchema = json.loads(mimir._mimir.getSchema(sql))
+            
+            columns = list()
+            colSql = 'ROWID() AS '+ROW_ID
+            
+            if mimirSchema[0]['name'] == ROW_ID:
+                mimirSchema = mimirSchema[1:]
+                
+            for col in mimirSchema:
+                col_id = len(columns)
+                name_in_dataset = col['name']
+                name_in_rdb = col['name']#COL_PREFIX + str(col_id)
+                col = MimirDatasetColumn(
+                    identifier=col_id,
+                    name_in_dataset=name_in_dataset,
+                    name_in_rdb=name_in_rdb
+                )
+                colSql = colSql + ', ' + name_in_dataset + ' AS ' + name_in_rdb
+                columns.append(col)
+            
+            sql = 'SELECT '+colSql+' FROM {{input}}'
+            view_name = mimir._mimir.createView(view_name, sql)
+            
+            sql = 'SELECT COUNT(*) AS RECCNT FROM ' + view_name
+            rs_count = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False)) 
+            row_count = int(rs_count['data'][0][0])
+        
+            sql = 'SELECT * FROM ' + view_name + ' LIMIT ' + str(config.DEFAULT_MAX_ROW_LIMIT)
+            rs = json.loads(mimir._mimir.vistrailsQueryMimirJson(sql, False, False))
+            
+            if ds_name is None or ds_name == '':
+                outputs.stdout(content=PLAIN_TEXT("\n".join(", ".join('' if e is None else str(e) for e in row) for row in rs['data'])))
+                outputs.stdout(content=PLAIN_TEXT(str(len(rs['data'])) + ' row(s)'))
+            else:
+                row_ids = rs['prov']
+                
+                ds = vizierdb.datastore.register_dataset(
+                        table_name=view_name,
+                        columns=columns,
+                        row_ids=row_ids,
+                        row_counter=row_count
+                    )
+                print_dataset_schema(outputs, ds_name, ds.columns)
+                outputs.stdout(content=PLAIN_TEXT(str(row_count) + ' row(s)'))
+                vizierdb.set_dataset_identifier(ds_name, ds.identifier)
+                # Propagate potential changes to the dataset mappings
+                propagate_changes(module_id, vizierdb.datasets, context)
+        except Exception as ex:
+            template = "{0}:{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            message = message + ': ' + traceback.format_exc(sys.exc_info())
+            outputs.stderr(content=PLAIN_TEXT(message))
+        # Set the module outputs
+        self.set_output('context', context)
+        self.set_output('command', source)
+        self.set_output('output', outputs)
+        
+
+class ScalaCell(NotCacheable, Module):
+    _input_ports = [
+        ('source', 'basic:String'),
+        ('context', 'basic:Dictionary')
+    ]
+    _output_ports = [
+        ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
+        ('output', 'basic:Dictionary')
+    ]
+
+    def compute(self):
+        # Get Python source code that is execyted in this cell and the global
+        # variables
+        source = urllib.unquote(self.get_input('source'))
+        context = self.get_input('context')
+        # Get module identifier and VizierDB client for current workflow state
+        module_id = self.moduleInfo['moduleId']
+        vizierdb = get_env(module_id, context)
+        # Get Python variables from context and set the current vizier client
+        #variables = context[ctx.VZRENV_VARS]
+        #variables[ctx.VZRENV_VARS_DBCLIENT] = vizierdb
+        outputs = ModuleOutputs()
+        # Redirect standard output and standard error
+        out = sys.stdout
+        err = sys.stderr
+        stream = []
+        sys.stdout = FakeStream('out', stream)
+        sys.stderr = FakeStream('err', stream)
+        # Run the Pyhton code
+        try:
+            evalresp = mimir._mimir.evalScala(source)
+            ostd = evalresp.stdout()
+            oerr = evalresp.stderr()
+            if not ostd == '':
+                outputs.stdout(content=HTML_TEXT(ostd))
+            if not oerr == '':
+                outputs.stderr(content=PLAIN_TEXT(oerr))
+        except Exception as ex:
+            template = "{0}:{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            message = message + ': ' + traceback.format_exc(sys.exc_info())
+            sys.stderr.write(str(message) + '\n')
+        finally:
+            sys.stdout = out
+            sys.stderr = err
+        # Propagate potential changes to the dataset mappings
+        #propagate_changes(module_id, vizierdb.datasets, context)
+        # Set module outputs
+        for tag, text in stream:
+            text = ''.join(text).strip()
+            if tag == 'out':
+                outputs.stdout(content=HTML_TEXT(text))
+            else:
+                outputs.stderr(content=PLAIN_TEXT(text))
+        self.set_output('context', context)
+        self.set_output('command', source)
+        self.set_output('output', outputs)
+
+        
 class PlotCell(NotCacheable, Module):
     """Vistrails module to execute a plot command. Expects a command type (name)
     and a dictionary of arguments that specify the dataset and data series
@@ -517,6 +704,7 @@ class PlotCell(NotCacheable, Module):
         return 'unknown plot command \'' + str(name) + '\''
 
 
+
 class PythonCell(NotCacheable, Module):
     _input_ports = [
         ('source', 'basic:String'),
@@ -551,6 +739,7 @@ class PythonCell(NotCacheable, Module):
         except Exception as ex:
             template = "{0}:{1!r}"
             message = template.format(type(ex).__name__, ex.args)
+            message = message + ': ' + traceback.format_exc(sys.exc_info())
             sys.stderr.write(str(message) + '\n')
         finally:
             sys.stdout = out
@@ -562,7 +751,7 @@ class PythonCell(NotCacheable, Module):
         for tag, text in stream:
             text = ''.join(text).strip()
             if tag == 'out':
-                outputs.stdout(content=PLAIN_TEXT(text))
+                outputs.stdout(content=HTML_TEXT(text))
             else:
                 outputs.stderr(content=PLAIN_TEXT(text))
         self.set_output('context', context)
@@ -673,9 +862,19 @@ class VizualCell(NotCacheable, Module):
                 raise ValueError('dataset \'' + ds_name + '\' exists')
             if not is_valid_name(ds_name):
                 raise ValueError('invalid dataset name \'' + ds_name + '\'')
+            # Get the the load options
+            detect_headers = get_argument(cmd.PARA_LOAD_DH, args)
+            infer_types = get_argument(cmd.PARA_LOAD_TI, args)
+            load_format = get_argument(cmd.PARA_LOAD_FORMAT, args)
+            options = get_argument(cmd.PARA_LOAD_OPTIONS, args)
+            m_opts = []
+            for option in get_argument(cmd.PARA_LOAD_OPTIONS, args):
+                load_opt_key = get_argument(cmd.PARA_LOAD_OPTION_KEY, option)
+                load_opt_val = get_argument(cmd.PARA_LOAD_OPTION_VALUE, option) 
+                m_opts.append({load_opt_key: load_opt_val})
             # Execute VizUAL creat dataset command. Add new dataset to
             # dictionary and add dataset schema and row count to output
-            ds = v_eng.load_dataset(ds_file)
+            ds = v_eng.load_dataset(ds_file,detect_headers,infer_types,load_format,m_opts)
             vizierdb.set_dataset_identifier(ds_name, ds.identifier)
             print_dataset_schema(outputs, ds_name, ds.columns)
             outputs.stdout(content=PLAIN_TEXT(str(ds.row_count) + ' row(s)'))
@@ -777,7 +976,7 @@ class VizualCell(NotCacheable, Module):
             # exception if the specified dataset does not exist.
             ds_name = get_argument(cmd.PARA_DATASET, args).lower()
             c_col = get_argument(cmd.PARA_COLUMN, args, as_int=True)
-            c_row = get_argument(cmd.PARA_ROW, args, as_int=True)
+            c_row = get_argument(cmd.PARA_ROW, args)
             c_val = get_argument(cmd.PARA_VALUE, args)
             ds = vizierdb.get_dataset_identifier(ds_name)
             # Execute update cell command. Replacte existing dataset
@@ -1209,6 +1408,7 @@ def get_env(module_id, context):
                 datasets = dict()
             break
         prev_map = module_map
+    
     # Get file server and datastore directories
     datastore_dir = context[ctx.VZRENV_ENV][ctx.VZRENV_ENV_DATASTORE]
     fileserver_dir = context[ctx.VZRENV_ENV][ctx.VZRENV_ENV_FILESERVER]
@@ -1220,6 +1420,11 @@ def get_env(module_id, context):
         datastore = FileSystemDataStore(datastore_dir)
     elif env_type == config.ENGINEENV_MIMIR:
         datastore = MimirDataStore(datastore_dir)
+        mimir_table_names = dict()
+        for ds_name_o, dataset_id in datasets.items():
+            dataset = datastore.get_dataset(dataset_id)
+            mimir_table_names[ds_name_o] = dataset.table_name
+        mimir._mimir.registerNameMappings(mimir._jvmhelper.to_scala_map(mimir_table_names))
     if context_type == ctx.CONTEXT_VOLATILE:
         datastore = VolatileDataStore(datastore)
     # Create Viual engine depending on environment type
@@ -1279,6 +1484,19 @@ def print_dataset_schema(outputs, name, columns):
             text += ','
         outputs.stdout(content=PLAIN_TEXT(text))
     outputs.stdout(content=PLAIN_TEXT(')'))
+    
+def print_lens_annotations(outputs, annotations):
+    """Add annotation infromation for given lens to cell output.
+
+    Parameters
+    ----------
+    outputs: vizier.workflow.module.ModuleOutputs
+        Cell outputt streams
+    annotations: dict
+        Annotations from first 200 rows of queried lens
+    """
+    outputs.stdout(content=PLAIN_TEXT("Repairs in first 200 rows: " + annotations))
+    #outputs.stdout(content=PLAIN_TEXT(json.dumps(annotations, indent=2, sort_keys=True)))
 
 
 def propagate_changes(module_id, datasets, context):
@@ -1310,4 +1528,4 @@ def propagate_changes(module_id, datasets, context):
 
 
 # Package modules
-_modules = [MimirLens, PythonCell, VizualCell]
+_modules = [MimirLens, SQLCell, ScalaCell, PythonCell, VizualCell]

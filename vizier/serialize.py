@@ -36,7 +36,7 @@ PROP_FS_MAXFILESIZE = 'fileserver:maxFileSize'
 """Module output content types."""
 O_CHARTVIEW = 'chart/view'
 O_PLAINTEXT = 'text/plain'
-
+O_HTMLTEXT = 'text/html'
 
 def BRANCH_DESCRIPTOR(viztrail, branch, urls):
     """Dictionary representaion for a branch descriptor.
@@ -746,6 +746,21 @@ def PLAIN_TEXT(text):
     dict
     """
     return {'type': O_PLAINTEXT, 'data': text}
+
+
+def HTML_TEXT(text):
+    """Create a html text output object.
+
+    Parameters
+    ----------
+    text: string
+        Html output text
+
+    Returns
+    -------
+    dict
+    """
+    return {'type': O_HTMLTEXT, 'data': text}
 
 
 def PROJECT_DESCRIPTOR(viztrail, urls):

@@ -170,7 +170,7 @@ class DatasetHandle(object):
         """
         return get_column_index(self.columns, column_id)
 
-    def fetch_rows(self, offset=0, limit=-1):
+    def fetch_rows(self, offset=0, limit=-1, rowid=None):
         """Get list of dataset rows. The offset and limit parameters are
         intended for pagination.
 
@@ -191,7 +191,7 @@ class DatasetHandle(object):
         # Collect rows in result list. Skip first rows if offset is greater than
         # zero
         rows = list()
-        with self.reader(offset=offset, limit=limit) as reader:
+        with self.reader(offset=offset, limit=limit, rowid=rowid) as reader:
             for row in reader:
                 rows.append(row)
         return rows
@@ -215,7 +215,7 @@ class DatasetHandle(object):
         raise NotImplementedError
 
     @abstractmethod
-    def reader(self, offset=0, limit=-1):
+    def reader(self, offset=0, limit=-1, rowid=None):
         """Get reader for the dataset to access the dataset rows. The optional
         offset amd limit parameters are used to retrieve only a subset of
         rows.
@@ -432,7 +432,7 @@ class DataStore(VizierSystemComponent):
         raise NotImplementedError
 
     @abstractmethod
-    def load_dataset(self, f_handle):
+    def load_dataset(self, f_handle, detect_headers=True, infer_types=True, load_format='csv', options=[]):
         """Create a new dataset from a given file.
 
         Raises ValueError if the given file could not be loaded as a dataset.
