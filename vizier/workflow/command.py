@@ -677,7 +677,7 @@ VIZUAL_COMMANDS = {
                 PARA_LOAD_FORMAT,
                 name='Load Format',
                 data_type=DT_STRING,
-                values=[{'value':'csv', 'isDefault':True}, 'json', {'key':'com.databricks.spark.xml', 'value':'xml'}, 'jdbc', 'text', 'parquet', 'orc'],
+                values=[{'value':'csv', 'isDefault':True}, 'json', {'key':'com.databricks.spark.xml', 'value':'xml'}, {'key':'com.crealytics.spark.excel', 'value':'excel'}, 'jdbc', 'text', 'parquet', 'orc'],
                 index=2,
                 required=True
             ),
