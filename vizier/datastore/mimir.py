@@ -774,7 +774,7 @@ class MimirDataStore(DataStore):
         if 'url' in f_handle.properties.keys() and not f_handle.properties['url'] is None:
             abspath = f_handle.properties['url']
         # Load dataset and delete temp file
-        init_load_name = mimir._mimir.loadCSV(abspath, load_format, infer_types, detect_headers, mimir._jvmhelper.to_scala_seq(options))
+        init_load_name = mimir._mimir.loadDataSource(abspath, load_format, infer_types, detect_headers, mimir._jvmhelper.to_scala_seq(options))
         # Retrieve schema information for the created dataset
         sql = 'SELECT * FROM ' + init_load_name
         mimirSchema = mimir._mimir.getSchema(sql)
@@ -820,6 +820,49 @@ class MimirDataStore(DataStore):
             row_counter=row_count
         )
 
+    def unload_dataset(self, dataset_name, format='csv', options=[], filename=""):
+        """Export a dataset from a given name.
+
+        Raises ValueError if the given dataset could not be exported.
+
+        Parameters
+        ----------
+        dataset_name: string
+            Name of the dataset to unload
+            
+        format: string
+            Format for output (csv, json, ect.)
+            
+        options: dict
+            Options for data unload
+            
+        filename: string
+            The output filename - may be empty if outputting to a database
+
+        Returns
+        -------
+        vizier.filestore.base.FileHandle
+        """
+        abspath = ""
+        if not filename == "":
+            abspath = os.path.abspath((r'%s' % os.getcwd().replace('\\','/') ) + '/' + filename)
+        mimir._mimir.unloadDataSource(dataset_name, abspath, format, mimir._jvmhelper.to_scala_seq(options))
+        
+        name = os.path.basename(abspath).lower()
+        # Create a new unique identifier for the file.
+        identifier = os.path.basename(abspath)
+        created_at = get_current_time()
+        output_file = abspath
+        # Add file to file index
+        f_handle = FileHandle(
+            identifier,
+            name,
+            output_file,
+            created_at,
+            properties=dict()
+        )
+        return f_handle
+        
     def register_dataset(
         self, table_name, columns, row_ids, column_counter=None,
         row_counter=None, annotations=None, update_rows=False

@@ -288,6 +288,7 @@ VIZUAL_DROP_DS = 'DROP_DATASET'
 VIZUAL_INS_COL = 'INSERT_COLUMN'
 VIZUAL_INS_ROW = 'INSERT_ROW'
 VIZUAL_LOAD = 'LOAD'
+VIZUAL_UNLOAD = 'UNLOAD'
 VIZUAL_MOV_COL = 'MOVE_COLUMN'
 VIZUAL_MOV_ROW = 'MOVE_ROW'
 VIZUAL_PROJECTION = 'PROJECTION'
@@ -698,6 +699,56 @@ VIZUAL_COMMANDS = {
             PARA_LOAD_OPTIONS: parameter_specification(
                 PARA_LOAD_OPTIONS,
                 name='Load Options',
+                data_type=DT_GROUP,
+                index=5,
+                required=False
+            ),
+            PARA_LOAD_OPTION_KEY: parameter_specification(
+                PARA_LOAD_OPTION_KEY,
+                name='Option Key',
+                data_type=DT_STRING,
+                index=6,
+                #values=['delimeter', 'varchar'],
+                parent=PARA_LOAD_OPTIONS,
+                required=False
+            ),
+            PARA_LOAD_OPTION_VALUE: parameter_specification(
+                PARA_LOAD_OPTION_VALUE,
+                name='Option Value',
+                data_type=DT_STRING,
+                index=7,
+                parent=PARA_LOAD_OPTIONS,
+                required=False
+            ),               
+        }
+    },
+    VIZUAL_UNLOAD: {
+        MODULE_NAME: 'Unload Dataset',
+        MODULE_GROUP: 'dataset',
+        MODULE_ARGUMENTS: {
+            PARA_NAME: parameter_specification(
+                PARA_NAME,
+                name='Dataset Name',
+                data_type=DT_STRING,
+                index=0
+            ),
+            PARA_FILE: parameter_specification(
+                PARA_FILE,
+                name='Output File',
+                data_type=DT_FILE_ID,
+                index=1
+            ),
+            PARA_LOAD_FORMAT: parameter_specification(
+                PARA_LOAD_FORMAT,
+                name='Save Format',
+                data_type=DT_STRING,
+                values=[{'value':'csv', 'isDefault':True}, 'json', {'key':'com.databricks.spark.xml', 'value':'xml'}, {'key':'com.crealytics.spark.excel', 'value':'excel'}, 'jdbc', 'text', 'parquet', 'orc'],
+                index=2,
+                required=True
+            ),
+            PARA_LOAD_OPTIONS: parameter_specification(
+                PARA_LOAD_OPTIONS,
+                name='Unload Options',
                 data_type=DT_GROUP,
                 index=5,
                 required=False

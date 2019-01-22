@@ -878,6 +878,32 @@ class VizualCell(NotCacheable, Module):
             vizierdb.set_dataset_identifier(ds_name, ds.identifier)
             print_dataset_schema(outputs, ds_name, ds.columns)
             outputs.stdout(content=PLAIN_TEXT(str(ds.row_count) + ' row(s)'))
+        elif name == cmd.VIZUAL_UNLOAD:
+            # Get the name of the file and dataset name from command
+            # arguments. Raise exception if a dataset with the specified
+            # name already exsists in the project or if the given name is
+            # not a valid dataset name
+            output_file = get_argument(cmd.PARA_FILE, args)[cmd.PARA_FILEID]
+            ds_name = get_argument(cmd.PARA_NAME, args).lower()
+            if not vizierdb.has_dataset_identifier(ds_name):
+                raise ValueError('dataset \'' + ds_name + '\' does not exists')
+            if not is_valid_name(ds_name):
+                raise ValueError('invalid dataset name \'' + ds_name + '\'')
+            # Get the the load options
+            unload_format = get_argument(cmd.PARA_LOAD_FORMAT, args)
+            options = get_argument(cmd.PARA_LOAD_OPTIONS, args)
+            m_opts = []
+            for option in get_argument(cmd.PARA_LOAD_OPTIONS, args):
+                load_opt_key = get_argument(cmd.PARA_LOAD_OPTION_KEY, option)
+                load_opt_val = get_argument(cmd.PARA_LOAD_OPTION_VALUE, option) 
+                m_opts.append({load_opt_key: load_opt_val})
+            # Execute VizUAL creat dataset command. Add new dataset to
+            # dictionary and add dataset schema and row count to output
+            if not output_file == "":
+                output_file = api.fileserver.get_filepath(output_file)
+            of = v_eng.unload_dataset(ds_name,unload_format,m_opts,output_file)
+            if not output_file == "":
+                outputs.stdout(content=HTML_TEXT("<a href=\"/files/"+str(of.identifier)+"/download\">Download</a>"))
         elif name == cmd.VIZUAL_MOV_COL:
             # Get dataset name, column name, and target position. Raise
             # exception if the specified dataset does not exist or the

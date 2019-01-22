@@ -447,6 +447,32 @@ class DataStore(VizierSystemComponent):
         vizier.datastore.base.DatasetHandle
         """
         raise NotImplementedError
+    
+    @abstractmethod
+    def unload_dataset(self, dataset_name, format='csv', options=[], filename=""):
+        """Export a dataset from a given name.
+
+        Raises ValueError if the given dataset could not be exported.
+
+        Parameters
+        ----------
+        dataset_name: string
+            Name of the dataset to unload
+            
+        format: string
+            Format for output (csv, json, ect.)
+            
+        options: dict
+            Options for data unload
+            
+        filename: string
+            The output filename - may be empty if outputting to a database
+
+        Returns
+        -------
+        vizier.filestore.base.FileHandle
+        """
+        raise NotImplementedError
 
     def get_dataset_chart(self, identifier, view):
         """Query a given dataset by selecting the columns in the given list.

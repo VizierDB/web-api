@@ -197,6 +197,35 @@ class VizualEngine(VizierSystemComponent):
         vizier.datastore.base.DatasetHandle
         """
         raise NotImplementedError
+    
+    @abstractmethod
+    def unload_dataset(self, dataset_name, format, options, filename):
+        """Export (or unload) a dataset to a given file. The format, 
+        options, and filename are all implementation dependent.
+
+        Reaise ValueError if (1) the dataset or format references
+        a non-existing resource.
+
+        Parameters
+        ----------
+        dataset_name: string
+            Name of the dataset to unload
+            
+        format: string
+            Format for output (csv, json, ect.)
+            
+        options: dict
+            Options for data unload
+            
+        filename:
+            The output filename - may be empty if outputting to a database
+
+        Returns
+        -------
+        string
+            Identifier of the file on the file server to which the dataset output is saved
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def move_column(self, identifier, column, position):
@@ -604,6 +633,35 @@ class DefaultVizualEngine(VizualEngine):
         # Create dataset and return handle
         return self.datastore.load_dataset(f_handle, detect_headers, infer_types, load_format, options)
 
+    def unload_dataset(self, dataset_name, format, options, filename):
+        """Export (or unload) a dataset to a given file. The format, 
+        options, and filename are all implementation dependent.
+
+        Reaise ValueError if (1) the dataset or format references
+        a non-existing resource.
+
+        Parameters
+        ----------
+        dataset_name: string
+            Name of the dataset to unload
+            
+        format: string
+            Format for output (csv, json, ect.)
+            
+        options: dict
+            Options for data unload
+            
+        filename:
+            The output filename - may be empty if outputting to a database
+
+        Returns
+        -------
+        vizier.filestore.base.FileHandle
+            Identifier of the file on the file server to which the dataset output is saved
+        """
+        
+        return self.datastore.unload_dataset(f_handle, detect_headers, infer_types, load_format, options)
+        
     def move_column(self, identifier, column, position):
         """Move a column within a given dataset.
 
