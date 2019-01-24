@@ -516,7 +516,8 @@ PLOT_COMMANDS = {
                 PARA_NAME,
                 name='Chart Name',
                 data_type=DT_STRING,
-                index=1
+                index=1,
+                required=False
             ),
             PARA_SERIES: parameter_specification(
                 PARA_SERIES,
@@ -666,7 +667,8 @@ VIZUAL_COMMANDS = {
                 PARA_NAME,
                 name='Dataset Name',
                 data_type=DT_STRING,
-                index=0
+                index=0,
+                required=False
             ),
             PARA_FILE: parameter_specification(
                 PARA_FILE,
