@@ -728,12 +728,7 @@ VIZUAL_COMMANDS = {
         MODULE_NAME: 'Unload Dataset',
         MODULE_GROUP: 'dataset',
         MODULE_ARGUMENTS: {
-            PARA_NAME: parameter_specification(
-                PARA_NAME,
-                name='Dataset Name',
-                data_type=DT_STRING,
-                index=0
-            ),
+            PARA_DATASET: para_dataset(0),
             PARA_FILE: parameter_specification(
                 PARA_FILE,
                 name='Output File',

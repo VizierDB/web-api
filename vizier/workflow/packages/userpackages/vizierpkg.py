@@ -890,7 +890,7 @@ class VizualCell(NotCacheable, Module):
             # name already exsists in the project or if the given name is
             # not a valid dataset name
             output_file = get_argument(cmd.PARA_FILE, args)
-            ds_name = get_argument(cmd.PARA_NAME, args).lower()
+            ds_name = get_argument(cmd.PARA_DATASET, args).lower()
             if not vizierdb.has_dataset_identifier(ds_name):
                 raise ValueError('dataset \'' + ds_name + '\' does not exists')
             if not is_valid_name(ds_name):
