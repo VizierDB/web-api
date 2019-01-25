@@ -39,6 +39,7 @@ from vizier.datastore.base import DatasetHandle, DatasetColumn, DatasetRow
 from vizier.datastore.base import DataStore, encode_values, max_column_id
 from vizier.datastore.metadata import Annotation, DatasetMetadata, ObjectMetadataSet
 from vizier.datastore.reader import DatasetReader
+from vizier.core.timestamp import get_current_time
 
 import vizier.config as config
 

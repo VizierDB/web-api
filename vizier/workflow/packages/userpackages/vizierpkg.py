@@ -891,10 +891,16 @@ class VizualCell(NotCacheable, Module):
             # not a valid dataset name
             output_file = get_argument(cmd.PARA_FILE, args)
             ds_name = get_argument(cmd.PARA_DATASET, args).lower()
-            if not vizierdb.has_dataset_identifier(ds_name):
-                raise ValueError('dataset \'' + ds_name + '\' does not exists')
             if not is_valid_name(ds_name):
                 raise ValueError('invalid dataset name \'' + ds_name + '\'')
+            if not vizierdb.has_dataset_identifier(ds_name):
+                raise ValueError('dataset \'' + ds_name + '\' does not exists')
+            dataset_id = vizierdb.get_dataset_identifier(ds_name)
+            dataset = vizierdb.datastore.get_dataset(dataset_id)
+            if dataset is None:
+                raise ValueError('unknown dataset \'' + ds_name + '\'')
+            mimir_table_name = dataset.table_name
+            
             # Get the the load options
             unload_format = get_argument(cmd.PARA_LOAD_FORMAT, args)
             options = get_argument(cmd.PARA_LOAD_OPTIONS, args)
@@ -906,8 +912,8 @@ class VizualCell(NotCacheable, Module):
             # Execute VizUAL creat dataset command. Add new dataset to
             # dictionary and add dataset schema and row count to output
             if not output_file == "":
-                output_file = api.fileserver.get_filepath(output_file)
-            of = v_eng.unload_dataset(ds_name,unload_format,m_opts,output_file)
+                output_file = vizierdb.vizual.fileserver.get_filepath(output_file)
+            of = v_eng.unload_dataset(mimir_table_name,unload_format,m_opts,output_file)
             if not output_file == "":
                 outputs.stdout(content=HTML_TEXT("<a href=\"/files/"+str(of.identifier)+"/download\">Download</a>"))
         elif name == cmd.VIZUAL_MOV_COL:
@@ -1099,6 +1105,34 @@ class VizualCell(NotCacheable, Module):
                 'FROM FILE',
                 f_handle.source if not f_handle is None else '?'
             ])
+        elif name == cmd.VIZUAL_UNLOAD:
+            # LOAD DATASET <dataset> FROM FILE <name>
+            output_file = get_argument(cmd.PARA_FILE, args, default_value='')
+            file_output_str = ''
+            if not output_file == '':
+                f_handle = vizierdb.vizual.fileserver.get_file(output_file)
+                file_output_str = 'TO FILE ' + f_handle.source if not f_handle is None else '?'
+            ds_name = get_argument(cmd.PARA_NAME, args, default_value='?')
+            unload_options = list()
+            for unload_opt in get_argument(cmd.PARA_LOAD_OPTIONS, args, default_value=list()):
+                opt_key = get_argument(
+                    cmd.PARA_LOAD_OPTION_KEY, unload_opt, default_value=''
+                )
+                opt_value = get_argument(
+                    cmd.PARA_LOAD_OPTION_VALUE, unload_opt, default_value=''
+                )
+                if not opt_key == '':
+                    unload_option = opt_key + ' -> ' + opt_value
+                    unload_options.append(unload_option)
+            cmd_text = ' '.join([
+                'UNLOAD DATASET',
+                format_str(ds_name),
+                file_output_str
+            ])
+            if len(unload_options) > 0:
+                cmd_text += ' WITH OPTIONS ' + ', '.join(unload_options)
+            
+            return cmd_text
         elif name == cmd.VIZUAL_MOV_COL:
             # MOVE COLUMN <name> IN <dataset> TO POSITION <index>
             ds_name = get_argument(cmd.PARA_DATASET, args, raise_error=False)
