@@ -660,7 +660,7 @@ class DefaultVizualEngine(VizualEngine):
             Identifier of the file on the file server to which the dataset output is saved
         """
         
-        return self.datastore.unload_dataset(f_handle, detect_headers, infer_types, load_format, options)
+        return self.datastore.unload_dataset(dataset_name, format, options, filename)
         
     def move_column(self, identifier, column, position):
         """Move a column within a given dataset.

@@ -74,6 +74,9 @@ DEFAULT_ENV_DESC = 'Curation workflow with basic functionality'
 """List of default packages."""
 DEFAULT_PACKAGES = [cmd.PACKAGE_VIZUAL, cmd.PACKAGE_PYTHON, cmd.PACKAGE_PLOT]
 
+"""Some other defaults""" 
+DEFAULT_ROW_LIMIT = -1 
+DEFAULT_MAX_ROW_LIMIT = 25 
 
 class AppConfig(object):
     """Application configuration object. This object contains all configuration
@@ -328,8 +331,8 @@ class APIDefaults(object):
     """Collection of default values for API."""
     def __init__(self):
         """Initialize default values."""
-        self.row_limit = -1
-        self.max_row_limit = 25
+        self.row_limit = DEFAULT_ROW_LIMIT 
+        self.max_row_limit = DEFAULT_MAX_ROW_LIMIT 
 
     def from_dict(self, doc):
         """Initialize from dictionary."""

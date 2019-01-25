@@ -20,6 +20,7 @@ import json
 import sys
 import urllib
 import traceback
+import os 
 
 from StringIO import StringIO
 
@@ -625,7 +626,9 @@ class PlotCell(NotCacheable, Module):
             dataset = vizierdb.datastore.get_dataset(dataset_id)
             # Get user-provided name for the new chart and verify that it is a
             # valid name
-            chart_name = get_argument(key=cmd.PARA_NAME, args=args, default_value=ds_name+' Plot')
+            chart_name = get_argument(cmd.PARA_NAME, args)
+            if chart_name == '':
+                chart_name = ds_name+' Plot'
             if not is_valid_name(chart_name):
                 raise ValueError('invalid chart name \'' + chart_name + '\'')
             chart_type = get_argument(cmd.PARA_CHART_TYPE, args[cmd.PARA_CHART])
@@ -662,7 +665,7 @@ class PlotCell(NotCacheable, Module):
                     view=view,
                     series_spec=data_series,
                     dataset=dataset,
-                    default_label=dataset.columns[data_series.series_column]#'Series ' + str(len(view.data) + 1)
+                    default_label=dataset.columns[data_series['series_column']].name#'Series ' + str(len(view.data) + 1)
                 )
             # Execute the query and get the result
             rows = vizierdb.datastore.get_dataset_chart(dataset_id, view)
@@ -857,7 +860,10 @@ class VizualCell(NotCacheable, Module):
             # name already exsists in the project or if the given name is
             # not a valid dataset name
             ds_file = get_argument(cmd.PARA_FILE, args)[cmd.PARA_FILEID]
-            ds_name = get_argument(key=cmd.PARA_NAME, args=args, default_value=ds_file.base_name()).lower()
+            ds_file_name = get_argument(cmd.PARA_FILE, args)['filename']
+            ds_name = get_argument(key=cmd.PARA_NAME, args=args).lower()
+            if ds_name == '':
+                ds_name = os.path.splitext(os.path.basename(ds_file_name))[0]
             if vizierdb.has_dataset_identifier(ds_name):
                 raise ValueError('dataset \'' + ds_name + '\' exists')
             if not is_valid_name(ds_name):
@@ -883,7 +889,7 @@ class VizualCell(NotCacheable, Module):
             # arguments. Raise exception if a dataset with the specified
             # name already exsists in the project or if the given name is
             # not a valid dataset name
-            output_file = get_argument(cmd.PARA_FILE, args)[cmd.PARA_FILEID]
+            output_file = get_argument(cmd.PARA_FILE, args)
             ds_name = get_argument(cmd.PARA_NAME, args).lower()
             if not vizierdb.has_dataset_identifier(ds_name):
                 raise ValueError('dataset \'' + ds_name + '\' does not exists')

@@ -737,7 +737,7 @@ VIZUAL_COMMANDS = {
             PARA_FILE: parameter_specification(
                 PARA_FILE,
                 name='Output File',
-                data_type=DT_FILE_ID,
+                data_type=DT_STRING,
                 index=1
             ),
             PARA_LOAD_FORMAT: parameter_specification(
