@@ -845,14 +845,17 @@ class MimirDataStore(DataStore):
         -------
         vizier.filestore.base.FileHandle
         """
+        name = os.path.basename(filename).lower()
+        # Create a new unique identifier for the file.
+        identifier = get_unique_identifier()
+        upload_file = api.fileserver.get_filepath(identifier)
+        
         abspath = ""
         if not filename == "":
-            abspath = os.path.abspath((r'%s' % os.getcwd().replace('\\','/') ) + '/' + filename)
+            abspath = os.path.abspath((r'%s' % os.getcwd().replace('\\','/') ) + '/' + identifier)
         mimir._mimir.unloadDataSource(dataset_name, abspath, format, mimir._jvmhelper.to_scala_seq(options))
         
-        name = os.path.basename(abspath).lower()
-        # Create a new unique identifier for the file.
-        identifier = os.path.basename(abspath)
+        
         created_at = get_current_time()
         output_file = abspath
         # Add file to file index
