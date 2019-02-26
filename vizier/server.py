@@ -96,9 +96,11 @@ if len(datastores) > 1:
 else:
     datastore = datastores[0]
 
+viztrails = FileSystemViztrailRepository(config.viztrails.directory, config.envs)
+
 # Initialize the Web Service API.
 api = VizierWebService(
-    FileSystemViztrailRepository(config.viztrails.directory, config.envs),
+    viztrails,
     datastore,
     fileserver,
     config
@@ -468,6 +470,13 @@ def list_projects():
     managed by the API.
     """
     return jsonify(api.list_projects())
+
+@app.route('/projects/reload-all')
+def reload_projects():
+    """Get a list of descriptors for all projects that are currently being
+    managed by the API and executes all of the load data cells.
+    """
+    return jsonify(api.reload_projects())
 
 
 @app.route('/projects/<string:project_id>/modulespecs')

@@ -26,9 +26,11 @@ noretbook metadata and the VizTrails module.
 from vizier.hateoas import UrlFactory
 from vizier.plot.view import ChartViewHandle
 from vizier.workflow.base import DEFAULT_BRANCH
+from vizier.workflow.module import ModuleSpecification
 
 import vizier.serialize as serialize
 
+import traceback
 
 class VizierWebService(object):
     """The Web Service API implements the methods that correspond to the Http
@@ -446,6 +448,42 @@ class VizierWebService(object):
         dict
         """
         return serialize.PROJECT_LISTING(self.viztrails.list_viztrails(), self.urls)
+    
+    def reload_projects(self):
+        """Returns a list of descriptors for all projects that are currently
+        contained in the project repository.
+
+        Returns
+        ------
+        dict
+        """
+        projects = self.viztrails.list_viztrails()
+        load_commands = []
+        for project in projects:
+            branches = self.list_branches(project.identifier)
+            for branch in branches['branches']:
+                wf = self.get_workflow_modules(project.identifier, branch['id'])
+                for module in wf['modules']:
+                    command = module['command']
+                    if command['id'] == "LOAD":
+                        arguments = command['arguments']
+                        newargs = {}
+                        for argument in arguments:
+                            newargs[argument['name']] = argument['value']
+                        newcmd = {'id':command['id'],'type':command['type'],'arguments':newargs}
+                        load_command = {'project':project.identifier,'branch':branch['id'], 'workflow':wf['version'],'module':module['id'],'command':newcmd}
+                        load_commands.append(load_command)
+                        
+        failed_reloads = []
+        successful_reloads = []
+        for reload in load_commands:
+            try:
+                cmd = reload['command']
+                successful_reloads.append(self.replace_module(reload['project'], reload['branch'], reload['workflow'], reload['module'], ModuleSpecification(cmd['type'], cmd['id'], cmd['arguments'])))
+            except:
+                reload['error'] = traceback.format_exc()
+                failed_reloads.append(reload)
+        return {'failed_reloads':failed_reloads, 'successful_reloads':successful_reloads}
 
     def update_project_properties(self, project_id, properties):
         """Update the set of user-defined properties for a project with given

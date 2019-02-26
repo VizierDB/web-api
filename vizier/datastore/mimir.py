@@ -40,7 +40,7 @@ from vizier.datastore.base import DataStore, encode_values, max_column_id
 from vizier.datastore.metadata import Annotation, DatasetMetadata, ObjectMetadataSet
 from vizier.datastore.reader import DatasetReader
 from vizier.core.timestamp import get_current_time
-from vizier.filestore.base import FileHandle 
+
 
 import vizier.config as config
 
@@ -848,7 +848,6 @@ class MimirDataStore(DataStore):
         name = os.path.basename(filename).lower()
         # Create a new unique identifier for the file.
         identifier = get_unique_identifier()
-        upload_file = api.fileserver.get_filepath(identifier)
         
         abspath = ""
         if not filename == "":
