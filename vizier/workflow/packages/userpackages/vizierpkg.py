@@ -168,8 +168,8 @@ class MimirLens(Module):
                 if col_constraint == '':
                     col_constraint = None
                 if not col_constraint is None:
-                    param = param + ' ' + str(col_constraint).replace("'", "''").replace("OR", ") OR (")
-                param = '\'(' + param + ')\''
+                    param = param + ' ' + str(col_constraint).replace("OR", ") OR (")
+                param = '(' + param + ')'
                 params.append(param)
         
         elif lens == cmd.MIMIR_PICKER:
