@@ -35,6 +35,7 @@ DT_INT = 'int'
 DT_PYTHON_CODE = 'pyCode'
 DT_SQL_CODE = 'sqlCode'
 DT_SCALA_CODE = 'scalaCode'
+DT_MARKDOWN_CODE = 'markdownCode'
 DT_ROW_INDEX = 'rowidx'
 DT_STRING = 'string'
 
@@ -278,6 +279,12 @@ SCALA_SOURCE = 'source'
 """Identifier for Sql commands."""
 SCALA_CODE = 'CODE'
 
+"""Components for markdown requests."""
+MARKDOWN_SOURCE = 'source'
+
+"""Identifier for markdown commands."""
+MARKDOWN_CODE = 'CODE'
+
 """Identifier for sysyem commands."""
 SYS_CREATE_BRANCH = 'CREATE_BRANCH'
 
@@ -500,6 +507,21 @@ SCALA_COMMANDS = {
                 SCALA_SOURCE,
                 name='Scala Code',
                 data_type=DT_SCALA_CODE,
+                index=0
+            )
+        }
+    }
+}
+
+"""Markdown commands."""
+MARKDOWN_COMMANDS = {
+    MARKDOWN_CODE: {
+        MODULE_NAME: 'Markdown Twig',
+        MODULE_ARGUMENTS: {
+            MARKDOWN_SOURCE: parameter_specification(
+                MARKDOWN_SOURCE,
+                name='Markdown Code',
+                data_type=DT_MARKDOWN_CODE,
                 index=0
             )
         }
@@ -901,6 +923,7 @@ AVAILABLE_PACKAGES = {
     PACKAGE_MIMIR: MIMIR_LENSES,
     PACKAGE_SQL: SQL_COMMANDS,
     PACKAGE_SCALA: SCALA_COMMANDS,
+    PACKAGE_MARKDOWN: MARKDOWN_COMMANDS,
     PACKAGE_PLOT: PLOT_COMMANDS,
     PACKAGE_PYTHON: PYTHON_COMMANDS,
     PACKAGE_VIZUAL: VIZUAL_COMMANDS

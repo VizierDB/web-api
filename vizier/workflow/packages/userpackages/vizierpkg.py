@@ -37,7 +37,7 @@ from vizier.datastore.mimir import MimirDatasetColumn
 from vizier.datastore.mimir import MimirDataStore, create_missing_key_view
 from vizier.filestore.base import DefaultFileServer
 from vizier.plot.view import ChartViewHandle
-from vizier.serialize import CHART_VIEW, PLAIN_TEXT, HTML_TEXT
+from vizier.serialize import CHART_VIEW, PLAIN_TEXT, HTML_TEXT, MARKDOWN_TEXT
 from vizier.workflow.context import VizierDBClient
 from vizier.workflow.module import ModuleOutputs
 from vizier.workflow.vizual.base import DefaultVizualEngine
@@ -583,6 +583,29 @@ class ScalaCell(NotCacheable, Module):
         self.set_output('command', source)
         self.set_output('output', outputs)
 
+class MarkdownCell(NotCacheable, Module):
+    _input_ports = [
+        ('source', 'basic:String'),
+        ('context', 'basic:Dictionary')
+    ]
+    _output_ports = [
+        ('context', 'basic:Dictionary'),
+        ('command', 'basic:String'),
+        ('output', 'basic:Dictionary')
+    ]
+
+    def compute(self):
+        # Get Markdown source code 
+        source = urllib.unquote(self.get_input('source'))
+        context = self.get_input('context')
+        
+        #TODO: we should validate the markdown here
+        outputs = ModuleOutputs()
+        outputs.stdout(content=MARKDOWN_TEXT(source))
+        
+        self.set_output('context', context)
+        self.set_output('command', source)
+        self.set_output('output', outputs)
         
 class PlotCell(NotCacheable, Module):
     """Vistrails module to execute a plot command. Expects a command type (name)
@@ -1561,7 +1584,7 @@ def print_lens_annotations(outputs, annotations):
     annotations: dict
         Annotations from first 200 rows of queried lens
     """
-    outputs.stdout(content=PLAIN_TEXT("Repairs in first 200 rows: " + annotations))
+    outputs.stdout(content=PLAIN_TEXT("Repairs in first 200 rows: " + str(len(annotations))))
     #outputs.stdout(content=PLAIN_TEXT(json.dumps(annotations, indent=2, sort_keys=True)))
 
 
@@ -1594,4 +1617,4 @@ def propagate_changes(module_id, datasets, context):
 
 
 # Package modules
-_modules = [MimirLens, SQLCell, ScalaCell, PythonCell, VizualCell]
+_modules = [MimirLens, SQLCell, ScalaCell, MarkdownCell, PythonCell, VizualCell]

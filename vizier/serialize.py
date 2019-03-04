@@ -37,6 +37,7 @@ PROP_FS_MAXFILESIZE = 'fileserver:maxFileSize'
 O_CHARTVIEW = 'chart/view'
 O_PLAINTEXT = 'text/plain'
 O_HTMLTEXT = 'text/html'
+O_MARKDOWNTEXT = 'text/markdown'
 
 def BRANCH_DESCRIPTOR(viztrail, branch, urls):
     """Dictionary representaion for a branch descriptor.
@@ -761,6 +762,21 @@ def HTML_TEXT(text):
     dict
     """
     return {'type': O_HTMLTEXT, 'data': text}
+
+
+def MARKDOWN_TEXT(text):
+    """Create a markdown text output object.
+
+    Parameters
+    ----------
+    text: string
+        markdown output text
+
+    Returns
+    -------
+    dict
+    """
+    return {'type': O_MARKDOWNTEXT, 'data': text}
 
 
 def PROJECT_DESCRIPTOR(viztrail, urls):
