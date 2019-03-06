@@ -17,7 +17,7 @@ envs:
       default: true
       datastore:
           directory: '../.vizierdb/datastore/mimir'
-      packages: ['vizual', 'python', 'plot', 'mimir', 'sql', 'scala']
+      packages: ['vizual', 'python', 'plot', 'mimir', 'sql', 'scala', 'markdown']
 viztrails:
     directory: '../.vizierdb/viztrails'
 fileserver:

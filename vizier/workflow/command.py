@@ -51,6 +51,7 @@ DATA_TYPES = [
     DT_PYTHON_CODE,
     DT_SQL_CODE,
     DT_SCALA_CODE,
+    DT_MARKDOWN_CODE,
     DT_ROW_INDEX,
     DT_STRING
 ]
@@ -187,7 +188,7 @@ def para_row(index):
 
 def parameter_specification(
         identifier, name=None, data_type=None, index=0, label=None, required=True,
-        values=None, parent=None, hidden=False
+        values=None, parent=None, hidden=False, value=None
     ):
     """Create a dictionary that contains a module parameter specification.
 
@@ -230,6 +231,8 @@ def parameter_specification(
         para['values'] = values
     if not parent is None:
         para['parent'] = parent
+    if not value is None:
+        para['value'] = value
     return para
 
 
@@ -239,6 +242,7 @@ def parameter_specification(
 PACKAGE_MIMIR = 'mimir'
 PACKAGE_SQL = 'sql'
 PACKAGE_SCALA = 'scala'
+PACKAGE_MARKDOWN = 'markdown'
 PACKAGE_PLOT = 'plot'
 PACKAGE_PYTHON = 'python'
 PACKAGE_SYS = '_sys'
@@ -711,6 +715,7 @@ VIZUAL_COMMANDS = {
                 name='Infer Types',
                 data_type=DT_BOOL,
                 index=3,
+                value=True,
                 required=False
             ),
             PARA_LOAD_DH: parameter_specification(
@@ -718,6 +723,7 @@ VIZUAL_COMMANDS = {
                 name='Detect Headers',
                 data_type=DT_BOOL,
                 index=4,
+                value=True,
                 required=False
             ),
             PARA_LOAD_OPTIONS: parameter_specification(
