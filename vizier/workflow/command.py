@@ -94,6 +94,8 @@ PARA_LOAD_OPTIONS = 'loadOptions'
 PARA_LOAD_FORMAT = 'loadFormat'
 PARA_LOAD_TI = 'loadInferTypes'
 PARA_LOAD_DH = 'loadDetectHeaders'
+PARA_LOAD_DSE = 'loadDataSourceErrors'
+PARA_DSE_MODEL_NAME = 'dseModel'
 # Concatenation of parameter kets
 PARA_COLUMNS_COLUMN = PARA_COLUMNS + '_' + PARA_COLUMN
 PARA_COLUMNS_ORDER = PARA_COLUMNS + '_' + PARA_ORDER
@@ -264,6 +266,7 @@ MIMIR_MISSING_VALUE = 'MISSING_VALUE'
 MIMIR_PICKER ='PICKER'
 MIMIR_SCHEMA_MATCHING ='SCHEMA_MATCHING'
 MIMIR_TYPE_INFERENCE ='TYPE_INFERENCE'
+MIMIR_SHAPE_DETECTOR ='SHAPE_DETECTOR'
 
 """Components for Python requests."""
 PYTHON_SOURCE = 'source'
@@ -476,6 +479,19 @@ MIMIR_LENSES = {
                 index=1
             ),
             PARA_MAKE_CERTAIN: para_make_input_certain(2)
+        }
+    },
+    MIMIR_SHAPE_DETECTOR: {
+        MODULE_NAME: 'Shape Detection Adaptive Schema',
+        MODULE_ARGUMENTS: {
+            PARA_DATASET: para_dataset(0),
+            PARA_DSE_MODEL_NAME: parameter_specification(
+                PARA_DSE_MODEL_NAME,
+                name='Shape Detect Warning Model',
+                data_type=DT_STRING,
+                index=1,
+                required=False
+            )
         }
     }
 }
@@ -726,18 +742,25 @@ VIZUAL_COMMANDS = {
                 value=True,
                 required=False
             ),
+            PARA_LOAD_DSE: parameter_specification(
+                PARA_LOAD_DSE,
+                name='Data Source Error Annotations',
+                data_type=DT_BOOL,
+                index=5,
+                required=False
+            ),
             PARA_LOAD_OPTIONS: parameter_specification(
                 PARA_LOAD_OPTIONS,
                 name='Load Options',
                 data_type=DT_GROUP,
-                index=5,
+                index=6,
                 required=False
             ),
             PARA_LOAD_OPTION_KEY: parameter_specification(
                 PARA_LOAD_OPTION_KEY,
                 name='Option Key',
                 data_type=DT_STRING,
-                index=6,
+                index=7,
                 #values=['delimeter', 'varchar'],
                 parent=PARA_LOAD_OPTIONS,
                 required=False
@@ -746,7 +769,7 @@ VIZUAL_COMMANDS = {
                 PARA_LOAD_OPTION_VALUE,
                 name='Option Value',
                 data_type=DT_STRING,
-                index=7,
+                index=8,
                 parent=PARA_LOAD_OPTIONS,
                 required=False
             ),               

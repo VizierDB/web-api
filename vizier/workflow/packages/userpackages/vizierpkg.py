@@ -213,10 +213,15 @@ class MimirLens(Module):
                 column_names.append(c_name)
         elif lens == cmd.MIMIR_TYPE_INFERENCE:
             params = [str(get_argument(cmd.PARA_PERCENT_CONFORM, args))]
+        elif lens == cmd.MIMIR_SHAPE_DETECTOR:
+            dseModel = get_argument(cmd.PARA_DSE_MODEL_NAME, args)
+            params = []
+            if not dseModel is None:
+                params = [str(dseModel)]
         else:
             raise ValueError('unknown Mimir lens \'' + str(lens) + '\'')
         # Create Mimir lens
-        if lens in [cmd.MIMIR_SCHEMA_MATCHING, cmd.MIMIR_TYPE_INFERENCE]:
+        if lens in [cmd.MIMIR_SCHEMA_MATCHING, cmd.MIMIR_TYPE_INFERENCE, cmd.MIMIR_SHAPE_DETECTOR]:
             lens_name = mimir._mimir.createAdaptiveSchema(
                 mimir_table_name,
                 mimir._jvmhelper.to_scala_seq(params),
@@ -425,6 +430,17 @@ class MimirLens(Module):
                 format_str(ds_name.lower()),
                 'WITH percent_conform =',
                 str(get_argument(cmd.PARA_PERCENT_CONFORM, args, default_value='?'))
+            ])
+        elif lens == cmd.MIMIR_SHAPE_DETECTOR:
+            # SHAPE DETECTOR FOR <dataset> WITH model_name = <value>
+            dseModel = get_argument(cmd.PARA_DSE_MODEL_NAME, args)
+            withStr = ''
+            if not dseModel is None:
+                withStr = ' '.join(['WITH model_name =', str(dseModel)])
+            return ' '.join([
+                'SHAPE DETECTOR FOR',
+                format_str(ds_name.lower()),
+                withStr
             ])
         # Default message for unknown command.
         return 'unknown Mimir lens \'' + str(lens) + '\''
@@ -894,9 +910,12 @@ class VizualCell(NotCacheable, Module):
             # Get the the load options
             detect_headers = get_argument(cmd.PARA_LOAD_DH, args)
             infer_types = get_argument(cmd.PARA_LOAD_TI, args)
+            datasource_errors = get_argument(cmd.PARA_LOAD_DSE, args)
             load_format = get_argument(cmd.PARA_LOAD_FORMAT, args)
             options = get_argument(cmd.PARA_LOAD_OPTIONS, args)
             m_opts = []
+            if not datasource_errors is None:
+                m_opts.append({'datasourceErrors': 'true'})
             for option in get_argument(cmd.PARA_LOAD_OPTIONS, args):
                 load_opt_key = get_argument(cmd.PARA_LOAD_OPTION_KEY, option)
                 load_opt_val = get_argument(cmd.PARA_LOAD_OPTION_VALUE, option) 
